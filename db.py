@@ -174,29 +174,93 @@ def save_hryak_to_db(key, hryak):
         cursor.close()
         conn.close()
 
-def get_all_hryaky():
-    """Отримує всіх хряків з БД"""
+def load_from_db(hryaky_data, stats_data, warns_data, spam_data, manual_users):
+    """Завантажує всі дані з бази в пам'ять"""
+    global logger
+    import logging
+    logger = logging.getLogger(__name__)
+    
     conn = get_connection()
     if not conn:
-        return {}
+        return
     
     cursor = conn.cursor()
+    
     try:
-        cursor.execute('SELECT key, weight, name, user_id, chat_id FROM hryaky')
+        # Завантажуємо хряків
+        cursor.execute('SELECT key, user_id, chat_id, username, name, weight, last_feed, feed_count, max_weight, created_at, has_lost_weight, max_gain, max_gains_20, fed_on_1st FROM hryaky')
         rows = cursor.fetchall()
-        
-        hryaky = {}
         for row in rows:
-            hryaky[row[0]] = {
-                'weight': row[1],
-                'name': row[2],
-                'user_id': row[3],
-                'chat_id': row[4]
+            key = row[0]
+            hryaky_data[key] = {
+                'user_id': row[1],
+                'chat_id': row[2],
+                'username': row[3],
+                'name': row[4],
+                'weight': row[5],
+                'last_feed': row[6],
+                'feed_count': row[7],
+                'max_weight': row[8],
+                'created_at': row[9],
+                'has_lost_weight': row[10] or False,
+                'max_gain': row[11] or 0,
+                'max_gains_20': row[12] or 0,
+                'fed_on_1st': row[13] or False
             }
-        return hryaky
+        logger.info(f"📦 Завантажено {len(hryaky_data)} хряків з БД")
+        
+        # Завантажуємо статистику
+        cursor.execute('SELECT key, user_id, chat_id, username, count, first_message, last_message FROM stats')
+        rows = cursor.fetchall()
+        for row in rows:
+            key = row[0]
+            stats_data[key] = {
+                'user_id': row[1],
+                'chat_id': row[2],
+                'username': row[3],
+                'count': row[4],
+                'first_message': row[5],
+                'last_message': row[6]
+            }
+        logger.info(f"📊 Завантажено {len(stats_data)} записів статистики з БД")
+        
+        # Завантажуємо попередження
+        cursor.execute('SELECT key, user_id, chat_id, username, warns_json, banned FROM warns')
+        rows = cursor.fetchall()
+        for row in rows:
+            key = row[0]
+            warns_data[key] = {
+                'user_id': row[1],
+                'chat_id': row[2],
+                'username': row[3],
+                'warns': json.loads(row[4]) if row[4] else [],
+                'banned': bool(row[5])
+            }
+        logger.info(f"⚠️ Завантажено {len(warns_data)} записів попереджень з БД")
+        
+        # Завантажуємо спам
+        cursor.execute('SELECT key, messages_json, muted, mute_until FROM spam')
+        rows = cursor.fetchall()
+        for row in rows:
+            key = row[0]
+            spam_data[key] = {
+                'messages': json.loads(row[1]) if row[1] else [],
+                'muted': bool(row[2]),
+                'mute_until': row[3] if row[3] else 0
+            }
+        logger.info(f"🛡️ Завантажено {len(spam_data)} записів спаму з БД")
+        
+        # Завантажуємо ручних юзернеймів
+        cursor.execute('SELECT key, chat_id, users_json FROM manual_users')
+        rows = cursor.fetchall()
+        for row in rows:
+            key = row[0]
+            chat_id = row[1]
+            manual_users[chat_id] = json.loads(row[2]) if row[2] else []
+        logger.info(f"👥 Завантажено {len(manual_users)} чатів з ручними юзернеймами")
+        
     except Exception as e:
-        logger.error(f"❌ Помилка отримання всіх хряків: {e}")
-        return {}
+        logger.error(f"❌ Помилка завантаження з БД: {e}")
     finally:
         cursor.close()
         conn.close()
