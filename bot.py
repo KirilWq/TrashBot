@@ -9,6 +9,17 @@ from telebot import types
 from dotenv import load_dotenv
 from db import init_db, get_hryak_from_db, save_hryak_to_db, save_stats_to_db, save_warns_to_db, save_spam_to_db, save_manual_users_to_db, get_all_hryaky
 
+# Налаштування логгера (ПОВИННО БУТИ ПЕРШИМ!)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('bot.log', encoding='utf-8'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
 # Завантажуємо змінні середовища з .env файлу (для локальної розробки)
 load_dotenv()
 
@@ -23,17 +34,6 @@ if not BOT_TOKEN:
 # Ініціалізація бази даних
 init_db()
 logger.info("✅ База даних підключена")
-
-# Налаштування логгера
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('bot.log', encoding='utf-8'),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
 
 logger.info("=" * 50)
 logger.info("🚀 ЗАПУСК БОТА...")
