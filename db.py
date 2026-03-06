@@ -35,8 +35,8 @@ def init_db():
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS hryaky (
                 key TEXT PRIMARY KEY,
-                user_id INTEGER,
-                chat_id INTEGER,
+                user_id BIGINT,
+                chat_id BIGINT,
                 username TEXT,
                 name TEXT,
                 weight INTEGER,
@@ -55,8 +55,8 @@ def init_db():
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS stats (
                 key TEXT PRIMARY KEY,
-                user_id INTEGER,
-                chat_id INTEGER,
+                user_id BIGINT,
+                chat_id BIGINT,
                 username TEXT,
                 count INTEGER DEFAULT 0,
                 first_message REAL,
@@ -68,8 +68,8 @@ def init_db():
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS warns (
                 key TEXT PRIMARY KEY,
-                user_id INTEGER,
-                chat_id INTEGER,
+                user_id BIGINT,
+                chat_id BIGINT,
                 username TEXT,
                 warns_json TEXT,
                 banned BOOLEAN DEFAULT FALSE
@@ -90,7 +90,7 @@ def init_db():
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS manual_users (
                 key TEXT PRIMARY KEY,
-                chat_id INTEGER,
+                chat_id BIGINT,
                 users_json TEXT
             )
         ''')
