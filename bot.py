@@ -367,7 +367,7 @@ def create_hryak(user_id, chat_id, username):
         'last_feed': 0,
         'feed_count': 0,
         'max_weight': weight,
-        'created_at': time.time()
+        'created_at': int(time.time())
     }
     # Зберігаємо в БД
     save_hryak_to_db(key, hryak)
@@ -1589,7 +1589,7 @@ def help_cmd(message):
 /unmute — розмутити
 
 😈 **Провина (адміни):**
-/provin — дати провину (відповідь + /provin 10)
+/provin — дати провину (в��дповідь + /provin 10)
 /unprovin — зняти провину
 /provinlist — список провинних
 
