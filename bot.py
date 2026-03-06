@@ -1180,11 +1180,35 @@ def menu_callback(call):
             now = time.time()
             time_left = 43200 - (now - hryak['last_feed'])
             if time_left <= 0:
-                text = "🍽️ **Можна годувати!**\n\nНапиши /feed!"
+                # Годуємо хряка
+                result, error = feed_hryak(user_id, chat_id)
+                if result:
+                    change = result['new_weight'] - result['old_weight']
+                    if change > 0:
+                        emoji = "📈"
+                        title = "**Хряк наївся!**"
+                        text_change = f"+{change} кг"
+                    elif change < 0:
+                        emoji = "📉"
+                        title = "**Хряк схуд!**"
+                        text_change = f"{change} кг"
+                    else:
+                        emoji = "➡️"
+                        title = "**Вага не змінилась!**"
+                        text_change = "0 кг"
+                    
+                    text = f"""{emoji} {title}
+
+Вага: {result['old_weight']} → {result['new_weight']} кг ({text_change})
+Всього нагодовано: {result['feed_count']} разів
+
+🐷 {result['hryak']['name']}"""
+                else:
+                    text = "❌ Помилка годування!"
             else:
                 hours = int(time_left / 3600)
                 minutes = int((time_left % 3600) / 60)
-                text = f"⏳ **Ще рано!**\n\nЗалишилось: {hours} год {minutes} хв"
+                text = f"⏳ **Ще рано!**\n\nЗалишилось: {hours} год {minutes} хв\n\n🐷 {hryak['name']}"
     
     elif command == 'my':
         hryak = get_hryak(user_id, chat_id)
