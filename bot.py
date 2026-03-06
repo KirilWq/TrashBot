@@ -7,6 +7,7 @@ import logging
 import sqlite3
 from telebot import types
 from dotenv import load_dotenv
+from db import init_db, get_hryak_from_db, save_hryak_to_db, save_stats_to_db, save_warns_to_db, save_spam_to_db, save_manual_users_to_db, get_all_hryaky
 
 # Завантажуємо змінні середовища з .env файлу (для локальної розробки)
 load_dotenv()
@@ -18,6 +19,10 @@ if not BOT_TOKEN:
     logger.error("❌ ПОМИЛКА: BOT_TOKEN не знайдено в змінних середовища!")
     logger.error("Додай змінну середовища BOT_TOKEN з токеном бота")
     exit(1)
+
+# Ініціалізація бази даних
+init_db()
+logger.info("✅ База даних підключена")
 
 # Налаштування логгера
 logging.basicConfig(
@@ -249,17 +254,10 @@ def save_spam_to_db():
 
 def save_manual_users_to_db():
     """Зберігає ручних юзернеймів в БД"""
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    for chat_id, users in manual_users.items():
-        key = f"manual_{chat_id}"
-        cursor.execute('''
-            INSERT OR REPLACE INTO manual_users 
-            (key, chat_id, users_json)
-            VALUES (?, ?, ?)
-        ''', (key, chat_id, json.dumps(users)))
-    conn.commit()
-    conn.close()
+    try:
+        save_manual_users_to_db_wrapper()
+    except Exception as e:
+        logger.error(f"❌ Помилка збереження юзернеймів: {e}")
 
 # ============================================
 # РУЧНИЙ СПИСОК ЮЗЕРНЕЙМІВ (додай своїх друзів)
@@ -297,12 +295,9 @@ else:
     stats_data = {}
 
 def save_stats():
-    """Зберігає статистику у файл і БД"""
+    """Зберігає статистику в БД"""
     try:
-        with open(STATS_FILE, 'w', encoding='utf-8') as f:
-            json.dump(stats_data, f, ensure_ascii=False, indent=2)
-        # Зберігаємо в БД
-        save_stats_to_db()
+        save_stats_to_db(stats_data)
     except Exception as e:
         logger.error(f"❌ Помилка збереження статистики: {e}")
 
@@ -344,12 +339,9 @@ else:
     warns_data = {}
 
 def save_warns():
-    """Зберігає попередження у файл і БД"""
+    """Зберігає попередження в БД"""
     try:
-        with open(WARNS_FILE, 'w', encoding='utf-8') as f:
-            json.dump(warns_data, f, ensure_ascii=False, indent=2)
-        # Зберігаємо в БД
-        save_warns_to_db()
+        save_warns_to_db(warns_data)
     except Exception as e:
         logger.error(f"❌ Помилка збереження попереджень: {e}")
 
@@ -421,12 +413,9 @@ else:
     spam_data = {}
 
 def save_spam():
-    """Зберігає спам дані у файл і БД"""
+    """Зберігає спам дані в БД"""
     try:
-        with open(SPAM_FILE, 'w', encoding='utf-8') as f:
-            json.dump(spam_data, f, ensure_ascii=False, indent=2)
-        # Зберігаємо в БД
-        save_spam_to_db()
+        save_spam_to_db(spam_data)
     except Exception as e:
         logger.error(f"❌ Помилка збереження спаму: {e}")
 
@@ -556,14 +545,8 @@ else:
     hryaky_data = {}
 
 def save_hryaky():
-    """Зберігає дані хряків у файл і БД"""
+    """Зберігає дані хряків у БД"""
     try:
-        # Зберігаємо в JSON (для сумісності)
-        with open(HRYAK_FILE, 'w', encoding='utf-8') as f:
-            json.dump(hryaky_data, f, ensure_ascii=False, indent=2)
-        logger.debug(f"💾 Збережено {len(hryaky_data)} хряків у {HRYAK_FILE}")
-        
-        # Зберігаємо кожного хряка в БД
         for key, hryak in hryaky_data.items():
             save_hryak_to_db(key, hryak)
         logger.debug(f"💾 Збережено {len(hryaky_data)} хряків в БД")
@@ -573,9 +556,11 @@ def save_hryaky():
 def get_hryak(user_id, chat_id):
     """Отримує хряка користувача"""
     key = f"{chat_id}_{user_id}"
-    hryak = hryaky_data.get(key)
+    hryak = get_hryak_from_db(key)
     if hryak:
         logger.debug(f"🐗 Знайдено хряка для {key}: {hryak['name']}")
+        # Зберігаємо в кеш
+        hryaky_data[key] = hryak
     else:
         logger.debug(f"❌ Не знайдено хряка для {key}")
     return hryak
@@ -774,17 +759,17 @@ def feed_hryak_cmd(message):
         # Перевіряємо досягнення
         unlocked = []
         hryak = result['hryak']
-        
-        if change < 0 and not hryak.get('has_lost_weight'):
+
+        if actual_change < 0 and not hryak.get('has_lost_weight'):
             hryak['has_lost_weight'] = True
             unlocked.append('oy')
-        
-        if change == 20:
+
+        if actual_change == 20:
             hryak['max_gain'] = max(hryak.get('max_gain', 0), 20)
             if hryak.get('max_gain', 0) >= 20:
                 unlocked.append('monster')
         
-        if change == 20:
+        if actual_change == 20:
             hryak['max_gains_20'] = hryak.get('max_gains_20', 0) + 1
             if hryak['max_gains_20'] >= 5:
                 unlocked.append('kormilets')
@@ -822,17 +807,21 @@ def my_hryak(message):
         if not hryak:
             bot.reply_to(message, "❌ У тебе ще немає хряка! Введи /grow")
             return
-        
+
         # Час до наступного годування
         now = time.time()
-        time_left = 86400 - (now - hryak['last_feed'])
-        if time_left <= 0:
+        # Якщо last_feed = 0, значить ще не годував
+        if hryak['last_feed'] == 0:
             feed_status = "✅ Можна годувати!"
         else:
-            hours = int(time_left / 3600)
-            minutes = int((time_left % 3600) / 60)
-            feed_status = f"⏳ Ще {hours} год {minutes} хв"
-        
+            time_left = 43200 - (now - hryak['last_feed'])  # 12 годин
+            if time_left <= 0:
+                feed_status = "✅ Можна годувати!"
+            else:
+                hours = int(time_left / 3600)
+                minutes = int((time_left % 3600) / 60)
+                feed_status = f"⏳ Ще {hours} год {minutes} хв"
+
         text = f"""🐷 **{hryak['name']}**
 
 ⚖️ Вага: {hryak['weight']} кг
@@ -1178,8 +1167,9 @@ def menu_callback(call):
             text = "❌ Спочатку отримай хряка (/grow)!"
         else:
             now = time.time()
-            time_left = 43200 - (now - hryak['last_feed'])
-            if time_left <= 0:
+            
+            # Якщо last_feed = 0, значить ще не годував — можна годувати
+            if hryak['last_feed'] == 0:
                 # Годуємо хряка
                 result, error = feed_hryak(user_id, chat_id)
                 if result:
@@ -1206,20 +1196,65 @@ def menu_callback(call):
                 else:
                     text = "❌ Помилка годування!"
             else:
-                hours = int(time_left / 3600)
-                minutes = int((time_left % 3600) / 60)
-                text = f"⏳ **Ще рано!**\n\nЗалишилось: {hours} год {minutes} хв\n\n🐷 {hryak['name']}"
+                time_left = 43200 - (now - hryak['last_feed'])
+                if time_left <= 0:
+                    # Годуємо хряка
+                    result, error = feed_hryak(user_id, chat_id)
+                    if result:
+                        change = result['new_weight'] - result['old_weight']
+                        if change > 0:
+                            emoji = "📈"
+                            title = "**Хряк наївся!**"
+                            text_change = f"+{change} кг"
+                        elif change < 0:
+                            emoji = "📉"
+                            title = "**Хряк схуд!**"
+                            text_change = f"{change} кг"
+                        else:
+                            emoji = "➡️"
+                            title = "**Вага не змінилась!**"
+                            text_change = "0 кг"
+                        
+                        text = f"""{emoji} {title}
+
+Вага: {result['old_weight']} → {result['new_weight']} кг ({text_change})
+Всього нагодовано: {result['feed_count']} разів
+
+🐷 {result['hryak']['name']}"""
+                    else:
+                        text = "❌ Помилка годування!"
+                else:
+                    hours = int(time_left / 3600)
+                    minutes = int((time_left % 3600) / 60)
+                    text = f"⏳ **Ще рано!**\n\nЗалишилось: {hours} год {minutes} хв\n\n🐷 {hryak['name']}"
     
     elif command == 'my':
         hryak = get_hryak(user_id, chat_id)
         if not hryak:
             text = "❌ У тебе немає хряка! Напиши /grow"
         else:
+            now = time.time()
+            # Якщо last_feed = 0, значить ще не годував
+            if hryak['last_feed'] == 0:
+                feed_status = "✅ Можна годувати!"
+            else:
+                time_left = 43200 - (now - hryak['last_feed'])
+                if time_left <= 0:
+                    feed_status = "✅ Можна годувати!"
+                else:
+                    hours = int(time_left / 3600)
+                    minutes = int((time_left % 3600) / 60)
+                    feed_status = f"⏳ Ще {hours} год {minutes} хв"
+            
             text = f"""🐷 **{hryak['name']}**
 
 ⚖️ Вага: {hryak['weight']} кг
 🏆 Максимальна: {hryak['max_weight']} кг
-🍽️ Нагодовано: {hryak['feed_count']} разів"""
+🍽️ Нагодовано: {hryak['feed_count']} разів
+🕐 Годування: {feed_status}
+
+/feed - нагодувати (раз на 12 год)
+/name - змінити ім'я"""
     
     elif command == 'top':
         chat_hryaky = sorted(hryaky_data.values(), key=lambda x: x['weight'], reverse=True)[:5]
@@ -1556,7 +1591,7 @@ RATE_COMMENTS = {
     3: "3/10. Ти старався, але не дуже.",
     4: "4/10. Хоча б не одиниця, вже добре.",
     5: "5/10. Золота середина для сірої мишки.",
-    6: "6/10. Нормально, але могло б бути гірше.",
+    6: "6/10. Нормально, але могл�� б бути гірше.",
     7: "7/10. Ого, ти майже людина!",
     8: "8/10. Ти сьогодні виглядаєш як людина, а не як помилка.",
     9: "9/10. Майже ідеал, але до ідеалу ще далеко.",
@@ -1565,16 +1600,16 @@ RATE_COMMENTS = {
 
 # Команда /whosgay
 GAY_REASONS = [
-    "бо він носить рожеві шкарпетки",
+    "бо він носить рожеві шкарпет��и",
     "бо він слухає Брітні Спірс",
     "бо він вміє готувати",
     "бо він ходить в душ щодня",
     "бо він знає що таке skincare",
     "бо він не пахне як підвал",
-    "бо він вміє одягатися",
+    "бо він вм��є одягатися",
     "бо він не ходить в майці-алкоголичці",
     "бо він дивиться російські серіали",
-    "бо він любить піци з ананасами",
+    "бо він любит�� піци з ананасами",
     "бо він пише з великої літери",
     "бо він ходить в спортзал",
 ]

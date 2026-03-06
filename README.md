@@ -36,7 +36,10 @@ BOT_TOKEN=1234567890:AAHb8rbzBqD8xpgFLAUSyTCsc6-uSdc1NkY
 Dashboard → Environment → Add Variable:
 ```
 BOT_TOKEN=1234567890:AAHb8rbzBqD8xpgFLAUSyTCsc6-uSdc1NkY
+DATABASE_URL=postgresql://user:password@ep-xxx-xxx.eu-central-1.pg.postgres.render.com:5432/trashbot
 ```
+
+**Важливо:** Без `DATABASE_URL` дані будуть зникати при кожному рестарті!
 
 ### 4. Готово! 🎉
 
