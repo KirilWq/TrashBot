@@ -7,7 +7,7 @@ import logging
 import sqlite3
 from telebot import types
 from dotenv import load_dotenv
-from db import init_db, load_from_db, get_hryak_from_db, save_hryak_to_db, save_stats_to_db, save_warns_to_db, save_spam_to_db, save_manual_users_to_db
+from db import init_db, load_from_db, save_hryak_to_db, save_stats_to_db, save_warns_to_db, save_spam_to_db, save_manual_users_to_db
 
 # Налаштування логгера (ПОВИННО БУТИ ПЕРШИМ!)
 logging.basicConfig(
