@@ -1,0 +1,43 @@
+# Python
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Logs
+*.log
+logs/
+
+# Database files (локальні, на сервері будуть інші)
+*.db
+*.sqlite
+*.sqlite3
+!bot_database.db
+
+# JSON data files (локальні)
+*.json
+!requirements.txt
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Bot token (ніколи не зберігай токен в Git!)
+token.txt
+config.py
