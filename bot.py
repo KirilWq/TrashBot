@@ -7,7 +7,7 @@ import logging
 import sqlite3
 from telebot import types
 from dotenv import load_dotenv
-from db import init_db, load_from_db, save_hryak_to_db, save_stats_to_db, save_warns_to_db, save_spam_to_db, save_manual_users_to_db
+from db import init_db, load_from_db, save_hryak_to_db, save_stats_to_db, save_warns_to_db, save_spam_to_db, save_manual_users_to_db, get_hryak_from_db
 
 # Налаштування логгера (ПОВИННО БУТИ ПЕРШИМ!)
 logging.basicConfig(
@@ -46,146 +46,7 @@ bot.enable_save_next_step_handlers()
 
 logger.info(f"✅ Бот ініціалізований з токеном: {BOT_TOKEN[:20]}...")
 
-# ============================================
-# БАЗА ДАНИХ SQLITE
-# ============================================
-DB_FILE = "bot_database.db"
 
-def init_database():
-    """Ініціалізація бази даних"""
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    
-    # Таблиця хряків
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS hryaky (
-            key TEXT PRIMARY KEY,
-            user_id INTEGER,
-            chat_id INTEGER,
-            username TEXT,
-            name TEXT,
-            weight INTEGER,
-            last_feed INTEGER,
-            feed_count INTEGER,
-            max_weight INTEGER,
-            created_at REAL,
-            has_lost_weight BOOLEAN DEFAULT 0,
-            max_gain INTEGER DEFAULT 0,
-            max_gains_20 INTEGER DEFAULT 0,
-            fed_on_1st BOOLEAN DEFAULT 0
-        )
-    ''')
-    
-    # Таблиця статистики
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS stats (
-            key TEXT PRIMARY KEY,
-            user_id INTEGER,
-            chat_id INTEGER,
-            username TEXT,
-            count INTEGER DEFAULT 0,
-            first_message REAL,
-            last_message REAL
-        )
-    ''')
-    
-    # Таблиця попереджень
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS warns (
-            key TEXT PRIMARY KEY,
-            user_id INTEGER,
-            chat_id INTEGER,
-            username TEXT,
-            warns_json TEXT,
-            banned BOOLEAN DEFAULT 0
-        )
-    ''')
-    
-    # Таблиця спаму
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS spam (
-            key TEXT PRIMARY KEY,
-            messages_json TEXT,
-            muted BOOLEAN DEFAULT 0,
-            mute_until REAL
-        )
-    ''')
-    
-    # Таблиця ручних юзернеймів
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS manual_users (
-            key TEXT PRIMARY KEY,
-            chat_id INTEGER,
-            users_json TEXT
-        )
-    ''')
-    
-    conn.commit()
-    conn.close()
-    logger.info(f"✅ База даних {DB_FILE} ініціалізована")
-
-def save_hryak_to_db(key, hryak):
-    """Зберігає хряка в БД"""
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT OR REPLACE INTO hryaky 
-        (key, user_id, chat_id, username, name, weight, last_feed, feed_count, max_weight, created_at, has_lost_weight, max_gain, max_gains_20, fed_on_1st)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (
-        key, hryak['user_id'], hryak['chat_id'], hryak['username'], hryak['name'],
-        hryak['weight'], hryak['last_feed'], hryak['feed_count'], hryak['max_weight'],
-        hryak['created_at'], hryak.get('has_lost_weight', False), hryak.get('max_gain', 0),
-        hryak.get('max_gains_20', 0), hryak.get('fed_on_1st', False)
-    ))
-    conn.commit()
-    conn.close()
-
-def save_stats_to_db():
-    """Зберігає всю статистику в БД"""
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    for key, data in stats_data.items():
-        cursor.execute('''
-            INSERT OR REPLACE INTO stats 
-            (key, user_id, chat_id, username, count, first_message, last_message)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (key, data['user_id'], data['chat_id'], data['username'], data['count'], data['first_message'], data['last_message']))
-    conn.commit()
-    conn.close()
-
-def save_warns_to_db():
-    """Зберігає всі попередження в БД"""
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    for key, data in warns_data.items():
-        cursor.execute('''
-            INSERT OR REPLACE INTO warns 
-            (key, user_id, chat_id, username, warns_json, banned)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (key, data['user_id'], data['chat_id'], data['username'], json.dumps(data['warns']), data['banned']))
-    conn.commit()
-    conn.close()
-
-def save_spam_to_db():
-    """Зберігає всі спам дані в БД"""
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    for key, data in spam_data.items():
-        cursor.execute('''
-            INSERT OR REPLACE INTO spam 
-            (key, messages_json, muted, mute_until)
-            VALUES (?, ?, ?, ?)
-        ''', (key, json.dumps(data['messages']), data['muted'], data['mute_until']))
-    conn.commit()
-    conn.close()
-
-def save_manual_users_to_db():
-    """Зберігає ручних юзернеймів в БД"""
-    try:
-        save_manual_users_to_db_wrapper()
-    except Exception as e:
-        logger.error(f"❌ Помилка збереження юзернеймів: {e}")
 
 # ============================================
 # РУЧНИЙ СПИСОК ЮЗЕРНЕЙМІВ (додай своїх друзів)
