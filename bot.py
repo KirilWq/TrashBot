@@ -548,7 +548,7 @@ else:
     hryaky_data = {}
 
 def save_hryaky():
-    """Зберігає дані хряків у БД"""
+    """Зберігає всі зміни хряків в БД"""
     try:
         for key, hryak in hryaky_data.items():
             save_hryak_to_db(key, hryak)
@@ -572,7 +572,7 @@ def create_hryak(user_id, chat_id, username):
     """Створює нового хряка"""
     key = f"{chat_id}_{user_id}"
     weight = random.randint(1, 20)
-    hryaky_data[key] = {
+    hryak = {
         'user_id': user_id,
         'chat_id': chat_id,
         'username': username,
@@ -583,20 +583,25 @@ def create_hryak(user_id, chat_id, username):
         'max_weight': weight,
         'created_at': time.time()
     }
-    save_hryaky()
+    # Зберігаємо в БД
+    save_hryak_to_db(key, hryak)
+    # Додаємо в кеш
+    hryaky_data[key] = hryak
     logger.info(f"✅ Створено хряка: {key}, вага={weight}")
-    return hryaky_data[key]
+    return hryak
 
 def feed_hryak(user_id, chat_id):
     """Годує хряка (раз на 12 годин)"""
     key = f"{chat_id}_{user_id}"
     logger.debug(f"🍽️ Спроба годування: {key}")
+
+    # Отримуємо хряка з БД (не з кешу!)
+    hryak = get_hryak(user_id, chat_id)
     
-    if key not in hryaky_data:
+    if not hryak:
         logger.warning(f"❌ Немає хряка для {key}")
         return None, "У тебе ще немає хряка! Введи /grow щоб отримати."
-
-    hryak = hryaky_data[key]
+    
     now = time.time()
 
     # Перевіряємо чи пройшло 12 годин (або це перше годування)
@@ -1604,9 +1609,9 @@ RATE_COMMENTS = {
 # Команда /whosgay
 GAY_REASONS = [
     "бо він носить рожеві шкарпет��и",
-    "бо він слухає Брітні Спірс",
+    "бо він слухає Брі��ні Спірс",
     "бо він вміє готувати",
-    "бо він ходить в душ щодня",
+    "бо він ходить в ��уш щ��д��я",
     "бо він знає що таке skincare",
     "бо він не пахне як підвал",
     "бо він вміє одягатися",
