@@ -1,4 +1,4 @@
-import psycopg
+import psycopg2
 import os
 import json
 import time
@@ -16,7 +16,7 @@ def get_connection():
         return None
     
     try:
-        conn = psycopg.connect(DATABASE_URL)
+        conn = psycopg2.connect(DATABASE_URL)
         return conn
     except Exception as e:
         logger.error(f"❌ Помилка підключення до БД: {e}")
