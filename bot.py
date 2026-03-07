@@ -1591,7 +1591,7 @@ TOP_CATEGORIES = [
     "найбільший підор",
     "найбільший гей",
     "найбільший лох",
-    "на������більший бич",
+    "на��������більший бич",
     "найбільший алкаш",
     "найбільший наркоман",
     "найбільший псих",
@@ -2771,27 +2771,30 @@ def keep_alive():
         render_url = f'http://0.0.0.0:{port}'
     
     logger.info(f"🌍 Render URL: {render_url}")
-    logger.info(f"🔄 Keep-alive увімкнено")
+    logger.info(f"🔄 Keep-alive увімкнено (інтервал 2 хв)")
     
+    ping_count = 0
     while True:
         try:
-            # Робимо запит кожні 4 хвилини (менше ніж 5 хв таймаут Render)
-            time.sleep(240)  # 4 хвилини
+            # Робимо запит кожні 2 хвилини (менше ніж 5 хв таймаут Render)
+            time.sleep(120)  # 2 хвилини
+            ping_count += 1
             
             # Пробуємо різні ендпоінти
             endpoints = ['/ping', '/health', '/api/status']
             for endpoint in endpoints:
                 try:
                     url = f"{render_url}{endpoint}"
-                    urllib.request.urlopen(url, timeout=5)
-                    logger.debug(f"💓 Keep-alive ping: {endpoint} ✓")
+                    req = urllib.request.Request(url, headers={'User-Agent': 'Render-KeepAlive/1.0'})
+                    response = urllib.request.urlopen(req, timeout=5)
+                    logger.info(f"💓 Keep-alive #{ping_count}: {endpoint} ✓ ({response.status})")
                     break
                 except Exception as e:
                     logger.debug(f"⚠️ {endpoint} помилка: {e}")
                     continue
                     
         except Exception as e:
-            logger.debug(f"⚠️ Keep-alive помилка: {e}")
+            logger.error(f"❌ Keep-alive помилка: {e}")
 
 # Запускаємо keep-alive в окремому потоці
 keep_alive_thread = Thread(target=keep_alive, daemon=True)
