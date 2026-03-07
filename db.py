@@ -39,14 +39,14 @@ def init_db():
                 chat_id BIGINT,
                 username TEXT,
                 name TEXT,
-                weight INTEGER,
-                last_feed INTEGER,
-                feed_count INTEGER,
-                max_weight INTEGER,
-                created_at REAL,
+                weight BIGINT,
+                last_feed BIGINT,
+                feed_count BIGINT,
+                max_weight BIGINT,
+                created_at BIGINT,
                 has_lost_weight BOOLEAN DEFAULT FALSE,
-                max_gain INTEGER DEFAULT 0,
-                max_gains_20 INTEGER DEFAULT 0,
+                max_gain BIGINT DEFAULT 0,
+                max_gains_20 BIGINT DEFAULT 0,
                 fed_on_1st BOOLEAN DEFAULT FALSE
             )
         ''')
@@ -58,9 +58,9 @@ def init_db():
                 user_id BIGINT,
                 chat_id BIGINT,
                 username TEXT,
-                count INTEGER DEFAULT 0,
-                first_message REAL,
-                last_message REAL
+                count BIGINT DEFAULT 0,
+                first_message BIGINT,
+                last_message BIGINT
             )
         ''')
         
@@ -82,7 +82,7 @@ def init_db():
                 key TEXT PRIMARY KEY,
                 messages_json TEXT,
                 muted BOOLEAN DEFAULT FALSE,
-                mute_until REAL
+                mute_until BIGINT
             )
         ''')
         

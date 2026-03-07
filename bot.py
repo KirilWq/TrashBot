@@ -99,11 +99,11 @@ def add_message(chat_id, user_id, username):
             'chat_id': chat_id,
             'username': username,
             'count': 0,
-            'first_message': time.time(),
-            'last_message': time.time()
+            'first_message': int(time.time()),
+            'last_message': int(time.time())
         }
     stats_data[key]['count'] += 1
-    stats_data[key]['last_message'] = time.time()
+    stats_data[key]['last_message'] = int(time.time())
     stats_data[key]['username'] = username
     save_stats()
 
@@ -148,7 +148,7 @@ def add_warn(chat_id, user_id, username, reason):
     
     warns_data[key]['warns'].append({
         'reason': reason,
-        'time': time.time(),
+        'time': int(time.time()),
         'by': 'admin'
     })
     save_warns()
@@ -211,22 +211,22 @@ def save_spam():
 def check_spam(chat_id, user_id):
     """Перевіряє на спам (5 повідомлень за 10 секунд)"""
     key = f"{chat_id}_{user_id}"
-    now = time.time()
-    
+    now = int(time.time())
+
     if key not in spam_data:
         spam_data[key] = {'messages': [], 'muted': False, 'mute_until': 0}
-    
+
     # Очищаємо старі повідомлення (старше 10 сек)
     spam_data[key]['messages'] = [t for t in spam_data[key]['messages'] if now - t < 10]
     spam_data[key]['messages'].append(now)
-    
+
     # Якщо більше 5 повідомлень за 10 сек
     if len(spam_data[key]['messages']) >= 5:
         spam_data[key]['muted'] = True
         spam_data[key]['mute_until'] = now + 60  # Мут на 1 хвилину
         save_spam()
         return True
-    
+
     save_spam()
     return False
 
@@ -235,16 +235,16 @@ def is_spam_muted(chat_id, user_id):
     key = f"{chat_id}_{user_id}"
     if key not in spam_data:
         return False, 0
-    
-    now = time.time()
+
+    now = int(time.time())
     if spam_data[key].get('muted') and now < spam_data[key].get('mute_until', 0):
         return True, int(spam_data[key]['mute_until'] - now)
-    
+
     # Знімаємо мут
     if spam_data[key].get('muted'):
         spam_data[key]['muted'] = False
         save_spam()
-    
+
     return False, 0
 
 # ============================================
@@ -278,7 +278,7 @@ def create_duel(chat_id, challenger_id, challenger_hryak):
         'opponent_hryak': None,
         'status': 'waiting',  # waiting, accepted, finished
         'message_id': None,
-        'created_at': time.time()
+        'created_at': int(time.time())
     }
     save_duels()
     return duel_id
@@ -1589,7 +1589,7 @@ def help_cmd(message):
 /unmute — розмутити
 
 😈 **Провина (адміни):**
-/provin — дати провину (в��дповідь + /provin 10)
+/provin — дати прови��у (в��дповідь + /provin 10)
 /unprovin — зняти провину
 /provinlist — список провинних
 
@@ -2553,6 +2553,7 @@ load_from_db(hryaky_data, stats_data, warns_data, spam_data, manual_users)
 try:
     bot.set_chat_menu_button(
         menu_button=types.MenuButtonWebApp(
+            type="web_app",
             text="📋 Меню",
             web_app=types.WebAppInfo(url="https://t.me/trash1161_bot?start=menu")
         )
