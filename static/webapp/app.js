@@ -503,10 +503,15 @@ function loadGlobalLeaderboard() {
 }
 
 function openCommand(command) {
-    // Open command using Telegram WebApp API
-    // Use tg.openTelegramLink instead of direct URL
+    // Use bot username from window object
+    const botUsername = window.BOT_USERNAME || 'bot';
     const commandPath = command.substring(1); // Remove '/'
-    tg.openTelegramLink(`?start=${commandPath}`);
+    const url = `https://t.me/${botUsername}?start=${commandPath}`;
+    
+    console.log('Opening command:', url);
+    
+    // Use tg.openLink which is more reliable
+    tg.openLink(url);
 }
 
 // Bottom nav buttons handlers
