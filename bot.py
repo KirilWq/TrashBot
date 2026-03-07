@@ -1607,7 +1607,7 @@ def duelteambattle_cmd(message):
         
         text = f"""⚔️ **КОМАНДНА ДУЕЛЬ**
 
-🐗 {hryak['name']} ({hryak['weight']} кг) створює к��манду!
+🐗 {hryak['name']} ({hryak['weight']} кг) створює к��������манду!
 
 Щоб приєднатися, натисни кнопку нижче.
 Перший до 3 гравців формує команду 1.
@@ -5195,6 +5195,11 @@ def boss_cmd(message):
                 bot.reply_to(message, text, parse_mode="Markdown")
             
             elif action == 'attack':
+                # Перевіряємо чи бос ще активний
+                if not boss.get('is_active', True):
+                    bot.reply_to(message, "🐲 **Бос вже переможений!**\n\nНаступний з'явиться через 24 години.")
+                    return
+
                 hryak = get_hryak(user_id, chat_id)
                 if not hryak:
                     bot.reply_to(message, "❌ У тебе немає хряка! Введи /grow")
@@ -5982,6 +5987,46 @@ def api_buy_skin():
         logger.error(f"API /buy-skin error: {e}", exc_info=True)
         return jsonify({'success': False, 'message': str(e)}), 500
 
+@flask_app.route('/api/webapp/equip-skin', methods=['POST'])
+def api_equip_skin():
+    """Одягнути скін"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        skin_name = data.get('skin_name')
+        chat_id = data.get('chat_id')
+        
+        # Fix chat_id - use -1 if 0, None, or missing
+        if not chat_id or chat_id == 0:
+            chat_id = -1
+        
+        logger.info(f"Equip skin: user_id={user_id}, chat_id={chat_id}, skin_name={skin_name}")
+
+        if not user_id or not skin_name:
+            return jsonify({'success': False, 'message': 'Missing parameters'}), 400
+
+        # Get skin
+        skin = get_skin_by_name(skin_name)
+
+        if not skin:
+            return jsonify({'success': False, 'message': 'Skin not found'}), 404
+
+        # Check if has - use correct chat_id
+        has = has_skin(user_id, chat_id, skin['id'])
+        logger.info(f"Has skin {skin_name}: {has}")
+        
+        if not has:
+            return jsonify({'success': False, 'message': 'You do not own this skin'}), 400
+
+        # Equip
+        equip_skin(user_id, chat_id, skin['id'])
+        logger.info(f"Skin equipped: {skin_name}")
+
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        logger.error(f"API /equip-skin error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 @flask_app.route('/api/webapp/use-item', methods=['POST'])
 def api_use_item():
     """Використати предмет"""
@@ -5990,12 +6035,12 @@ def api_use_item():
         user_id = data.get('user_id')
         item_id = data.get('item_id')
         chat_id = data.get('chat_id', 0)
-        
+
         if not user_id or not item_id:
             return jsonify({'success': False, 'message': 'Missing parameters'}), 400
-        
+
         # TODO: Implement item usage logic
-        
+
         return jsonify({'success': True}), 200
     except Exception as e:
         logger.error(f"API /use-item error: {e}")

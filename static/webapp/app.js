@@ -536,8 +536,32 @@ function loadGlobalLeaderboard() {
 }
 
 async function openCommand(command) {
-    // Just show the command and let user type it manually
-    tg.showAlert(`Команда: ${command}\n\nВведіть її в чаті з ботом`);
+    // Execute command via API
+    try {
+        const commandPath = command.startsWith('/') ? command.substring(1) : command;
+        
+        const response = await fetch(`${API_BASE}/execute`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                user_id: userData.id,
+                chat_id: userData.chat_id || -1,
+                command: commandPath
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            tg.showAlert(`${command}\n\n✅ ${data.message || 'Виконано!'}`);
+            loadUserData();
+        } else {
+            tg.showAlert(`${command}\n\n❌ ${data.message || 'Помилка!'}`);
+        }
+    } catch (error) {
+        console.error('Error executing command:', error);
+        tg.showAlert(`${command}\n\n❌ Помилка виконання`);
+    }
 }
 
 // Bottom nav buttons handlers
