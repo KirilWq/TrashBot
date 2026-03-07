@@ -1306,6 +1306,8 @@ HARD_INSULTS = [
     "ти мізки проїв",
     "ти життя злив",
     "ти все просрав",
+    "ти син шлюхи",
+    "ти хуєсос"
 ]
 
 # Ображання для /insult
@@ -1396,10 +1398,10 @@ RATE_COMMENTS = {
 
 # Команда /whosgay
 GAY_REASONS = [
-    "бо він носить рожеві шкарпет��и",
-    "бо він слухає Брі��ні Спірс",
+    "бо він носить рожеві шкарпетки",
+    "бо він слухає Брітні Спірс",
     "бо він вміє готувати",
-    "бо він ходить в ��уш щ��д��я",
+    "бо він ходить в душ щодня",
     "бо він знає що таке skincare",
     "бо він не пахне як підвал",
     "бо він вміє одягатися",
@@ -1590,8 +1592,8 @@ def help_cmd(message):
 /mute — замути (відповідь + /mute 10)
 /unmute — розмутити
 
-😈 **Провин���� (адміни):**
-/provin — дати прови��у (в��дповідь + /provin 10)
+😈 **Провини (адміни):**
+/provin — дати провину (відповідь + /provin 10)
 /unprovin — зняти провину
 /provinlist — список провинних
 
@@ -1732,7 +1734,7 @@ def mute_user(message):
         target_id = user.id
         target_name = f"@{user.username}" if user.username else user.first_name
     else:
-        bot.reply_to(message, "❌ Відповідай на повідомлення з командою /mute!\n\nПриклад:\n/mute 10 (відповідь на пов��домлення)")
+        bot.reply_to(message, "❌ Відповідай на повідомлення з командою /mute!\n\nПриклад:\n/mute 10 (відповідь на повідомлення)")
         return
 
     # Не можна замутити самого себе або бота
@@ -1824,7 +1826,7 @@ def provin_user(message):
 
     # Перевіряємо чи адмін
     if not is_admin(chat_id, user_id):
-        bot.reply_to(message, "❌ Ця команда тільки для а��міністраторів!")
+        bot.reply_to(message, "❌ Ця команда тільки для адміністраторів!")
         return
 
     # Отримуємо користувача з reply
@@ -2157,7 +2159,7 @@ def stats_cmd(message):
     chat_stats = get_chat_stats(chat_id)
     
     if not chat_stats:
-        bot.reply_to(message, "📭 Ще немає статистики в цьому ��аті!")
+        bot.reply_to(message, "📭 Ще немає статистики в цьому чаті!")
         return
     
     total_messages = sum(s['count'] for s in chat_stats)
