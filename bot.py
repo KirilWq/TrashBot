@@ -1642,10 +1642,10 @@ def help_cmd(message):
 /feed — нагодувати хряка (раз на 12 год)
 /my — показати свого хряка
 /name — змінити ім'я хряка
-/hryaketop — топ хряків
+/hryaketop — топ хряків чату
+/globaltop — глобальний топ хряків (всі чати)
 /achievements — досягнення
 /duel — виклик на дуель (inline) чату
-/achievements — досягнення
 
 📊 **Статистика:**
 /stats — статистика чату
@@ -2697,47 +2697,49 @@ def query_main_menu(inline_query):
     """Головне inline меню - показує хряка користувача"""
     user_id = inline_query.from_user.id
     chat_type = inline_query.from_user.id
-    
+
     hryak = get_hryak(user_id, chat_type)
-    
+
     # Створюємо inline кнопки
-    markup = types.InlineKeyboardMarkup(row_width=2)
-    
+    markup = types.InlineKeyboardMarkup(row_width=3)
+
     # Кнопки гри
     btn_grow = types.InlineKeyboardButton("🐷 Отримати хряка", switch_inline_query="grow")
     btn_feed = types.InlineKeyboardButton("🍽️ Нагодувати", switch_inline_query="feed")
     btn_my = types.InlineKeyboardButton("📊 Мій хряк", switch_inline_query="my")
-    btn_top = types.InlineKeyboardButton("🏆 Топ хряків", switch_inline_query="top")
-    
+    btn_name = types.InlineKeyboardButton("✏️ Ім'я", switch_inline_query="name")
+    btn_top = types.InlineKeyboardButton("🏆 Топ чату", switch_inline_query="top")
+    btn_globaltop = types.InlineKeyboardButton("🌍 Глоб топ", switch_inline_query="globaltop")
+
     # Кнопки дуелей
     btn_duel = types.InlineKeyboardButton("⚔️ Дуель", switch_inline_query="duel")
     btn_achievements = types.InlineKeyboardButton("🏅 Досягнення", switch_inline_query="achievements")
-    
+
     # Кнопки розваг
     btn_pidor = types.InlineKeyboardButton("🎯 Підор", switch_inline_query="pidor")
     btn_roast = types.InlineKeyboardButton("🔥 Roast", switch_inline_query="roast")
     btn_fortune = types.InlineKeyboardButton("🔮 Передбачення", switch_inline_query="fortune")
     btn_rate = types.InlineKeyboardButton("⭐ Оцінка", switch_inline_query="rate")
-    
-    markup.add(btn_grow, btn_feed)
-    markup.add(btn_my, btn_top)
+
+    markup.add(btn_grow, btn_feed, btn_my)
+    markup.add(btn_name, btn_top, btn_globaltop)
     markup.add(btn_duel, btn_achievements)
     markup.add(btn_pidor, btn_roast)
     markup.add(btn_fortune, btn_rate)
-    
+
     if hryak:
         header = f"🐷 Твій хряк: {hryak['name']} ({hryak['weight']} кг)\n\n"
     else:
         header = "❌ У тебе немає хряка! Отримай командою /grow\n\n"
-    
+
     # Головна кнопка з хряком
     results = []
-    
+
     if hryak:
         # Додаємо хряка як перший результат
         hryak_markup = types.InlineKeyboardMarkup()
         hryak_markup.add(types.InlineKeyboardButton("⚔️ Виклик на дуель", callback_data=f"duel_accept_{user_id}_{hryak['weight']}"))
-        
+
         results.append(
             types.InlineQueryResultArticle(
                 id='hryak',
@@ -2757,7 +2759,7 @@ def query_main_menu(inline_query):
                 reply_markup=hryak_markup
             )
         )
-    
+
     results.append(
         types.InlineQueryResultArticle(
             id='1',
@@ -2772,7 +2774,7 @@ def query_main_menu(inline_query):
             reply_markup=markup
         )
     )
-    
+
     bot.answer_inline_query(inline_query.id, results, cache_time=30)
 
 
@@ -2913,28 +2915,74 @@ def query_top_inline(inline_query):
     chat_hryaky = []
     for key, hryak in hryaky_data.items():
         chat_hryaky.append(hryak)
-    
+
     chat_hryaky.sort(key=lambda x: x['weight'], reverse=True)
     top_count = min(5, len(chat_hryaky))
-    
+
     if not chat_hryaky:
         text = "📭 У цьому чаті ще немає хряків!"
     else:
-        text = "🏆 **ТОП ХРЯКІВ**\n\n"
+        text = "🏆 **ТОП ХРЯКІВ ЧАТУ**\n\n"
         emojis = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
         for i, hryak in enumerate(chat_hryaky[:top_count]):
             emoji = emojis[i] if i < 5 else f"{i+1}."
             text += f"{emoji} {hryak['name']} - {hryak['weight']} кг\n"
-    
+
     markup = types.InlineKeyboardMarkup()
     btn = types.InlineKeyboardButton("🔄 Оновити", switch_inline_query="top")
     markup.add(btn)
-    
+
     bot.answer_inline_query(inline_query.id, [
         types.InlineQueryResultArticle(
             id='1',
-            title='🏆 Топ хряків',
+            title='🏆 Топ хряків чату',
             description='Рейтинг хряків за вагою',
+            input_message_content=types.InputTextMessageContent(text, parse_mode="Markdown"),
+            reply_markup=markup
+        )
+    ])
+
+
+@bot.inline_handler(lambda query: query.query.lower().strip() == 'globaltop')
+def query_globaltop_inline(inline_query):
+    """Inline для /globaltop"""
+    # Отримуємо всіх хряків з БД
+    all_hryaky = []
+    from db import get_connection
+    conn = get_connection()
+    if conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT key FROM hryaky')
+        rows = cursor.fetchall()
+        for row in rows:
+            key = row[0]
+            hryak = get_hryak_from_db(key)
+            if hryak:
+                all_hryaky.append(hryak)
+        cursor.close()
+        conn.close()
+
+    all_hryaky.sort(key=lambda x: x['weight'], reverse=True)
+    top_count = min(5, len(all_hryaky))
+
+    if not all_hryaky:
+        text = "📭 Ще немає хряків ніде!"
+    else:
+        text = "🌍 **ГЛОБАЛЬНИЙ ТОП ХРЯКІВ**\n\n"
+        emojis = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+        for i, hryak in enumerate(all_hryaky[:top_count]):
+            emoji = emojis[i] if i < 5 else f"{i+1}."
+            text += f"{emoji} {hryak['name']} - {hryak['weight']} кг\n"
+
+    markup = types.InlineKeyboardMarkup()
+    btn = types.InlineKeyboardButton("🔄 Оновити", switch_inline_query="globaltop")
+    markup.add(btn)
+
+    bot.answer_inline_query(inline_query.id, [
+        types.InlineQueryResultArticle(
+            id='1',
+            title='🌍 Глобальний топ',
+            description='Рейтинг хряків всіх чатів',
             input_message_content=types.InputTextMessageContent(text, parse_mode="Markdown"),
             reply_markup=markup
         )
