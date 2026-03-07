@@ -32,7 +32,7 @@ from db import (
     buy_skin, equip_skin, has_skin, get_skin_bonus,
     get_active_boss, spawn_boss, attack_boss, get_boss_participants, get_user_boss_stats, get_last_boss_attack_time, save_boss_attack_time, get_last_boss,
     get_active_events, get_all_events, get_user_event_progress, update_event_progress, claim_event_reward,
-    get_user_language, set_user_language,
+    get_user_language, set_user_language, get_level_bonuses,
     rename_child, get_child, get_top_children, sacrifice_child, marry_children
 )
 
@@ -3420,13 +3420,19 @@ def mystats_cmd(message):
         # Get equipped skin
         equipped_skin = get_user_equipped_skin(user_id, chat_id)
         skin_text = equipped_skin['display_name'] if equipped_skin else "Немає"
+        
+        # Calculate level bonuses
+        level = currency['level'] if currency else 1
+        level_bonus_coins = (level - 1) * 5  # +5% монет за рівень
+        level_bonus_xp = (level - 1) * 2  # +2% XP за рівень
+        level_bonus_power = (level - 1) * 1  # +1% сили за рівень
 
         text = """📊 ТВОЯ СТАТИСТИКА
 
 💰 Економіка:
   Монети: {}
   XP: {}/{}
-  Рівень: {}
+  Рівень: {} (+{}% монет, +{}% XP, +{}% сили)
 
 ⚔️ Дуелі:
   Перемог: {}
@@ -3465,6 +3471,9 @@ def mystats_cmd(message):
             currency['xp'] if currency else 0,
             100,
             currency['level'] if currency else 1,
+            level_bonus_coins,
+            level_bonus_xp,
+            level_bonus_power,
             stats['duels_won'],
             stats['duels_lost'],
             stats['duels_won'] + stats['duels_lost'],

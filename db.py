@@ -3222,6 +3222,15 @@ def get_user_language(user_id):
         cursor.close()
         conn.close()
 
+def get_level_bonuses(level):
+    """Отримує бонуси за рівень"""
+    return {
+        'coins_bonus': (level - 1) * 5,  # +5% монет за рівень
+        'xp_bonus': (level - 1) * 2,  # +2% XP за рівень
+        'power_bonus': (level - 1) * 1,  # +1% сили за рівень
+        'duel_bonus': (level - 1) * 0.5  # +0.5% до дуелей за рівень
+    }
+
 def set_user_language(user_id, language):
     """Встановлює мову користувача"""
     conn = get_connection()
