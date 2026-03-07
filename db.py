@@ -2776,6 +2776,191 @@ def get_user_boss_stats(user_id, chat_id):
 
 
 # ============================================
+# ФУНКЦІЇ ДЛЯ ДІТЕЙ
+# ============================================
+
+def rename_child(child_id, user_id, chat_id, new_name):
+    """Перейменувати дитину"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            UPDATE children SET name = %s 
+            WHERE id = %s AND user_id = %s AND chat_id = %s
+        ''', (new_name, child_id, user_id, chat_id))
+        conn.commit()
+        return cursor.rowcount > 0
+    except Exception as e:
+        logger.error(f"❌ Помилка перейменування дитини: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+def get_child(child_id, chat_id):
+    """Отримує інформацію про дитину"""
+    conn = get_connection()
+    if not conn:
+        return None
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('SELECT * FROM children WHERE id = %s AND chat_id = %s', (child_id, chat_id))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return {
+            'id': int(row[0]),
+            'user_id': int(row[1]),
+            'chat_id': int(row[2]),
+            'father_user_id': int(row[3]),
+            'mother_user_id': int(row[4]),
+            'name': row[5],
+            'weight': int(row[6]) if row[6] else 0,
+            'inherited_trait': row[7],
+            'born_at': int(row[8]) if row[8] else 0
+        }
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання дитини: {e}")
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+def get_top_children(chat_id, limit=10):
+    """Топ дітей за вагою"""
+    conn = get_connection()
+    if not conn:
+        return []
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT c.*, 
+                   (SELECT name FROM hryaky WHERE key = %s || '_' || c.father_user_id) as father_name,
+                   (SELECT name FROM hryaky WHERE key = %s || '_' || c.mother_user_id) as mother_name
+            FROM children c
+            WHERE c.chat_id = %s
+            ORDER BY c.weight DESC
+            LIMIT %s
+        ''', (chat_id, chat_id, chat_id, limit))
+        rows = cursor.fetchall()
+        children = []
+        for row in rows:
+            children.append({
+                'id': int(row[0]),
+                'user_id': int(row[1]),
+                'chat_id': int(row[2]),
+                'father_user_id': int(row[3]),
+                'mother_user_id': int(row[4]),
+                'name': row[5],
+                'weight': int(row[6]) if row[6] else 0,
+                'inherited_trait': row[7],
+                'born_at': int(row[8]) if row[8] else 0,
+                'father_name': row[9] or 'Невідомо',
+                'mother_name': row[10] or 'Невідомо'
+            })
+        return children
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання топу дітей: {e}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+
+def sacrifice_child(child_id, user_id, chat_id):
+    """Жертва дитини для бонусів"""
+    conn = get_connection()
+    if not conn:
+        return None
+
+    cursor = conn.cursor()
+    try:
+        # Отримуємо дитину
+        cursor.execute('SELECT * FROM children WHERE id = %s AND user_id = %s AND chat_id = %s', 
+                      (child_id, user_id, chat_id))
+        child = cursor.fetchone()
+        
+        if not child:
+            return None
+        
+        # Розраховуємо бонуси на основі ваги дитини
+        weight = int(child[6]) if child[6] else 0
+        coins_reward = weight * 2
+        xp_reward = weight
+        
+        # Видаляємо дитину
+        cursor.execute('DELETE FROM children WHERE id = %s', (child_id,))
+        conn.commit()
+        
+        return {
+            'coins': coins_reward,
+            'xp': xp_reward,
+            'weight': weight
+        }
+    except Exception as e:
+        logger.error(f"❌ Помилка жертви дитини: {e}")
+        conn.rollback()
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+def marry_children(child1_id, child2_id, user_id, chat_id):
+    """Одруження дітей (створення онуків)"""
+    conn = get_connection()
+    if not conn:
+        return None
+
+    cursor = conn.cursor()
+    try:
+        # Отримуємо обох дітей
+        cursor.execute('SELECT * FROM children WHERE id = %s AND chat_id = %s', (child1_id, chat_id))
+        child1 = cursor.fetchone()
+        
+        cursor.execute('SELECT * FROM children WHERE id = %s AND chat_id = %s', (child2_id, chat_id))
+        child2 = cursor.fetchone()
+        
+        if not child1 or not child2:
+            return None
+        
+        # Перевіряємо що це різні діти
+        if child1[0] == child2[0]:
+            return None
+        
+        # Створюємо онука
+        now = int(time.time())
+        child_weight = max(1, int((child1[6] + child2[6]) / 2) + random.randint(-3, 3))
+        
+        cursor.execute('''
+            INSERT INTO children (user_id, chat_id, father_user_id, mother_user_id, 
+                                name, weight, inherited_trait, born_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        ''', (user_id, chat_id, child1[3], child2[3], 
+              f"{child1[5][:3]}-{child2[5][:3]}-F1", child_weight, '', now))
+        
+        grandchild_id = cursor.fetchone()[0]
+        conn.commit()
+        
+        return {
+            'grandchild_id': grandchild_id,
+            'weight': child_weight
+        }
+    except Exception as e:
+        logger.error(f"❌ Помилка одруження дітей: {e}")
+        conn.rollback()
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ============================================
 # ФУНКЦІЇ ДЛЯ СЕЗОННИХ ІВЕНТІВ
 # ============================================
 

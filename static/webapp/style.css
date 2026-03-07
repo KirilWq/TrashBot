@@ -169,6 +169,45 @@ body {
     box-shadow: 0 4px 20px rgba(0,0,0,0.3);
 }
 
+/* Chat Selector */
+.chat-selector {
+    padding: 0 16px 12px;
+}
+
+.chat-select {
+    width: 100%;
+    padding: 14px 18px;
+    background: var(--card-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: var(--card-border);
+    border-radius: 14px;
+    color: var(--tg-theme-text-color);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    transition: all 0.3s;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23667eea' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 20px;
+    padding-right: 48px;
+}
+
+.chat-select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+}
+
+.chat-select option {
+    background: #1a1a2e;
+    color: white;
+    padding: 12px;
+}
+
 .tab-btn {
     flex: 1;
     padding: 14px 10px;

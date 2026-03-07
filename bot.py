@@ -32,7 +32,8 @@ from db import (
     buy_skin, equip_skin, has_skin, get_skin_bonus,
     get_active_boss, spawn_boss, attack_boss, get_boss_participants, get_user_boss_stats,
     get_active_events, get_all_events, get_user_event_progress, update_event_progress, claim_event_reward,
-    get_user_language, set_user_language
+    get_user_language, set_user_language,
+    rename_child, get_child, get_top_children, sacrifice_child, marry_children
 )
 
 # Налаштування логгера (ПОВИННО БУТИ ПЕРШИМ!)
@@ -1259,27 +1260,27 @@ def quests_cmd(message):
         quest_progress = {q['quest_id']: q for q in quests}
         
         text = "📋 **ЩОДЕННІ КВЕСТИ**\n\n"
-        
+
         for quest_id, quest_info in DAILY_QUESTS.items():
             progress_data = quest_progress.get(quest_id, {'progress': 0, 'completed': False, 'claimed': False})
             progress = progress_data['progress']
             target = quest_info['target']
             completed = progress_data['completed']
             claimed = progress_data['claimed']
-            
+
             if claimed:
                 status = "✅ Забрано"
             elif completed:
                 status = "🎁 Готово до нагороди!"
             else:
                 status = f"📊 {progress}/{target}"
-            
-            text += f"{quest_info['name']} - {quest_info['desc']}\n"
-            text += f"  Нагорода: {quest_info['reward_coins']} монет, {quest_info['reward_xp']} XP\n"
+
+            text += f"**{quest_info['name']}** - {quest_info['desc']}\n"
+            text += f"  _Нагорода: {quest_info['reward_coins']} монет, {quest_info['reward_xp']} XP_\n"
             text += f"  {status}\n\n"
-        
-        text += "/questclaim <quest_id> - забрати нагороду"
-        
+
+        text += "\n_Використовуй:_ `/questclaim <quest_id>` - забрати нагороду"
+
         bot.reply_to(message, text, parse_mode="Markdown")
     except Exception as e:
         logger.error(f"❌ Помилка /quests: {e}", exc_info=True)
@@ -1607,7 +1608,7 @@ def team2_create_callback(call):
     try:
         hryak = get_hryak(user_id, chat_id)
         if not hryak:
-            bot.answer_callback_query(call.id, "❌ У тебе н��має хряка!", show_alert=True)
+            bot.answer_callback_query(call.id, "❌ У тебе н������має хряка!", show_alert=True)
             return
         
         msg_id = call.data.split('_')[-1]
@@ -2616,6 +2617,11 @@ def help_cmd(message):
 /children — показати своїх дітей
 /pregnancies — показати вагітних хряків в чаті
 /claimchildren — забрати дітей після пологів
+/childinfo <ID> — інформація про дитину
+/renamechild <ID> <ім'я> — перейменувати дитину
+/childtop — топ дітей за вагою
+/sacrificechild <ID> — жертва (монети + XP)
+/childmarry <ID1> <ID2> — одружити дітей (онук)
 
 🏆 **Турніри:**
 /tournament — створити або приєднатися до турніру
@@ -2664,7 +2670,11 @@ def help_cmd(message):
 4. Використовуй /adduser щоб додати друзів в список
 5. **Inline меню:** Напиши /menu або натисни на рядок і введи @bot (пробіл)
 
-⚠️ Всі команди працюють з рандомом. Не сприймай серйозно!"""
+⚠️ Всі команди працюють з рандомом. Не сприймай серйозно!
+
+**Посилання:**
+- GitHub: https://github.com/KirilWq/TrashBot
+- Web App: /webapp"""
     bot.reply_to(message, text, parse_mode="Markdown")
 
 
@@ -4006,6 +4016,218 @@ def children_cmd(message):
         bot.reply_to(message, f"❌ Помилка: {e}")
 
 
+@bot.message_handler(commands=['childinfo'])
+def child_info_cmd(message):
+    """Інформація про дитину"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Використання: /childinfo <ID дитини>\n\nДізнайся ID командою /children")
+            return
+        
+        child_id = int(parts[1])
+        child = get_child(child_id, chat_id)
+        
+        if not child:
+            bot.reply_to(message, "❌ Дитину не знайдено!")
+            return
+        
+        # Перевіряємо чи це дитина користувача
+        if child['user_id'] != user_id:
+            bot.reply_to(message, "❌ Це не твоя дитина!")
+            return
+        
+        born_date = time.strftime('%d.%m.%Y %H:%M', time.localtime(child['born_at']))
+        
+        text = f"""👶 **ІНФОРМАЦІЯ ПРО ДИТИНУ**
+
+**ID:** {child['id']}
+**Ім'я:** {child['name']}
+**Вага:** {child['weight']} кг
+**Особливість:** {child['inherited_trait'] or 'Немає'}
+
+**Батьки:**
+👨 Батько: ID {child['father_user_id']}
+👩 Мати: ID {child['mother_user_id']}
+
+**Народжений:** {born_date}
+**Вік:** {int((time.time() - child['born_at']) / 86400)} дн.
+
+**Команди:**
+/renamechild {child_id} <нове ім'я> - перейменувати
+/sacrificechild {child_id} - жертва (монети + XP)"""
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+    
+    except ValueError:
+        bot.reply_to(message, "❌ Невірний ID дитини!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /childinfo: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['renamechild'])
+def rename_child_cmd(message):
+    """Перейменувати дитину"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split(maxsplit=2)
+        
+        if len(parts) < 3:
+            bot.reply_to(message, "❌ Використання: /renamechild <ID> <нове ім'я>")
+            return
+        
+        child_id = int(parts[1])
+        new_name = parts[2][:32]  # Макс 32 символи
+        
+        # Перевіряємо чи це дитина користувача
+        child = get_child(child_id, chat_id)
+        if not child or child['user_id'] != user_id:
+            bot.reply_to(message, "❌ Це не твоя дитина!")
+            return
+        
+        # Перейменовуємо
+        if rename_child(child_id, user_id, chat_id, new_name):
+            bot.reply_to(message, f"✅ Дитину перейменовано на **{new_name}**!", parse_mode="Markdown")
+        else:
+            bot.reply_to(message, "❌ Помилка перейменування!")
+    
+    except ValueError:
+        bot.reply_to(message, "❌ Невірний ID дитини!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /renamechild: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['childtop'])
+def child_top_cmd(message):
+    """Топ дітей за вагою"""
+    chat_id = message.chat.id
+    
+    try:
+        children = get_top_children(chat_id, limit=10)
+        
+        if not children:
+            bot.reply_to(message, "👶 **ТОП ДІТЕЙ**\n\nВ чаті ще немає дітей!")
+            return
+        
+        text = "🏆 **ТОП ДІТЕЙ ЗА ВАГОЮ**\n\n"
+        
+        for i, child in enumerate(children, 1):
+            medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
+            trait_emoji = f" ({child['inherited_trait']})" if child['inherited_trait'] else ""
+            text += f"{medal} **{child['name']}** - {child['weight']} кг{trait_emoji}\n"
+            text += f"   Батьки: {child['father_name'][:15]} + {child['mother_name'][:15]}\n\n"
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+    
+    except Exception as e:
+        logger.error(f"❌ Помилка /childtop: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['sacrificechild'])
+def sacrifice_child_cmd(message):
+    """Жертва дитини для бонусів"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Використання: /sacrificechild <ID дитини>")
+            return
+        
+        child_id = int(parts[1])
+        
+        # Перевіряємо чи це дитина користувача
+        child = get_child(child_id, chat_id)
+        if not child or child['user_id'] != user_id:
+            bot.reply_to(message, "❌ Це не твоя дитина!")
+            return
+        
+        # Жертвуємо
+        result = sacrifice_child(child_id, user_id, chat_id)
+        
+        if result:
+            add_coins(user_id, chat_id, result['coins'])
+            add_xp(user_id, chat_id, result['xp'])
+            
+            bot.reply_to(message, f"""🔥 **ЖЕРТВА ПРИЙНЯТА!**
+
+Дитина **{child['name']}** пожертвована!
+
+💰 Отримано: +{result['coins']} монет
+⭐ Отримано: +{result['xp']} XP
+
+Вага дитини: {result['weight']} кг""", parse_mode="Markdown")
+        else:
+            bot.reply_to(message, "❌ Помилка жертви!")
+    
+    except ValueError:
+        bot.reply_to(message, "❌ Невірний ID дитини!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /sacrificechild: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['childmarry'])
+def child_marry_cmd(message):
+    """Одруження дітей"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        
+        if len(parts) < 3:
+            bot.reply_to(message, "❌ Використання: /childmarry <ID1> <ID2>\n\nОдружити двох дітей (створити онука)")
+            return
+        
+        child1_id = int(parts[1])
+        child2_id = int(parts[2])
+        
+        # Перевіряємо чи це діти користувача
+        child1 = get_child(child1_id, chat_id)
+        child2 = get_child(child2_id, chat_id)
+        
+        if not child1 or child1['user_id'] != user_id:
+            bot.reply_to(message, "❌ Перша дитина не твоя!")
+            return
+        
+        if not child2 or child2['user_id'] != user_id:
+            bot.reply_to(message, "❌ Друга дитина не твоя!")
+            return
+        
+        # Одружуємо
+        result = marry_children(child1_id, child2_id, user_id, chat_id)
+        
+        if result:
+            bot.reply_to(message, f"""💕 **ВЕСІЛЛЯ ВІДБУЛОСЯ!**
+
+{child1['name']} + {child2['name']}
+
+👶 Народився онук: **{child1['name'][:3]}-{child2['name'][:3]}-F1**
+⚖️ Вага онука: {result['weight']} кг
+
+Тепер ти можеш виховувати онука!""")
+        else:
+            bot.reply_to(message, "❌ Помилка одруження! Можливо діти однакові?")
+    
+    except ValueError:
+        bot.reply_to(message, "❌ Невірний ID дитини!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /childmarry: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
 @bot.message_handler(commands=['pregnancies'])
 def pregnancies_cmd(message):
     """Показати вагітності в чаті"""
@@ -4435,7 +4657,7 @@ def guild_cmd(message):
 👑 Власник: ID {guild['owner_user_id']}
 📊 Рівень: {guild['level']}
 ⭐ XP: {guild['xp']}
-💰 Скарбниця: {guild['coins']} монет
+💰 Скарбниця: {guild['coins']} м��нет
 👥 Учасників: {guild['member_count']}
 
 **Топ учасників:**
@@ -4650,7 +4872,7 @@ def delete_guild_cmd(message):
         user_guild = get_user_guild(user_id, chat_id)
         
         if not user_guild:
-            bot.reply_to(message, "❌ Ти не в гільдії!")
+            bot.reply_to(message, "❌ ��и не в гільдії!")
             return
         
         if user_guild['owner_user_id'] != user_id:
@@ -5430,6 +5652,35 @@ def api_get_user():
         }), 200
     except Exception as e:
         logger.error(f"API /user error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@flask_app.route('/api/webapp/user-chats', methods=['GET'])
+def api_get_user_chats():
+    """Отримати чати користувача"""
+    try:
+        user_id = int(request.args.get('user_id', 0))
+        
+        if not user_id:
+            return jsonify({'success': False, 'message': 'User ID required'}), 400
+        
+        # Get chats from hryaky_data
+        chats = {}
+        for key, h in hryaky_data.items():
+            if h.get('user_id') == user_id:
+                chat_id = h.get('chat_id')
+                if chat_id and chat_id not in chats:
+                    chats[chat_id] = {
+                        'chat_id': chat_id,
+                        'chat_name': f'Чат {chat_id}',
+                        'hryak_name': h.get('name', 'Безіменний')
+                    }
+        
+        return jsonify({
+            'success': True,
+            'data': list(chats.values())
+        }), 200
+    except Exception as e:
+        logger.error(f"API /user-chats error: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @flask_app.route('/api/webapp/shop', methods=['GET'])

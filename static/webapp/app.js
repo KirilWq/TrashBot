@@ -43,6 +43,9 @@ function initApp() {
     // Setup tabs
     setupTabs();
     
+    // Setup chat selector
+    loadUserChats();
+    
     // Setup MainButton
     tg.MainButton.setText("🍽️ НАГОДУВАТИ ХРЯКА");
     tg.MainButton.onClick(() => {
@@ -466,3 +469,38 @@ document.addEventListener('visibilitychange', () => {
         loadUserData();
     }
 });
+
+// Chat Selector Functions
+async function loadUserChats() {
+    try {
+        const response = await fetch(`${API_BASE}/user-chats?user_id=${userData.id}`);
+        const data = await response.json();
+        
+        const chatSelect = document.getElementById('chatSelect');
+        const chatSelector = document.getElementById('chatSelector');
+        
+        if (data.success && data.data.length > 0) {
+            chatSelector.style.display = 'block';
+            
+            data.data.forEach(chat => {
+                const option = document.createElement('option');
+                option.value = chat.chat_id;
+                option.textContent = chat.chat_name || `Чат ${chat.chat_id}`;
+                chatSelect.appendChild(option);
+            });
+            
+            chatSelect.addEventListener('change', (e) => {
+                userData.chat_id = e.target.value;
+                loadUserData();
+            });
+            
+            // Set default chat
+            if (data.data.length > 0) {
+                userData.chat_id = data.data[0].chat_id;
+                chatSelect.value = data.data[0].chat_id;
+            }
+        }
+    } catch (error) {
+        console.error('Error loading chats:', error);
+    }
+}
