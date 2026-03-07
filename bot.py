@@ -985,12 +985,14 @@ def duel_accept_callback(call):
 @bot.message_handler(commands=['menu'])
 def menu_cmd(message):
     """Показати inline меню"""
-    markup = types.InlineKeyboardMarkup(row_width=2)
+    markup = types.InlineKeyboardMarkup(row_width=3)
     markup.add(
         types.InlineKeyboardButton("🐷 Хряк", callback_data="menu_grow"),
         types.InlineKeyboardButton("🍽️ Годувати", callback_data="menu_feed"),
         types.InlineKeyboardButton("📊 Мій", callback_data="menu_my"),
-        types.InlineKeyboardButton("🏆 Топ", callback_data="menu_top"),
+        types.InlineKeyboardButton("✏️ Ім'я", callback_data="menu_name"),
+        types.InlineKeyboardButton("🏆 Топ чату", callback_data="menu_top"),
+        types.InlineKeyboardButton("🌍 Глоб топ", callback_data="menu_globaltop"),
         types.InlineKeyboardButton("⚔️ Створити дуель", callback_data="duel_create"),
         types.InlineKeyboardButton("🏅 Досягнення", callback_data="menu_achievements"),
         types.InlineKeyboardButton("🎯 Підор", callback_data="menu_pidor"),
@@ -998,7 +1000,7 @@ def menu_cmd(message):
         types.InlineKeyboardButton("🔮 Fortune", callback_data="menu_fortune"),
         types.InlineKeyboardButton("⭐ Оцінка", callback_data="menu_rate")
     )
-    
+
     bot.reply_to(message,
         "📋 **МЕНЮ КОМАНД**\n\nОбери кнопку:",
         parse_mode="Markdown",
@@ -1129,13 +1131,52 @@ def menu_callback(call):
         if not chat_hryaky:
             text = "📭 Ще немає хряків!"
         else:
-            text = "🏆 **ТОП ХРЯКІВ**\n\n"
+            text = "🏆 **ТОП ХРЯКІВ ЧАТУ**\n\n"
             for i, h in enumerate(chat_hryaky):
                 text += f"{i+1}. {h['name']} - {h['weight']} кг\n"
-    
+
+    elif command == 'globaltop':
+        # Завантажуємо всіх хряків з БД
+        all_hryaky = []
+        from db import get_connection
+        conn = get_connection()
+        if conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT key FROM hryaky')
+            rows = cursor.fetchall()
+            for row in rows:
+                key = row[0]
+                hryak = get_hryak_from_db(key)
+                if hryak:
+                    all_hryaky.append(hryak)
+            cursor.close()
+            conn.close()
+        
+        all_hryaky.sort(key=lambda x: x['weight'], reverse=True)
+        top_count = min(5, len(all_hryaky))
+        
+        if not all_hryaky:
+            text = "📭 Ще немає хряків ніде!"
+        else:
+            text = "🌍 **ГЛОБАЛЬНИЙ ТОП ХРЯКІВ**\n\n"
+            for i, h in enumerate(all_hryaky[:top_count]):
+                text += f"{i+1}. {h['name']} - {h['weight']} кг\n"
+
+    elif command == 'name':
+        hryak = get_hryak(user_id, chat_id)
+        if not hryak:
+            text = "❌ У тебе немає хряка! Напиши /grow"
+        else:
+            text = f"""✏️ **Змінити ім'я хряка**
+
+Поточне ім'я: {hryak['name']}
+
+Напиши /name НовеІм'я
+Приклад: /name СуперХряк"""
+
     elif command == 'duel':
         text = "⚔️ **Дуелі**\n\nНатисни /duel або /menu щоб створити дуель!"
-    
+
     elif command == 'achievements':
         hryak = get_hryak(user_id, chat_id)
         if not hryak:
@@ -1550,7 +1591,7 @@ TOP_CATEGORIES = [
     "найбільший підор",
     "найбільший гей",
     "найбільший лох",
-    "найбільший бич",
+    "на��більший бич",
     "найбільший алкаш",
     "найбільший наркоман",
     "найбільший псих",
