@@ -5,8 +5,10 @@ import json
 import os
 import logging
 import sqlite3
+from threading import Thread
 from telebot import types
 from dotenv import load_dotenv
+from flask import Flask
 from db import init_db, load_from_db, save_hryak_to_db, save_stats_to_db, save_warns_to_db, save_spam_to_db, save_manual_users_to_db, get_hryak_from_db
 
 # Налаштування логгера (ПОВИННО БУТИ ПЕРШИМ!)
@@ -1588,7 +1590,7 @@ def help_cmd(message):
 /mute — замути (відповідь + /mute 10)
 /unmute — розмутити
 
-😈 **Провина (адміни):**
+😈 **Провин���� (адміни):**
 /provin — дати прови��у (в��дповідь + /provin 10)
 /unprovin — зняти провину
 /provinlist — список провинних
@@ -2583,6 +2585,29 @@ try:
     logger.info("✅ Команди встановлено")
 except Exception as e:
     logger.warning(f"⚠️ Не вдалося встановити команди: {e}")
+
+# ============================================
+# FLASK SERVER для Render (порт 10000)
+# ============================================
+flask_app = Flask(__name__)
+
+@flask_app.route('/')
+def health():
+    return "🤖 TRASH BOT is running!", 200
+
+@flask_app.route('/health')
+def health_check():
+    return "OK", 200
+
+def run_flask():
+    """Запускає Flask сервер на порту Render"""
+    port = int(os.environ.get('PORT', 10000))
+    flask_app.run(host='0.0.0.0', port=port, debug=False)
+
+# Запускаємо Flask в окремому потоці
+flask_thread = Thread(target=run_flask, daemon=True)
+flask_thread.start()
+logger.info(f"✅ Flask сервер запущено на порту {os.environ.get('PORT', 10000)}")
 
 bot.polling(none_stop=True, interval=0)
 
