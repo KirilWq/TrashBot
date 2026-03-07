@@ -320,11 +320,20 @@ async function loadMySkins() {
 
 async function loadLeaderboard() {
     try {
-        const chatId = userData.chat_id || -1;
+        const chatId = userData.chat_id || null;
         
-        // Load chat top
+        console.log('Loading leaderboard for chat:', chatId);
+        
+        // Load chat top - only if chatId is valid
+        if (!chatId || chatId === 0) {
+            document.getElementById('chatTop').innerHTML = '<div style="padding: 20px; text-align: center; color: var(--tg-theme-hint-color);">Оберіть чат</div>';
+            return;
+        }
+        
         const chatResponse = await fetch(`${API_BASE}/leaderboard/chat?chat_id=${chatId}`);
         const chatData = await chatResponse.json();
+        
+        console.log('Chat leaderboard response:', chatData);
 
         const chatContainer = document.getElementById('chatTop');
         chatContainer.innerHTML = '';
@@ -351,7 +360,7 @@ async function loadLeaderboard() {
                 chatContainer.appendChild(playerEl);
             });
         } else {
-            chatContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--tg-theme-hint-color);">Немає гравців</div>';
+            chatContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--tg-theme-hint-color);">Немає гравців в цьому чаті</div>';
         }
     } catch (error) {
         console.error('Error loading leaderboard:', error);

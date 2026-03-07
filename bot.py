@@ -5898,18 +5898,25 @@ def api_get_chat_leaderboard():
     """Топ хряків чату"""
     try:
         chat_id = int(request.args.get('chat_id', 0))
+        
+        logger.info(f"Leaderboard chat request: chat_id={chat_id}")
 
         # Get from hryaky_data cache
         chat_hryaky = []
         for key, h in hryaky_data.items():
-            if chat_id and h.get('chat_id') != chat_id:
+            # Filter by chat_id - must match exactly
+            if chat_id and h.get('chat_id') == chat_id:
+                # Get equipped skin for this user
+                equipped_skin = get_user_equipped_skin(h.get('user_id'), h.get('chat_id'))
+                h['skin_icon'] = equipped_skin['icon'] if equipped_skin else '🐷'
+                chat_hryaky.append(h)
+            elif not chat_id or chat_id == 0:
+                # No chat_id provided - skip
                 continue
-            # Get equipped skin for this user
-            equipped_skin = get_user_equipped_skin(h.get('user_id'), h.get('chat_id'))
-            h['skin_icon'] = equipped_skin['icon'] if equipped_skin else '🐷'
-            chat_hryaky.append(h)
 
         chat_hryaky = sorted(chat_hryaky, key=lambda x: x['weight'], reverse=True)[:10]
+        
+        logger.info(f"Leaderboard chat result: {len(chat_hryaky)} players")
 
         return jsonify({'success': True, 'data': chat_hryaky}), 200
     except Exception as e:
@@ -6254,7 +6261,7 @@ def keep_alive():
             time.sleep(120)  # 2 хвилини
             ping_count += 1
             
-            # Пробуємо різні ендпоінти
+            # Пробуємо різні ��ндпоінти
             endpoints = ['/ping', '/health', '/api/status']
             for endpoint in endpoints:
                 try:
