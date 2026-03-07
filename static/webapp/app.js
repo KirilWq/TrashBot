@@ -26,7 +26,7 @@ function startAutoRefresh() {
         clearInterval(autoRefreshInterval);
     }
     
-    // Update data every 30 seconds
+    // Update data every 20 seconds
     autoRefreshInterval = setInterval(() => {
         console.log('Auto-refreshing data...');
         loadUserData();
@@ -42,7 +42,7 @@ function startAutoRefresh() {
             loadInventory();
             loadMySkins();
         }
-    }, 30000); // 30 seconds
+    }, 20000); // 20 seconds
 }
 
 function stopAutoRefresh() {
