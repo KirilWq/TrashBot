@@ -17,6 +17,42 @@ document.addEventListener('DOMContentLoaded', () => {
     initApp();
 });
 
+// Auto-refresh data every 10 seconds
+let autoRefreshInterval = null;
+
+function startAutoRefresh() {
+    // Clear any existing interval
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+    }
+    
+    // Update data every 10 seconds
+    autoRefreshInterval = setInterval(() => {
+        console.log('Auto-refreshing data...');
+        loadUserData();
+        
+        // Refresh leaderboard if that tab is active
+        const activeTab = document.querySelector('.tab-content.active');
+        if (activeTab && activeTab.id === 'leaderboard') {
+            loadLeaderboard();
+            loadGlobalLeaderboard();
+        }
+        
+        // Refresh inventory if that tab is active
+        if (activeTab && activeTab.id === 'inventory') {
+            loadInventory();
+            loadMySkins();
+        }
+    }, 10000); // 10 seconds
+}
+
+function stopAutoRefresh() {
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
+    }
+}
+
 function initApp() {
     // Expand the WebApp
     tg.expand();
@@ -52,8 +88,11 @@ function initApp() {
         feedHryak();
     });
     
-    // Load data
+    // Load initial data
     loadUserData();
+    
+    // Start auto-refresh
+    startAutoRefresh();
     
     // Ready
     tg.ready();
@@ -83,6 +122,8 @@ function setupTabs() {
 
             // Load tab-specific data
             loadTabData(tabId);
+            
+            console.log(`Switched to tab: ${tabId}`);
         });
     });
 }
@@ -369,9 +410,13 @@ async function loadLeaderboard() {
 
 async function loadGlobalLeaderboard() {
     try {
+        console.log('Loading global leaderboard...');
+        
         // Load global top
         const globalResponse = await fetch(`${API_BASE}/leaderboard/global`);
         const globalData = await globalResponse.json();
+        
+        console.log('Global leaderboard response:', globalData);
 
         const globalContainer = document.getElementById('globalTop');
         globalContainer.innerHTML = '';
@@ -397,8 +442,10 @@ async function loadGlobalLeaderboard() {
                 `;
                 globalContainer.appendChild(playerEl);
             });
+            console.log(`Loaded ${globalData.data.length} players to global leaderboard`);
         } else {
             globalContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--tg-theme-hint-color);">Немає гравців</div>';
+            console.log('Global leaderboard is empty');
         }
     } catch (error) {
         console.error('Error loading global leaderboard:', error);
