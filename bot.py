@@ -5895,6 +5895,9 @@ def api_get_chat_leaderboard():
         for key, h in hryaky_data.items():
             if chat_id and h.get('chat_id') != chat_id:
                 continue
+            # Get equipped skin for this user
+            equipped_skin = get_user_equipped_skin(h.get('user_id'), h.get('chat_id'))
+            h['skin_icon'] = equipped_skin['icon'] if equipped_skin else '🐷'
             chat_hryaky.append(h)
 
         chat_hryaky = sorted(chat_hryaky, key=lambda x: x['weight'], reverse=True)[:10]
@@ -5911,6 +5914,9 @@ def api_get_global_leaderboard():
         # Get all hryaks from cache
         all_hryaky = []
         for key, h in hryaky_data.items():
+            # Get equipped skin for this user
+            equipped_skin = get_user_equipped_skin(h.get('user_id'), h.get('chat_id'))
+            h['skin_icon'] = equipped_skin['icon'] if equipped_skin else '🐷'
             all_hryaky.append(h)
 
         all_hryaky = sorted(all_hryaky, key=lambda x: x['weight'], reverse=True)[:10]
@@ -6255,7 +6261,7 @@ def keep_alive():
         except Exception as e:
             logger.error(f"❌ Keep-alive помилка: {e}")
 
-# Запускаємо keep-alive в окремому потоці
+# Запускаємо keep-alive в ок��емому потоці
 keep_alive_thread = Thread(target=keep_alive, daemon=True)
 keep_alive_thread.start()
 

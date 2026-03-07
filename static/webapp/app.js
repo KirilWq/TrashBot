@@ -204,17 +204,17 @@ async function loadSkins() {
     try {
         const response = await fetch(`${API_BASE}/skins`);
         const data = await response.json();
-        
+
         const container = document.getElementById('shopSkins');
         container.innerHTML = '';
-        
+
         if (data.success) {
             data.data.forEach(skin => {
                 const skinEl = document.createElement('div');
                 skinEl.className = `skin-item rarity-${skin.rarity}`;
                 skinEl.innerHTML = `
                     <div class="icon">${skin.icon}</div>
-                    <div class="name">${skin.display_name}</div>
+                    <div class="name">${skin.display_name} (ID: ${skin.id})</div>
                     <div class="desc">${skin.description}</div>
                     <div class="price">💰 ${skin.price}</div>
                     <button class="btn btn-primary" onclick="buySkin('${skin.name}', ${skin.price})">Купити</button>
@@ -331,12 +331,17 @@ async function loadLeaderboard() {
             chatData.data.slice(0, 10).forEach((player, index) => {
                 const playerEl = document.createElement('div');
                 playerEl.className = 'leaderboard-item';
+                
+                // Use skin icon if equipped, otherwise default pig
+                const skinIcon = player.skin_icon || '🐷';
+                const username = player.username || `ID ${player.user_id}`;
+                
                 playerEl.innerHTML = `
                     <span class="rank ${index < 3 ? 'rank-' + (index + 1) : ''}">${index + 1}</span>
                     <div class="leaderboard-info">
-                        <span class="leaderboard-avatar">🐷</span>
+                        <span class="leaderboard-avatar">${skinIcon}</span>
                         <div class="leaderboard-details">
-                            <span class="leaderboard-name">${player.name || 'Невідомо'}</span>
+                            <span class="leaderboard-name">${player.name || 'Невідомо'} (${username})</span>
                             <span class="leaderboard-value">${player.weight} кг</span>
                         </div>
                     </div>
@@ -364,12 +369,17 @@ async function loadGlobalLeaderboard() {
             globalData.data.slice(0, 10).forEach((player, index) => {
                 const playerEl = document.createElement('div');
                 playerEl.className = 'leaderboard-item';
+                
+                // Use skin icon if equipped, otherwise default pig
+                const skinIcon = player.skin_icon || '🐷';
+                const username = player.username || `ID ${player.user_id}`;
+                
                 playerEl.innerHTML = `
                     <span class="rank ${index < 3 ? 'rank-' + (index + 1) : ''}">${index + 1}</span>
                     <div class="leaderboard-info">
-                        <span class="leaderboard-avatar">🐷</span>
+                        <span class="leaderboard-avatar">${skinIcon}</span>
                         <div class="leaderboard-details">
-                            <span class="leaderboard-name">${player.name || 'Невідомо'}</span>
+                            <span class="leaderboard-name">${player.name || 'Невідомо'} (${username})</span>
                             <span class="leaderboard-value">${player.weight} кг</span>
                         </div>
                     </div>
