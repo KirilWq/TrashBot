@@ -123,10 +123,14 @@ async function loadUserData() {
                 // Show feed button if can feed
                 const canFeed = user.hryak.can_feed;
                 console.log('Can feed:', canFeed);
-                tg.MainButton.setVisible(canFeed);
-                tg.MainButton.setParams({
-                    color: canFeed ? tg.themeParams.button_color : '#999999'
-                });
+                if (canFeed) {
+                    tg.MainButton.show();
+                    tg.MainButton.setParams({
+                        color: tg.themeParams.button_color || '#667eea'
+                    });
+                } else {
+                    tg.MainButton.hide();
+                }
             } else {
                 console.log('No hryak found');
                 document.getElementById('hryakName').textContent = 'Немає хряка';
@@ -145,7 +149,8 @@ async function loadUserData() {
         }
     } catch (error) {
         console.error('Error loading user data:', error);
-        tg.showAlert('Помилка завантаження даних: ' + error.message);
+        console.error('Error message:', error.message);
+        // Don't show alert popup, just log the error
     } finally {
         showLoading(false);
     }
