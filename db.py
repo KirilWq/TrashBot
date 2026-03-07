@@ -166,6 +166,8 @@ def save_hryak_to_db(key, hryak):
             INSERT INTO hryaky (key, user_id, chat_id, username, name, weight, last_feed, feed_count, max_weight, created_at, has_lost_weight, max_gain, max_gains_20, fed_on_1st)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (key) DO UPDATE SET
+                username = EXCLUDED.username,
+                name = EXCLUDED.name,
                 weight = EXCLUDED.weight,
                 last_feed = EXCLUDED.last_feed,
                 feed_count = EXCLUDED.feed_count,
