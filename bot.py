@@ -8,7 +8,7 @@ import sqlite3
 from threading import Thread
 from telebot import types
 from dotenv import load_dotenv
-from flask import Flask
+from flask import Flask, request, jsonify
 from db import (
     init_db, load_from_db, save_hryak_to_db, save_stats_to_db, save_warns_to_db,
     save_spam_to_db, save_manual_users_to_db, get_hryak_from_db,
@@ -4654,7 +4654,7 @@ def delete_guild_cmd(message):
             return
         
         if user_guild['owner_user_id'] != user_id:
-            bot.reply_to(message, "❌ Тільки власник може видалити гільдію!")
+            bot.reply_to(message, "❌ Тільки власник може видалити г����������������льдію!")
             return
         
         # Видаляємо гільдію
@@ -5382,8 +5382,8 @@ def webapp_app_alt():
 def api_get_user():
     """Отримати дані користувача"""
     try:
-        user_id = int(flask_app.request.args.get('user_id', 0))
-        chat_id = int(flask_app.request.args.get('chat_id', 0))
+        user_id = int(request.args.get('user_id', 0))
+        chat_id = int(request.args.get('chat_id', 0))
         
         if not user_id:
             return jsonify({'success': False, 'message': 'User ID required'}), 400
@@ -5456,8 +5456,8 @@ def api_get_skins():
 def api_get_inventory():
     """Отримати інвентар"""
     try:
-        user_id = int(flask_app.request.args.get('user_id', 0))
-        chat_id = int(flask_app.request.args.get('chat_id', 0))
+        user_id = int(request.args.get('user_id', 0))
+        chat_id = int(request.args.get('chat_id', 0))
         
         if not user_id:
             return jsonify({'success': False, 'message': 'User ID required'}), 400
@@ -5472,8 +5472,8 @@ def api_get_inventory():
 def api_get_my_skins():
     """Отримати скіни користувача"""
     try:
-        user_id = int(flask_app.request.args.get('user_id', 0))
-        chat_id = int(flask_app.request.args.get('chat_id', 0))
+        user_id = int(request.args.get('user_id', 0))
+        chat_id = int(request.args.get('chat_id', 0))
         
         if not user_id:
             return jsonify({'success': False, 'message': 'User ID required'}), 400
@@ -5488,7 +5488,7 @@ def api_get_my_skins():
 def api_get_chat_leaderboard():
     """Топ хряків чату"""
     try:
-        chat_id = int(flask_app.request.args.get('chat_id', 0))
+        chat_id = int(request.args.get('chat_id', 0))
         
         # Get from hryaky_data cache
         chat_hryaky = []
@@ -5508,7 +5508,7 @@ def api_get_chat_leaderboard():
 def api_feed_hryak():
     """Нагодувати хряка"""
     try:
-        data = flask_app.request.get_json()
+        data = request.get_json()
         user_id = data.get('user_id')
         chat_id = data.get('chat_id', 0)
         
@@ -5541,7 +5541,7 @@ def api_feed_hryak():
 def api_buy_item():
     """Купити предмет"""
     try:
-        data = flask_app.request.get_json()
+        data = request.get_json()
         user_id = data.get('user_id')
         item_id = data.get('item_id')
         chat_id = data.get('chat_id', 0)
@@ -5574,7 +5574,7 @@ def api_buy_item():
 def api_buy_skin():
     """Купити скін"""
     try:
-        data = flask_app.request.get_json()
+        data = request.get_json()
         user_id = data.get('user_id')
         skin_name = data.get('skin_name')
         chat_id = data.get('chat_id', 0)
@@ -5610,7 +5610,7 @@ def api_buy_skin():
 def api_use_item():
     """Використати предмет"""
     try:
-        data = flask_app.request.get_json()
+        data = request.get_json()
         user_id = data.get('user_id')
         item_id = data.get('item_id')
         chat_id = data.get('chat_id', 0)
@@ -5629,7 +5629,7 @@ def api_use_item():
 def api_equip_skin():
     """Одягнути скін"""
     try:
-        data = flask_app.request.get_json()
+        data = request.get_json()
         user_id = data.get('user_id')
         skin_name = data.get('skin_name')
         chat_id = data.get('chat_id', 0)
