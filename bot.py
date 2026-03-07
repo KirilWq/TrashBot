@@ -32,7 +32,6 @@ from db import (
     buy_skin, equip_skin, has_skin, get_skin_bonus,
     get_active_boss, spawn_boss, attack_boss, get_boss_participants, get_user_boss_stats, get_last_boss_attack_time, save_boss_attack_time, get_last_boss, get_boss_defeat_time,
     get_active_events, get_all_events, get_user_event_progress, update_event_progress, claim_event_reward,
-    get_user_language, set_user_language, get_level_bonuses,
     rename_child, get_child, get_top_children, sacrifice_child, marry_children
 )
 
@@ -46,97 +45,6 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
-
-# ============================================
-# МУЛЬТИ-МОВНІСТЬ - СЛОВНИКИ ПЕРЕКЛАДУ
-# ============================================
-LANGUAGES = {
-    'uk': '🇺🇦 Українська',
-    'en': '🇬🇧 English',
-    'ru': '🇷🇺 Русский'
-}
-
-TRANSLATIONS = {
-    'uk': {
-        'welcome': '🤖 Ласкаво просимо до TRASH BOT!',
-        'no_hryak': '❌ У тебе ще немає хряка! Введи /grow',
-        'feed_success': '✅ Хряк наївся!\nВага: {old} → {new} кг ({change:+d})',
-        'feed_cooldown': '⏳ Ще рано! Залишилось {hours} год {minutes} хв',
-        'duel_win': '🎉 Перемога! Твій хряк важить {weight} кг',
-        'duel_lose': '😞 Поразка... Спробуй ще раз!',
-        'balance': '💰 Твій баланс: {coins} монет, {xp} XP (Рівень {level})',
-        'help_text': '📜 **ПОВНИЙ СПИСОК КОМАНД:**\n\n',
-        'menu_button': '📋 Меню',
-        'close_button': '❌ Закрити',
-        'back_button': '⬅️ Назад',
-        'confirm_button': '✅ Підтвердити',
-        'cancel_button': '❌ Скасувати',
-        'error': '❌ Помилка: {error}',
-        'loading': '⏳ Завантаження...',
-        'event_active': '🎉 Активний івент: {name}\n{description}',
-        'no_active_events': '📭 Наразі немає активних івентів',
-        'lang_changed': '✅ Мову змінено на {lang}',
-        'lang_select': '🌍 Оберіть мову:',
-    },
-    'en': {
-        'welcome': '🤖 Welcome to TRASH BOT!',
-        'no_hryak': '❌ You do not have a hryak yet! Use /grow',
-        'feed_success': '✅ Your hryak ate!\nWeight: {old} → {new} kg ({change:+d})',
-        'feed_cooldown': '⏳ Too early! {hours}h {minutes}m left',
-        'duel_win': '🎉 Victory! Your hryak weighs {weight} kg',
-        'duel_lose': '😞 Defeat... Try again!',
-        'balance': '💰 Your balance: {coins} coins, {xp} XP (Level {level})',
-        'help_text': '📜 **COMMAND LIST:**\n\n',
-        'menu_button': '📋 Menu',
-        'close_button': '❌ Close',
-        'back_button': '⬅️ Back',
-        'confirm_button': '✅ Confirm',
-        'cancel_button': '❌ Cancel',
-        'error': '❌ Error: {error}',
-        'loading': '⏳ Loading...',
-        'event_active': '🎉 Active event: {name}\n{description}',
-        'no_active_events': '📭 No active events',
-        'lang_changed': '✅ Language changed to {lang}',
-        'lang_select': '🌍 Select language:',
-    },
-    'ru': {
-        'welcome': '🤖 Добро пожаловать в TRASH BOT!',
-        'no_hryak': '❌ У тебя еще нет хряка! Введи /grow',
-        'feed_success': '✅ Хряк наелся!\nВес: {old} → {new} кг ({change:+d})',
-        'feed_cooldown': '⏳ Еще рано! Осталось {hours} ч {minutes} мин',
-        'duel_win': '🎉 Победа! Твой хряк весит {weight} кг',
-        'duel_lose': '😞 Поражение... Попробуй еще раз!',
-        'balance': '💰 Твой баланс: {coins} монет, {xp} XP (Уровень {level})',
-        'help_text': '📜 **СПИСОК КОМАНД:**\n\n',
-        'menu_button': '📋 Меню',
-        'close_button': '❌ Закрыть',
-        'back_button': '⬅️ Назад',
-        'confirm_button': '✅ Подтвердить',
-        'cancel_button': '❌ Отмена',
-        'error': '❌ Ошибка: {error}',
-        'loading': '⏳ Загрузка...',
-        'event_active': '🎉 Активное событие: {name}\n{description}',
-        'no_active_events': '📭 Нет активных событий',
-        'lang_changed': '✅ Язык изменен на {lang}',
-        'lang_select': '🌍 Выберите язык:',
-    }
-}
-
-def get_text(user_id, key, **kwargs):
-    """Отримує текст для користувача на його мові"""
-    lang = get_user_language(user_id)
-    if lang not in TRANSLATIONS:
-        lang = 'uk'
-    
-    text = TRANSLATIONS[lang].get(key, TRANSLATIONS['uk'].get(key, key))
-    
-    if kwargs:
-        try:
-            text = text.format(**kwargs)
-        except:
-            pass
-    
-    return text
 
 # Завантажуємо змінні середовища з .env файлу (для локальної розробки)
 load_dotenv()
@@ -2682,8 +2590,6 @@ def help_cmd(message):
         "/boss /boss attack /boss info\n\n"
         "🎉 Івенти:\n"
         "/events /eventsclaim\n\n"
-        "🌍 Мова:\n"
-        "/lang\n\n"
         "⚙️ Інше:\n"
         "/start /menu /help\n\n"
         "Всі команди працюють з рандомом!"
@@ -3175,8 +3081,8 @@ def on_chat_member_update(message):
 /provin — дати провину (/provin 10)
 /unprovin — зняти провину
 
-⚠️ **Попередження (адміни):**
-/warn — видати попередження
+⚠️ **��опередження (адміни):**
+/warn — ви��ати попередження
 /warnings — показати попередження
 
 🚫 **Бан (адміни):**
@@ -5560,61 +5466,6 @@ def webapp_data_handler(message):
                 boss_cmd(message)
     except Exception as e:
         logger.error(f"❌ Помилка web_app_data: {e}")
-
-
-# ============================================
-# МУЛЬТИ-МОВНІСТЬ
-# ============================================
-
-@bot.message_handler(commands=['lang'])
-def lang_cmd(message):
-    """Вибір мови"""
-    chat_id = message.chat.id
-    user_id = message.from_user.id
-    
-    try:
-        # Створюємо inline клавіатуру з мовами
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        
-        for lang_code, lang_name in LANGUAGES.items():
-            current_lang = get_user_language(user_id)
-            is_current = lang_code == current_lang
-            button_text = f"{'✅ ' if is_current else ''}{lang_name}"
-            markup.add(types.InlineKeyboardButton(button_text, callback_data=f"lang_{lang_code}"))
-        
-        bot.reply_to(message, get_text(user_id, 'lang_select'), reply_markup=markup)
-    
-    except Exception as e:
-        logger.error(f"❌ Помилка /lang: {e}", exc_info=True)
-        bot.reply_to(message, f"❌ Помилка: {e}")
-
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith('lang_'))
-def lang_callback(call):
-    """Обробка вибору мови"""
-    user_id = call.from_user.id
-    lang_code = call.data.split('_')[1]
-    
-    try:
-        if lang_code in LANGUAGES:
-            set_user_language(user_id, lang_code)
-            bot.answer_callback_query(call.id, get_text(user_id, 'lang_changed', lang=LANGUAGES[lang_code]))
-            
-            # Оновлюємо повідомлення
-            markup = types.InlineKeyboardMarkup(row_width=1)
-            for code, name in LANGUAGES.items():
-                is_current = code == lang_code
-                markup.add(types.InlineKeyboardButton(f"{'✅ ' if is_current else ''}{name}", callback_data=f"lang_{code}"))
-            
-            bot.edit_message_text(
-                get_text(user_id, 'lang_changed', lang=LANGUAGES[lang_code]),
-                call.message.chat.id,
-                call.message.message_id,
-                reply_markup=markup
-            )
-    except Exception as e:
-        logger.error(f"❌ Помилка lang_callback: {e}")
-        bot.answer_callback_query(call.id, "Error")
 
 
 # Обробник спам контролю
