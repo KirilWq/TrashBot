@@ -528,7 +528,7 @@ body {
 .shop-grid, .skins-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 14px;
+    gap: 16px;
     margin-bottom: 20px;
 }
 
@@ -537,7 +537,7 @@ body {
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-radius: var(--border-radius);
-    padding: 18px;
+    padding: 20px 16px;
     border: var(--card-border);
     box-shadow: var(--shadow);
     text-align: center;
@@ -762,18 +762,17 @@ body {
     backdrop-filter: blur(30px);
     -webkit-backdrop-filter: blur(30px);
     display: flex;
-    padding: 12px 10px;
+    padding: 12px;
     border-top: var(--card-border);
     box-shadow: 0 -8px 32px rgba(0,0,0,0.4);
     z-index: 200;
-    max-width: 500px;
-    left: 50%;
-    transform: translateX(-50%);
+    width: 100%;
+    max-width: none;
 }
 
 .nav-btn {
     flex: 1;
-    padding: 14px;
+    padding: 16px 8px;
     border: none;
     background: transparent;
     font-size: 11px;
@@ -784,6 +783,7 @@ body {
     transition: all 0.3s;
     position: relative;
     overflow: hidden;
+    margin: 0 4px;
 }
 
 .nav-btn::before {

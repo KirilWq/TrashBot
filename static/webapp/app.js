@@ -63,15 +63,16 @@ function initApp() {
 function setupTabs() {
     const tabBtns = document.querySelectorAll('.tab-btn');
     const tabContents = document.querySelectorAll('.tab-content');
-    
+
     tabBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             const tabId = btn.dataset.tab;
-            
+            currentTab = tabId; // Save current tab
+
             // Update buttons
             tabBtns.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-            
+
             // Update content
             tabContents.forEach(content => {
                 content.classList.remove('active');
@@ -79,7 +80,7 @@ function setupTabs() {
                     content.classList.add('active');
                 }
             });
-            
+
             // Load tab-specific data
             loadTabData(tabId);
         });
@@ -88,20 +89,24 @@ function setupTabs() {
 
 async function loadUserData() {
     showLoading(true);
-    
+
     try {
         // Get user data from API
-        const response = await fetch(`${API_BASE}/user?user_id=${userData.id}`);
-        const data = await response.json();
+        const url = userData.chat_id 
+            ? `${API_BASE}/user?user_id=${userData.id}&chat_id=${userData.chat_id}`
+            : `${API_BASE}/user?user_id=${userData.id}`;
         
+        const response = await fetch(url);
+        const data = await response.json();
+
         if (data.success) {
             const user = data.data;
-            
+
             // Update header
             document.getElementById('coins').textContent = user.coins || 0;
             document.getElementById('xp').textContent = user.xp || 0;
             document.getElementById('userLevel').textContent = `Рівень ${user.level || 1}`;
-            
+
             // Update hryak info
             if (user.hryak) {
                 document.getElementById('hryakName').textContent = user.hryak.name;
@@ -110,7 +115,7 @@ async function loadUserData() {
                 document.getElementById('feedCount').textContent = user.hryak.feed_count;
                 document.getElementById('hryakAvatar').textContent = user.skin?.icon || '🐷';
                 document.getElementById('equippedSkin').textContent = user.skin?.display_name || '-';
-                
+
                 // Show feed button if can feed
                 const canFeed = user.hryak.can_feed;
                 tg.MainButton.setVisible(canFeed);
@@ -121,7 +126,7 @@ async function loadUserData() {
                 document.getElementById('hryakName').textContent = 'Немає хряка';
                 tg.MainButton.hide();
             }
-            
+
             // Update stats
             if (user.stats) {
                 document.getElementById('duelsStats').textContent = `${user.stats.duels_won || 0}/${user.stats.duels_lost || 0}`;
@@ -311,16 +316,19 @@ async function feedHryak() {
     tg.showConfirm('Нагодувати хряка?', async (confirm) => {
         if (confirm) {
             showLoading(true);
-            
+
             try {
                 const response = await fetch(`${API_BASE}/feed`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: userData.id })
+                    body: JSON.stringify({ 
+                        user_id: userData.id,
+                        chat_id: userData.chat_id
+                    })
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (data.success) {
                     tg.showAlert(`Хряк наївся!\nВага: ${data.data.old_weight} → ${data.data.new_weight} кг (${data.data.change >= 0 ? '+' : ''}${data.data.change})`);
                     loadUserData();
@@ -451,7 +459,38 @@ function loadGlobalLeaderboard() {
 
 function openCommand(command) {
     // Open command in Telegram
-    tg.openTelegramLink(`https://t.me/${tg.initDataUnsafe?.user?.username || 'bot'}?start=${command.substring(1)}`);
+    const url = `https://t.me/${tg.initDataUnsafe?.user?.username || 'bot'}?start=${command.substring(1)}`;
+    tg.openTelegramLink(url);
+}
+
+// Bottom nav buttons handlers
+function openMenu() {
+    openCommand('/menu');
+}
+
+function openHelp() {
+    openCommand('/help');
+}
+
+function openBoss() {
+    openCommand('/boss');
+}
+
+// Action buttons handlers
+function openQuests() {
+    openCommand('/quests');
+}
+
+function openDaily() {
+    openCommand('/daily');
+}
+
+function openAchievements() {
+    openCommand('/achievements');
+}
+
+function openGrow() {
+    openCommand('/grow');
 }
 
 function showLoading(show) {
@@ -475,32 +514,41 @@ async function loadUserChats() {
     try {
         const response = await fetch(`${API_BASE}/user-chats?user_id=${userData.id}`);
         const data = await response.json();
-        
+
         const chatSelect = document.getElementById('chatSelect');
         const chatSelector = document.getElementById('chatSelector');
-        
+
         if (data.success && data.data.length > 0) {
             chatSelector.style.display = 'block';
-            
+
             data.data.forEach(chat => {
                 const option = document.createElement('option');
                 option.value = chat.chat_id;
-                option.textContent = chat.chat_name || `Чат ${chat.chat_id}`;
+                option.textContent = `${chat.hryak_name || 'Хряк'} (Чат ${chat.chat_id})`;
                 chatSelect.appendChild(option);
             });
-            
+
             chatSelect.addEventListener('change', (e) => {
                 userData.chat_id = e.target.value;
+                console.log('Chat changed to:', userData.chat_id);
+                // Reload all data for new chat
                 loadUserData();
+                loadTabData(currentTab || 'profile');
             });
-            
+
             // Set default chat
             if (data.data.length > 0) {
                 userData.chat_id = data.data[0].chat_id;
                 chatSelect.value = data.data[0].chat_id;
+                console.log('Default chat set to:', userData.chat_id);
             }
+        } else {
+            console.log('No chats found for user');
         }
     } catch (error) {
         console.error('Error loading chats:', error);
     }
 }
+
+// Track current tab
+let currentTab = 'profile';

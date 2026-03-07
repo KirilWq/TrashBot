@@ -1279,7 +1279,14 @@ def quests_cmd(message):
             text += f"  _Нагорода: {quest_info['reward_coins']} монет, {quest_info['reward_xp']} XP_\n"
             text += f"  {status}\n\n"
 
-        text += "\n_Використовуй:_ `/questclaim <quest_id>` - забрати нагороду"
+        text += "\n_Використовуй:_ `/questclaim <quest_id>` - забрати нагороду\n\n"
+        text += "**Доступні квести:**\n"
+        text += "• `feed_3_times` - Годувальник\n"
+        text += "• `win_2_duels` - Дуелянт\n"
+        text += "• `lose_10kg` - Схуднення\n"
+        text += "• `gain_20kg` - Набір маси\n"
+        text += "• `chat_active` - Балакун\n"
+        text += "• `feed_friends` - Дружній"
 
         bot.reply_to(message, text, parse_mode="Markdown")
     except Exception as e:
@@ -2670,11 +2677,7 @@ def help_cmd(message):
 4. Використовуй /adduser щоб додати друзів в список
 5. **Inline меню:** Напиши /menu або натисни на рядок і введи @bot (пробіл)
 
-⚠️ Всі команди працюють з рандомом. Не сприймай серйозно!
-
-**Посилання:**
-- GitHub: https://github.com/KirilWq/TrashBot
-- Web App: /webapp"""
+⚠️ Всі команди працюють з рандомом. Не сприймай серйозно!"""
     bot.reply_to(message, text, parse_mode="Markdown")
 
 
@@ -3214,12 +3217,14 @@ def shop_cmd(message):
         
         text = "🏪 **МАГАЗИН**\n\n"
         for item in items:
-            text += f"{item['name']} - {item['description']}\n"
-            text += f"  Ціна: {item['price']} {item['price_currency']}\n\n"
-        
+            text += f"`{item['item_id']}` - {item['name']} - {item['description']}\n"
+            text += f"  _Ціна: {item['price']} {item['price_currency']}_\n\n"
+
+        text += "**Команди:**\n"
         text += "/buy <item_id> - купити предмет\n"
         text += "/inventory - твій інвентар\n"
-        text += "/use <item_id> - використати предмет"
+        text += "/use <item_id> - використати предмет\n\n"
+        text += "**Приклад:** `/buy vitamins`"
         
         bot.reply_to(message, text, parse_mode="Markdown")
     except Exception as e:
@@ -3295,15 +3300,17 @@ def inventory_cmd(message):
         for inv_item in inventory:
             item = items_dict.get(inv_item['item_id'])
             if item:
-                text += f"{item['name']} x{inv_item['quantity']}\n"
+                text += f"`{inv_item['item_id']}` - {item['name']} x{inv_item['quantity']}\n"
                 if inv_item['expires_at']:
                     expires = inv_item['expires_at'] - int(time.time())
                     hours = expires // 3600
-                    text += f"  ⏰ Ще {hours} год\n"
+                    text += f"  _⏰ Ще {hours} год_\n"
                 text += "\n"
-        
-        text += "/use <item_id> - використати"
-        
+
+        text += "**Команди:**\n"
+        text += "/use <item_id> - використати предмет\n\n"
+        text += "**Приклад:** `/use vitamins`"
+
         bot.reply_to(message, text, parse_mode="Markdown")
     except Exception as e:
         logger.error(f"❌ Помилка /inventory: {e}", exc_info=True)
@@ -3999,16 +4006,21 @@ def children_cmd(message):
             return
         
         text = "👶 **Твої діти:**\n\n"
-        
+
         for i, child in enumerate(children_list, 1):
             born_date = time.strftime('%d.%m.%Y', time.localtime(child['born_at']))
-            text += f"{i}. **{child['name']}**\n"
+            text += f"{i}. `{child['id']}` - **{child['name']}**\n"
             text += f"   ⚖️ Вага: {child['weight']} кг\n"
             text += f"   🎂 Народжений: {born_date}\n"
             text += f"   🧬 Особливість: {child['inherited_trait'] or 'Немає'}\n\n"
-        
-        text += f"\nВсього: {len(children_list)} дітей"
-        
+
+        text += f"\n**Команди:**\n"
+        text += "/childinfo <ID> - інформація\n"
+        text += "/renamechild <ID> <ім'я> - перейменувати\n"
+        text += "/sacrificechild <ID> - жертва\n"
+        text += "/childmarry <ID1> <ID2> - одружити\n\n"
+        text += "**Приклад:** `/childinfo 123`"
+
         bot.reply_to(message, text, parse_mode="Markdown")
         
     except Exception as e:
@@ -4633,7 +4645,7 @@ def create_guild_cmd(message):
 
 @bot.message_handler(commands=['guild'])
 def guild_cmd(message):
-    """Інформація про гільдію"""
+    """Інфор��ація про гільдію"""
     chat_id = message.chat.id
     user_id = message.from_user.id
     
