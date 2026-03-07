@@ -5298,13 +5298,31 @@ def boss_cmd(message):
                     # Бос переможений!
                     participants = get_boss_participants(boss['id'])
 
-                    # Розподіл нагороди
+                    # Фіксований пул нагород
+                    TOTAL_COINS_POOL = 1000
+                    TOTAL_XP_POOL = 500
+                    
+                    # Рахуємо загальну шкоду
                     total_damage = sum(p['damage_dealt'] for p in participants)
+                    
+                    logger.info(f"Boss defeated! Total damage: {total_damage}, Participants: {len(participants)}")
 
+                    # Розподіл нагороди за % урону
                     for p in participants:
-                        share = p['damage_dealt'] / total_damage if total_damage > 0 else 0
-                        coins_reward = int(boss['reward_coins'] * share)
-                        xp_reward = int(boss['reward_xp'] * share)
+                        # Розраховуємо % урону
+                        damage_share = p['damage_dealt'] / total_damage if total_damage > 0 else 0
+                        
+                        # Розраховуємо нагороди
+                        coins_reward = int(TOTAL_COINS_POOL * damage_share)
+                        xp_reward = int(TOTAL_XP_POOL * damage_share)
+                        
+                        # Мінімальна нагорода 1 монета/1 XP якщо участвував
+                        if coins_reward == 0 and p['damage_dealt'] > 0:
+                            coins_reward = 1
+                        if xp_reward == 0 and p['damage_dealt'] > 0:
+                            xp_reward = 1
+                        
+                        logger.info(f"Player {p['user_id']}: damage={p['damage_dealt']} ({damage_share*100:.1f}%), coins={coins_reward}, xp={xp_reward}")
 
                         if coins_reward > 0:
                             add_coins(p['user_id'], chat_id, coins_reward)
@@ -5315,14 +5333,24 @@ def boss_cmd(message):
                     defeated_by = result.get('defeated_by_user_id') if result else None
                     winner_hryak = get_hryak(defeated_by or user_id, chat_id)
                     winner_name = winner_hryak['name'] if winner_hryak else "Невідомо"
+                    
+                    # Знаходимо топ 3 гравців за уроном
+                    sorted_participants = sorted(participants, key=lambda x: x['damage_dealt'], reverse=True)[:3]
+                    top_text = ""
+                    for i, p in enumerate(sorted_participants, 1):
+                        medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉"
+                        damage_percent = (p['damage_dealt'] / total_damage * 100) if total_damage > 0 else 0
+                        top_text += f"{medal} {i} місце: {damage_percent:.1f}% урону\n"
 
                     bot.reply_to(message, f"""🎉 БОСА ПЕРЕМОЖЕНО!
 
 {boss['name']} загинув від рук героїв!
 Останній удар: {winner_name}
 
-**Нагороди розподілено:**
-Кожен учасник отримав монети та XP пропорційно до шкоди!
+🏆 Топ гравців за уроном:
+{top_text}
+💰 Загальний пул: {TOTAL_COINS_POOL} монет, {TOTAL_XP_POOL} XP
+📊 Нагороди розподілено за % урону!
 
 ⏰ Наступний бос з'явиться через 24 години!""")
                 elif result and not result.get('defeated'):
