@@ -5154,7 +5154,7 @@ def boss_cmd(message):
 ❤️ Здоров'я: {boss['health']}/{boss['max_health']}
 {hp_bar} {hp_percent}%
 ⚔️ Шкода: {boss['damage']}
-💰 Нагорода: 1000 монет, 500 XP (розподіляється за % урону)
+💰 Нагорода: 1000 монет + 500 XP (розподіляється за % урону)
 
 **Топ гравців:**
 """
@@ -5163,14 +5163,14 @@ def boss_cmd(message):
 
                 text += """
 **Команди:**
-/boss attack - атакувати боса
+/boss attack - атакувати боса (кулдаун 30 сек)
 /boss info - детальна інформація
 
 **Як це працює:**
 1. Кожен гравець може атакувати боса
 2. Шкода = вага хряка × 2 + рандом
-3. Кулдаун між атаками: 15 секунд
-4. Нагороди розподіляються за % урону
+3. Кулдаун між атаками: 30 секунд
+4. Нагороди: 1000 монет + 500 XP (розподіл за % урону)
 5. Після перемоги бос не з'являється 24 години"""
 
                 bot.reply_to(message, text)
@@ -5181,12 +5181,12 @@ def boss_cmd(message):
                     bot.reply_to(message, "🐲 Бос вже переможений!\n\nНаступний з'явиться через 24 години.")
                     return
 
-                # Перевіряємо кулдаун атаки (15 секунд)
+                # Перевіряємо кулдаун атаки (30 секунд)
                 last_attack = get_last_boss_attack_time(user_id, chat_id)
                 now = int(time.time())
-                if last_attack and (now - last_attack) < 15:
-                    seconds_left = 15 - (now - last_attack)
-                    bot.reply_to(message, f"⏳ Ще рано! Атакувати боса можна раз на 15 секунд.\n\nЗалишилось: {seconds_left} сек.")
+                if last_attack and (now - last_attack) < 30:
+                    seconds_left = 30 - (now - last_attack)
+                    bot.reply_to(message, f"⏳ Ще рано! Атакувати боса можна раз на 30 секунд.\n\nЗалишилось: {seconds_left} сек.")
                     return
 
                 # Перевіряємо чи нещодавно бос був переможений (24 години блок)
@@ -5292,7 +5292,7 @@ def boss_cmd(message):
 ❤️ {remaining}/{max_health} ({hp_percent}%)
 {hp_bar}
 
-⏰ Наступна атака через 15 секунд!
+⏰ Наступна атака через 30 секунд!
 
 Продовжуй атакувати командою /boss attack!""")
                 else:
