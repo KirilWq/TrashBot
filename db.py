@@ -2725,24 +2725,27 @@ def attack_boss(boss_id, user_id, chat_id, damage):
 
     cursor = conn.cursor()
     try:
-        # Додаємо шкоду до учасника
+        now = int(time.time())
+        
+        # Додаємо шкоду до учасника (оновлюємо joined_at для кулдауну)
         cursor.execute('''
             INSERT INTO boss_battle_participants (boss_id, user_id, chat_id, damage_dealt, joined_at)
             VALUES (%s, %s, %s, %s, %s)
             ON CONFLICT (boss_id, user_id, chat_id) DO UPDATE SET
-                damage_dealt = boss_battle_participants.damage_dealt + %s
-        ''', (boss_id, user_id, chat_id, damage, int(time.time()), damage))
+                damage_dealt = boss_battle_participants.damage_dealt + %s,
+                joined_at = EXCLUDED.joined_at
+        ''', (boss_id, user_id, chat_id, damage, now, damage))
 
         # Отримуємо поточне здоров'я боса
         cursor.execute('SELECT health, max_health FROM bosses WHERE id = %s', (boss_id,))
         boss_row = cursor.fetchone()
-        
+
         if not boss_row:
             return None
-        
+
         current_health = boss_row[0] if boss_row[0] else 0
         max_health = boss_row[1] if boss_row[1] else 1000
-        
+
         # Зменшуємо здоров'я боса
         new_health = max(0, current_health - damage)
         cursor.execute('''
@@ -2755,7 +2758,7 @@ def attack_boss(boss_id, user_id, chat_id, damage):
             cursor.execute('''
                 UPDATE bosses SET is_active = FALSE, defeat_date = %s, defeated_by_user_id = %s
                 WHERE id = %s
-            ''', (int(time.time()), user_id, boss_id))
+            ''', (now, user_id, boss_id))
             conn.commit()
             return {'defeated': True, 'boss_id': boss_id, 'defeated_by_user_id': user_id}
 
