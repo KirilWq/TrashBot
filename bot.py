@@ -5974,6 +5974,8 @@ def api_execute_command():
         chat_id = data.get('chat_id')
         command = data.get('command')
         
+        logger.info(f"WebApp execute: user_id={user_id}, chat_id={chat_id}, command={command}")
+        
         if not user_id or not command:
             return jsonify({'success': False, 'message': 'Missing user_id or command'}), 400
         
@@ -6015,7 +6017,7 @@ def api_execute_command():
             boss_cmd(fake_message)
             return jsonify({'success': True, 'message': 'Бос показаний!'})
         else:
-            return jsonify({'success': False, 'message': 'Команда не підтримується'}), 400
+            return jsonify({'success': False, 'message': f'Команда не підтримується: {command}'}), 400
             
     except Exception as e:
         logger.error(f"API /execute error: {e}")

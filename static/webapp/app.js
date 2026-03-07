@@ -505,13 +505,16 @@ function loadGlobalLeaderboard() {
 async function openCommand(command) {
     // Call API to execute command directly
     try {
+        // Remove leading slash if present
+        const commandPath = command.startsWith('/') ? command.substring(1) : command;
+        
         const response = await fetch(`${API_BASE}/execute`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 user_id: userData.id,
                 chat_id: userData.chat_id,
-                command: command
+                command: commandPath  // Send without /
             })
         });
         
