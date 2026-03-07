@@ -2560,128 +2560,58 @@ def start(message):
 @bot.message_handler(commands=['help'])
 def help_cmd(message):
     text = (
-        "📜 **ПОВНИЙ СПИСОК КОМАНД:**\n\n"
+        "📜 ПОВНИЙ СПИСОК КОМАНД:\n\n"
         "🎯 Образливі:\n"
-        "• /pidor - хто сьогодні підор\n"
-        "• /roast - жорстке приниження\n"
-        "• /insult - образити когось\n"
-        "• /hardinsult - дуже жорсткі образи\n"
-        "• /slap - дати ляпаса\n\n"
+        "/pidor /roast /insult /hardinsult /slap\n\n"
         "🔮 Передбачення:\n"
-        "• /fortune - передбачення на день\n"
-        "• /whosgay - хто гей сьогодні\n"
-        "• /rate - оцінка тебе від бота\n\n"
+        "/fortune /whosgay /rate\n\n"
         "🤯 Розваги:\n"
-        "• /fact - випадковий факт\n"
-        "• /choose - обрати когось\n"
-        "• /top - рейтинг чату\n"
-        "• /такні - питання Так/Ні\n\n"
+        "/fact /choose /top /такні\n\n"
         "🐷 Гра Вирости Хряка:\n"
-        "• /grow - отримати хряка\n"
-        "• /feed - нагодувати (раз на 12 год)\n"
-        "• /my - показати свого хряка\n"
-        "• /name - змінити ім'я\n"
-        "• /hryaketop - топ хряків чату\n"
-        "• /globaltop - глобальний топ\n"
-        "• /achievements - досягнення\n"
-        "• /duel - виклик на дуель\n"
-        "• /duelteambattle - командна дуель 2v2, 3v3\n\n"
+        "/grow /feed /my /name /hryaketop\n"
+        "/globaltop /achievements /duel /duelteambattle\n\n"
         "📋 Квести:\n"
-        "• /quests - доступні квести\n"
-        "• /questclaim <id> - забрати нагороду\n\n"
+        "/quests /questclaim\n\n"
         "🎰 Казино:\n"
-        "• /roulette <сума> <вибір> - рулетка\n"
-        "• /lottery - лотерея за 5 кг\n\n"
+        "/roulette /lottery\n\n"
         "💰 Економіка:\n"
-        "• /balance - показати монети та XP\n"
-        "• /shop - магазин предметів\n"
-        "• /buy <предмет> - купити\n"
-        "• /inventory - твій інвентар\n"
-        "• /use <предмет> - використати\n"
-        "• /daily - щоденний бонус\n\n"
+        "/balance /shop /buy /inventory /use /daily\n\n"
         "📊 Статистика:\n"
-        "• /mystats - особиста статистика\n"
-        "• /stats - статистика чату\n"
-        "• /leaderboard - топ балакунів\n"
-        "• /activity - активність\n\n"
+        "/mystats /stats /leaderboard /activity\n\n"
         "👥 Чат:\n"
-        "• /members - показати учасників\n"
-        "• /adduser - додати юзернейма\n"
-        "• /removeuser - видалити\n"
-        "• /clearcache - очистити кеш\n"
-        "• /random - випадковий юзер\n"
-        "• /kickme - вигнати себе\n\n"
+        "/members /adduser /removeuser /clearcache\n"
+        "/random /kickme\n\n"
         "🔇 Мут (адміни):\n"
-        "• /mute - замути (відповідь + /mute 10)\n"
-        "• /unmute - розмутити\n\n"
+        "/mute /unmute\n\n"
         "😈 Провини (адміни):\n"
-        "• /provin - дати провину\n"
-        "• /unprovin - зняти провину\n"
-        "• /provinlist - список провинних\n\n"
+        "/provin /unprovin /provinlist\n\n"
         "⚠️ Попередження (адміни):\n"
-        "• /warn - видати попередження\n"
-        "• /warnings - показати попередження\n"
-        "• /clearwarns - очистити попередження\n\n"
+        "/warn /warnings /clearwarns\n\n"
         "🚫 Бан (адміни):\n"
-        "• /ban - забанити назавжди\n"
-        "• /unban - розбанити\n\n"
+        "/ban /unban\n\n"
         "📌 Інше (адміни):\n"
-        "• /del - видалити повідомлення\n"
-        "• /pin - закріпити повідомлення\n"
-        "• /unpin - відкріпити\n"
-        "• /spam - інфо про спам контроль\n\n"
+        "/del /pin /unpin /spam\n\n"
         "💕 Трахензебітен:\n"
-        "• /trachen - спарювання хряків\n"
-        "• /children - показати дітей\n"
-        "• /pregnancies - вагітні хряки\n"
-        "• /claimchildren - забрати дітей\n"
-        "• /childinfo <ID> - інформація\n"
-        "• /renamechild <ID> <ім'я> - перейменувати\n"
-        "• /childtop - топ дітей\n"
-        "• /sacrificechild <ID> - жертва\n"
-        "• /childmarry <ID1> <ID2> - одружити\n\n"
+        "/trachen /children /pregnancies /claimchildren\n"
+        "/childinfo /renamechild /childtop /sacrificechild /childmarry\n\n"
         "🏆 Турніри:\n"
-        "• /tournament - створити або приєднатися\n"
-        "• /tournament create <назва> - створити\n"
-        "• /tournament join - приєднатися\n"
-        "• /tournament start - почати (адмін)\n"
-        "• /tournament info - інформація\n\n"
+        "/tournament\n\n"
         "🏰 Гільдії:\n"
-        "• /createguild <назва> - створити (100 монет)\n"
-        "• /guild - інформація\n"
-        "• /guildjoin <назва> - приєднатися\n"
-        "• /guildleave - вийти\n"
-        "• /guildtop - рейтинг\n"
-        "• /contribute <сума> - внесок\n"
-        "• /transferguild <user_id> - передати\n"
-        "• /deleteguild - видалити\n\n"
+        "/createguild /guild /guildjoin /guildleave\n"
+        "/guildtop /contribute /transferguild /deleteguild\n\n"
         "🎨 Скіни:\n"
-        "• /skins - магазин\n"
-        "• /skins me - твої скіни\n"
-        "• /buyskin <назва> - купити\n"
-        "• /equipskin <назва> - одягнути\n\n"
+        "/skins /buyskin /equipskin\n\n"
         "🐲 Бос-дуелі:\n"
-        "• /boss - інформація про боса\n"
-        "• /boss attack - атакувати\n"
-        "• /boss info - детальна інформація\n\n"
+        "/boss /boss attack /boss info\n\n"
         "🎉 Івенти:\n"
-        "• /events - активні івенти\n"
-        "• /eventsclaim <id> - забрати нагороду\n\n"
+        "/events /eventsclaim\n\n"
         "🌍 Мова:\n"
-        "• /lang - вибрати мову (UA/EN/RU)\n\n"
+        "/lang\n\n"
         "⚙️ Інше:\n"
-        "• /start - привітання\n"
-        "• /menu - inline меню\n"
-        "• /help - ця допомога\n\n"
-        "Як використовувати:\n"
-        "1. Відповідай на повідомлення\n"
-        "2. Згадай @username\n"
-        "3. Просто напиши команду\n"
-        "4. /adduser щоб додати друзів\n"
-        "5. /menu для inline меню\n\n"
+        "/start /menu /help\n\n"
         "Всі команди працюють з рандомом!"
     )
-    bot.reply_to(message, text, parse_mode="Markdown")
+    bot.reply_to(message, text)
 
 
 @bot.message_handler(commands=['members'])
@@ -3144,7 +3074,7 @@ def on_chat_member_update(message):
 🐷 **Гра "Вирости Хряка":**
 /grow — отримати хряка
 /feed — нагодувати (раз на 12 год)
-/my — показати хряка
+/my — показат���� хряка
 /name — змінити ім'я
 /hryaketop — топ хряків
 /achievements — досягнення
@@ -5216,15 +5146,10 @@ def boss_cmd(message):
 Кожен учасник отримав монети та XP пропорційно до шкоди!
 
 Новий бос з'явиться найближчим часом...""")
-                else:
-                    # Бос ще жив - отримуємо оновлені дані
-                    updated_boss = get_active_boss()
-                    if updated_boss:
-                        remaining = updated_boss['health']
-                        max_health = updated_boss['max_health']
-                    else:
-                        remaining = result.get('remaining_health', boss['health']) if result else boss['health']
-                        max_health = boss['max_health']
+                elif result and not result.get('defeated'):
+                    # Бос ще жив - використовуємо дані з result
+                    remaining = result.get('remaining_health', boss['health'])
+                    max_health = result.get('max_health', boss['max_health'])
                     
                     hp_percent = int((remaining / max_health) * 100)
                     hp_bar = "🟩" * (hp_percent // 10) + "🟥" * (10 - hp_percent // 10)
@@ -5238,8 +5163,8 @@ def boss_cmd(message):
 {hp_bar}
 
 Продовжуй атакувати командою /boss attack!""")
-            else:
-                bot.reply_to(message, "❌ Невідома дія! Використовуй /boss attack або /boss info")
+                else:
+                    bot.reply_to(message, "❌ Помилка атаки! Спробуй ще раз.")
         else:
             # Показуємо інформацію про боса
             hp_percent = int((boss['health'] / boss['max_health']) * 100)

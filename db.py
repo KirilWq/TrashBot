@@ -2693,27 +2693,35 @@ def attack_boss(boss_id, user_id, chat_id, damage):
             ON CONFLICT (boss_id, user_id, chat_id) DO UPDATE SET
                 damage_dealt = boss_battle_participants.damage_dealt + %s
         ''', (boss_id, user_id, chat_id, damage, int(time.time()), damage))
+
+        # Отримуємо поточне здоров'я боса
+        cursor.execute('SELECT health, max_health FROM bosses WHERE id = %s', (boss_id,))
+        boss_row = cursor.fetchone()
+        
+        if not boss_row:
+            return None
+        
+        current_health = boss_row[0] if boss_row[0] else 0
+        max_health = boss_row[1] if boss_row[1] else 1000
         
         # Зменшуємо здоров'я боса
+        new_health = max(0, current_health - damage)
         cursor.execute('''
-            UPDATE bosses SET health = health - %s WHERE id = %s
-        ''', (damage, boss_id))
-        
+            UPDATE bosses SET health = %s WHERE id = %s
+        ''', (new_health, boss_id))
+
         # Перевіряємо чи переможено
-        cursor.execute('SELECT health FROM bosses WHERE id = %s', (boss_id,))
-        row = cursor.fetchone()
-        
-        if row and row[0] <= 0:
+        if new_health <= 0:
             # Бос переможений
             cursor.execute('''
-                UPDATE bosses SET is_active = FALSE, defeat_date = %s, defeated_by_user_id = %s 
+                UPDATE bosses SET is_active = FALSE, defeat_date = %s, defeated_by_user_id = %s
                 WHERE id = %s
             ''', (int(time.time()), user_id, boss_id))
             conn.commit()
-            return {'defeated': True, 'boss_id': boss_id}
-        
+            return {'defeated': True, 'boss_id': boss_id, 'defeated_by_user_id': user_id}
+
         conn.commit()
-        return {'defeated': False, 'boss_id': boss_id, 'remaining_health': row[0] if row else 0}
+        return {'defeated': False, 'boss_id': boss_id, 'remaining_health': new_health, 'max_health': max_health}
     except Exception as e:
         logger.error(f"❌ Помилка атаки боса: {e}")
         conn.rollback()
