@@ -542,42 +542,42 @@ DAILY_QUESTS = {
         'name': 'Годувальник 🍽️',
         'desc': 'Нагодуй хряка 3 рази за день',
         'target': 3,
-        'reward_coins': 50,
-        'reward_xp': 10
+        'reward_coins': 25,
+        'reward_xp': 5
     },
     'win_2_duels': {
         'name': 'Дуелянт ⚔️',
         'desc': 'Виграй 2 дуелі',
         'target': 2,
-        'reward_coins': 100,
-        'reward_xp': 25
+        'reward_coins': 50,
+        'reward_xp': 12
     },
     'lose_10kg': {
         'name': 'Схуднення 📉',
         'desc': 'Схудни на 10 кг за раз',
         'target': 1,
-        'reward_coins': 75,
-        'reward_xp': 15
+        'reward_coins': 37,
+        'reward_xp': 7
     },
     'gain_20kg': {
         'name': 'Набір маси 📈',
         'desc': 'Набери +20 кг за раз',
         'target': 1,
-        'reward_coins': 100,
-        'reward_xp': 20
+        'reward_coins': 50,
+        'reward_xp': 10
     },
     'chat_active': {
         'name': 'Балакун 💬',
         'desc': 'Напиши 50 повідомлень в чаті',
         'target': 50,
-        'reward_coins': 30,
-        'reward_xp': 10
+        'reward_coins': 15,
+        'reward_xp': 5
     },
     'feed_friends': {
         'name': 'Дружній 🐷',
         'desc': 'Нагодуй хряка коли є 3+ гравці в чаті',
         'target': 1,
-        'reward_coins': 60,
+        'reward_coins': 30,
         'reward_xp': 15
     }
 }
@@ -6234,7 +6234,7 @@ def run_bot_with_retry():
                 logger.info(f"⏳ Перезапуск через {retry_delay} сек...")
                 time.sleep(retry_delay)
             else:
-                logger.error("❌ Максимальна кіль��ість с���роб вичерпана")
+                logger.error("❌ Максимальна кіль��ість с�����об вичерпана")
                 raise
 
 run_bot_with_retry()
