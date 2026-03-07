@@ -492,10 +492,15 @@ def create_hryak(user_id, chat_id, username):
     # Додаємо в кеш
     hryaky_data[key] = hryak
     
-    # Додаємо класичний скін
+    # Додаємо класичний скін (name='classic')
     try:
-        buy_skin(user_id, chat_id, 1)  # Classic skin id = 1
-        logger.info(f"✅ Додано класичний скін для {key}")
+        # Get classic skin ID by name
+        classic_skin = get_skin_by_name('classic')
+        if classic_skin:
+            buy_skin(user_id, chat_id, classic_skin['id'])
+            logger.info(f"✅ Додано класичний скін (id={classic_skin['id']}) для {key}")
+        else:
+            logger.error(f"❌ Класичний скін не знайдений в базі!")
     except Exception as e:
         logger.error(f"❌ Помилка додавання скіну: {e}")
     
@@ -5906,27 +5911,37 @@ def api_buy_item():
         data = request.get_json()
         user_id = data.get('user_id')
         item_id = data.get('item_id')
-        chat_id = data.get('chat_id', 0)
+        chat_id = data.get('chat_id')
         
+        # Fix chat_id - use -1 if 0, None, or missing
+        if not chat_id or chat_id == 0:
+            chat_id = -1
+        
+        logger.info(f"Buy item: user_id={user_id}, chat_id={chat_id}, item_id={item_id}")
+
         if not user_id or not item_id:
             return jsonify({'success': False, 'message': 'Missing parameters'}), 400
-        
+
         # Get item
         items = get_shop_items()
         item = next((i for i in items if i['item_id'] == item_id), None)
-        
+
         if not item:
             return jsonify({'success': False, 'message': 'Item not found'}), 404
-        
+
         # Check balance
         currency = get_user_currency(user_id, chat_id)
+        logger.info(f"User coins: {currency['coins']}, item price: {item['price']}")
+        
         if currency['coins'] < item['price']:
             return jsonify({'success': False, 'message': 'Not enough coins'}), 400
-        
+
         # Buy item
         update_user_currency(user_id, chat_id, coins=currency['coins'] - item['price'])
         add_to_inventory(user_id, chat_id, item_id)
         
+        logger.info(f"Item purchased: {item_id}")
+
         return jsonify({'success': True}), 200
     except Exception as e:
         logger.error(f"API /buy-item error: {e}")

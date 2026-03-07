@@ -418,16 +418,25 @@ async function buyItem(itemId, price) {
     tg.showConfirm(`Купити предмет за ${price} монет?`, async (confirm) => {
         if (confirm) {
             showLoading(true);
-            
+
             try {
+                const requestBody = {
+                    user_id: userData.id,
+                    chat_id: userData.chat_id || -1,  // Ensure chat_id is set
+                    item_id: itemId
+                };
+                
+                console.log('Buying item:', requestBody);
+
                 const response = await fetch(`${API_BASE}/buy-item`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: userData.id, item_id: itemId })
+                    body: JSON.stringify(requestBody)
                 });
-                
+
                 const data = await response.json();
-                
+                console.log('Buy item response:', data);
+
                 if (data.success) {
                     tg.showAlert('Куплено!');
                     loadUserData();
@@ -510,14 +519,23 @@ async function useItem(itemId) {
 
 async function equipSkin(skinName) {
     try {
+        const requestBody = {
+            user_id: userData.id,
+            chat_id: userData.chat_id || -1,  // Ensure chat_id is set
+            skin_name: skinName
+        };
+        
+        console.log('Equipping skin:', requestBody);
+
         const response = await fetch(`${API_BASE}/equip-skin`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_id: userData.id, skin_name: skinName })
+            body: JSON.stringify(requestBody)
         });
-        
+
         const data = await response.json();
-        
+        console.log('Equip skin response:', data);
+
         if (data.success) {
             tg.showAlert('Одягнуто!');
             loadUserData();
