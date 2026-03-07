@@ -27,9 +27,9 @@ def init_db():
     conn = get_connection()
     if not conn:
         return
-    
+
     cursor = conn.cursor()
-    
+
     try:
         # Таблиця хряків
         cursor.execute('''
@@ -50,7 +50,11 @@ def init_db():
                 fed_on_1st BOOLEAN DEFAULT FALSE
             )
         ''')
-        
+
+        # Фікс існуючої схеми - змінюємо тип колонок
+        cursor.execute('ALTER TABLE hryaky ALTER COLUMN created_at TYPE BIGINT')
+        cursor.execute('ALTER TABLE hryaky ALTER COLUMN last_feed TYPE BIGINT')
+
         # Таблиця статистики
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS stats (
@@ -63,7 +67,11 @@ def init_db():
                 last_message BIGINT
             )
         ''')
-        
+
+        # Фікс існуючої схеми - змінюємо тип колонок
+        cursor.execute('ALTER TABLE stats ALTER COLUMN first_message TYPE BIGINT')
+        cursor.execute('ALTER TABLE stats ALTER COLUMN last_message TYPE BIGINT')
+
         # Таблиця попереджень
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS warns (
@@ -75,7 +83,7 @@ def init_db():
                 banned BOOLEAN DEFAULT FALSE
             )
         ''')
-        
+
         # Таблиця спаму
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS spam (
@@ -85,7 +93,10 @@ def init_db():
                 mute_until BIGINT
             )
         ''')
-        
+
+        # Фікс існуючої схеми - змінюємо тип колонки
+        cursor.execute('ALTER TABLE spam ALTER COLUMN mute_until TYPE BIGINT')
+
         # Таблиця ручних юзернеймів
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS manual_users (
@@ -94,7 +105,7 @@ def init_db():
                 users_json TEXT
             )
         ''')
-        
+
         conn.commit()
         logger.info("✅ База даних ініціалізована")
     except Exception as e:
