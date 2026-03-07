@@ -30,7 +30,7 @@ from db import (
     get_all_guilds, get_user_guild_stats, transfer_guild_owner, delete_guild,
     get_all_skins, get_skin, get_skin_by_name, get_user_skins, get_user_equipped_skin, get_user_inventory,
     buy_skin, equip_skin, has_skin, get_skin_bonus,
-    get_active_boss, spawn_boss, attack_boss, get_boss_participants, get_user_boss_stats, get_last_boss_attack_time, save_boss_attack_time,
+    get_active_boss, spawn_boss, attack_boss, get_boss_participants, get_user_boss_stats, get_last_boss_attack_time, save_boss_attack_time, get_last_boss,
     get_active_events, get_all_events, get_user_event_progress, update_event_progress, claim_event_reward,
     get_user_language, set_user_language,
     rename_child, get_child, get_top_children, sacrifice_child, marry_children
@@ -1605,7 +1605,7 @@ def team1_join_callback(call):
             bot.answer_callback_query(call.id, "❌ Команда 1 повна!", show_alert=True)
             return
         
-        # Додаємо до ко����анди
+        # Додаємо до ко��������анди
         duel['team1'].append({'user_id': user_id, 'hryak': hryak})
         
         text = f"""⚔️ **КОМАНДНА ДУЕЛЬ**
@@ -3073,7 +3073,7 @@ def on_chat_member_update(message):
 
 🐷 **Гра "Вирости Хряка":**
 /grow — отримати хряка
-/feed — нагодув��т�� (раз на 12 год)
+/feed — н��го��ув��т�� (раз на 12 год)
 /my — показат������������ хряка
 /name — змінити ім'я
 /hryaketop — топ хряків
@@ -4652,7 +4652,7 @@ def guild_cmd(message):
 **Учасники:**
 """
         for i, member in enumerate(members, 1):
-            role_emoji = "👑" if member['role'] == 'owner' else "🔷" if member['role'] == 'officer' else "▫️"
+            role_emoji = "👑" if member['role'] == 'owner' else "��" if member['role'] == 'officer' else "▫️"
             text += f"{i}. {role_emoji} ID {member['user_id']} - {member['contribution']} внеску\n"
         
         bot.reply_to(message, text, parse_mode="Markdown")
@@ -5055,14 +5055,32 @@ def boss_cmd(message):
     """Бос-дуель"""
     chat_id = message.chat.id
     user_id = message.from_user.id
-    
+
     try:
         parts = message.text.split()
-        
+
         # Отримуємо активного боса
         boss = get_active_boss()
-        
+
         if not boss:
+            # Перевіряємо чи нещодавно бос був переможений
+            last_boss = get_last_boss()
+            now = int(time.time())
+            
+            if last_boss and last_boss.get('defeat_date'):
+                time_since_defeat = now - last_boss['defeat_date']
+                if time_since_defeat < 86400:  # 24 години
+                    hours_left = int((86400 - time_since_defeat) / 3600)
+                    bot.reply_to(message, f"""🐲 **БОС-ДУЕЛІ**
+
+Бос щойно переможений!
+Наступний бос з'явиться через {hours_left} год.
+
+**Як бити боса:**
+/boss attack - атакувати боса
+/boss info - інформація про боса""")
+                    return
+            
             bot.reply_to(message, """🐲 **БОС-ДУЕЛІ**
 
 Наразі немає активного боса!
@@ -5839,6 +5857,10 @@ def api_buy_skin():
         user_id = data.get('user_id')
         skin_name = data.get('skin_name')
         chat_id = data.get('chat_id', 0)
+        
+        # Fix chat_id - use -1 if 0 or None
+        if not chat_id or chat_id == 0:
+            chat_id = -1
 
         logger.info(f"Buy skin: user_id={user_id}, chat_id={chat_id}, skin_name={skin_name}")
 
@@ -5859,12 +5881,16 @@ def api_buy_skin():
             return jsonify({'success': False, 'message': 'Not enough coins'}), 400
 
         # Check if already has
-        if has_skin(user_id, chat_id, skin['id']):
+        has = has_skin(user_id, chat_id, skin['id'])
+        logger.info(f"Has skin: {has}")
+        
+        if has:
             return jsonify({'success': False, 'message': 'Already owned'}), 400
 
         # Buy skin
         update_user_currency(user_id, chat_id, coins=currency['coins'] - skin['price'])
-        buy_skin(user_id, chat_id, skin['id'])
+        bought = buy_skin(user_id, chat_id, skin['id'])
+        logger.info(f"Buy skin result: {bought}")
         
         logger.info(f"Skin purchased: {skin_name}")
 
@@ -6231,7 +6257,7 @@ def query_feed_inline(inline_query):
     bot.answer_inline_query(inline_query.id, [
         types.InlineQueryResultArticle(
             id='1',
-            title='🍽️ Нагодувати хряка',
+            title='���️ Нагодувати хряка',
             description='Годування раз на 12 годин',
             input_message_content=types.InputTextMessageContent(text, parse_mode="Markdown"),
             reply_markup=markup

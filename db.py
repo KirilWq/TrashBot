@@ -2668,6 +2668,42 @@ def get_active_boss():
         cursor.close()
         conn.close()
 
+def get_last_boss():
+    """Отримує останнього боса (активного або переможеного)"""
+    conn = get_connection()
+    if not conn:
+        return None
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT * FROM bosses 
+            ORDER BY id DESC LIMIT 1
+        ''')
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return {
+            'id': int(row[0]),
+            'name': row[1],
+            'level': int(row[2]),
+            'health': int(row[3]),
+            'max_health': int(row[4]),
+            'damage': int(row[5]),
+            'reward_coins': int(row[6]),
+            'reward_xp': int(row[7]),
+            'is_active': bool(row[8]),
+            'spawn_date': int(row[9]) if row[9] else 0,
+            'defeat_date': int(row[10]) if row[10] else 0,
+            'defeated_by_user_id': int(row[11]) if row[11] else None
+        }
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання останнього боса: {e}")
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
 def spawn_boss(name, level, health, damage, reward_coins, reward_xp):
     """Створює нового боса"""
     conn = get_connection()
