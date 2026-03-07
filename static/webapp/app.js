@@ -261,12 +261,15 @@ async function loadInventory() {
 
 async function loadMySkins() {
     try {
-        const response = await fetch(`${API_BASE}/my-skins?user_id=${userData.id}`);
+        const chatId = userData.chat_id || -1;
+        const response = await fetch(`${API_BASE}/my-skins?user_id=${userData.id}&chat_id=${chatId}`);
         const data = await response.json();
-        
+
+        console.log('Load my skins response:', data);
+
         const container = document.getElementById('mySkins');
         container.innerHTML = '';
-        
+
         if (data.success && data.data.length > 0) {
             data.data.forEach(skin => {
                 const skinEl = document.createElement('div');
@@ -427,17 +430,22 @@ async function buySkin(skinName, price) {
             showLoading(true);
 
             try {
+                const requestBody = {
+                    user_id: userData.id,
+                    chat_id: userData.chat_id || -1,  // Ensure chat_id is set
+                    skin_name: skinName
+                };
+                
+                console.log('Buying skin:', requestBody);
+
                 const response = await fetch(`${API_BASE}/buy-skin`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        user_id: userData.id,
-                        chat_id: userData.chat_id,
-                        skin_name: skinName
-                    })
+                    body: JSON.stringify(requestBody)
                 });
 
                 const data = await response.json();
+                console.log('Buy skin response:', data);
 
                 if (data.success) {
                     tg.showAlert('Куплено!');

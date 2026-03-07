@@ -5066,12 +5066,18 @@ def boss_cmd(message):
             # Перевіряємо чи нещодавно бос був переможений
             last_boss = get_last_boss()
             now = int(time.time())
-            
-            if last_boss and last_boss.get('defeat_date'):
-                time_since_defeat = now - last_boss['defeat_date']
-                if time_since_defeat < 86400:  # 24 години
-                    hours_left = int((86400 - time_since_defeat) / 3600)
-                    bot.reply_to(message, f"""🐲 **БОС-ДУЕЛІ**
+
+            if last_boss:
+                defeat_date = last_boss.get('defeat_date')
+                logger.info(f"Last boss defeat_date: {defeat_date}, now: {now}")
+                
+                if defeat_date and defeat_date > 0:
+                    time_since_defeat = now - defeat_date
+                    logger.info(f"Time since defeat: {time_since_defeat} seconds ({time_since_defeat / 3600:.1f} hours)")
+                    
+                    if time_since_defeat < 86400:  # 24 години
+                        hours_left = int((86400 - time_since_defeat) / 3600)
+                        bot.reply_to(message, f"""🐲 **БОС-ДУЕЛІ**
 
 Бос щойно переможений!
 Наступний бос з'явиться через {hours_left} год.
@@ -5079,8 +5085,8 @@ def boss_cmd(message):
 **Як бити боса:**
 /boss attack - атакувати боса
 /boss info - інформація про боса""")
-                    return
-            
+                        return
+
             bot.reply_to(message, """🐲 **БОС-ДУЕЛІ**
 
 Наразі немає активного боса!
@@ -5163,7 +5169,7 @@ def boss_cmd(message):
 **Нагороди розподілено:**
 Кожен учасник отримав монети та XP пропорційно до шкоди!
 
-Новий бос з'явиться через 24 години...""")
+⏰ Наступний бос з'явиться через 24 години!""")
                 elif result and not result.get('defeated'):
                     # Бос ще жив - використовуємо дані з result
                     remaining = result.get('remaining_health', boss['health'])
@@ -5856,9 +5862,9 @@ def api_buy_skin():
         data = request.get_json()
         user_id = data.get('user_id')
         skin_name = data.get('skin_name')
-        chat_id = data.get('chat_id', 0)
+        chat_id = data.get('chat_id')
         
-        # Fix chat_id - use -1 if 0 or None
+        # Fix chat_id - use -1 if 0, None, or missing
         if not chat_id or chat_id == 0:
             chat_id = -1
 
@@ -5871,6 +5877,7 @@ def api_buy_skin():
         skin = get_skin_by_name(skin_name)
 
         if not skin:
+            logger.error(f"Skin not found: {skin_name}")
             return jsonify({'success': False, 'message': 'Skin not found'}), 404
 
         # Check balance
@@ -5880,9 +5887,9 @@ def api_buy_skin():
         if currency['coins'] < skin['price']:
             return jsonify({'success': False, 'message': 'Not enough coins'}), 400
 
-        # Check if already has
+        # Check if already has - use correct chat_id
         has = has_skin(user_id, chat_id, skin['id'])
-        logger.info(f"Has skin: {has}")
+        logger.info(f"Has skin {skin_name}: {has} (user_id={user_id}, chat_id={chat_id}, skin_id={skin['id']})")
         
         if has:
             return jsonify({'success': False, 'message': 'Already owned'}), 400
@@ -5892,11 +5899,15 @@ def api_buy_skin():
         bought = buy_skin(user_id, chat_id, skin['id'])
         logger.info(f"Buy skin result: {bought}")
         
+        # Verify the skin was added
+        has_after = has_skin(user_id, chat_id, skin['id'])
+        logger.info(f"Has skin after purchase: {has_after}")
+        
         logger.info(f"Skin purchased: {skin_name}")
 
         return jsonify({'success': True}), 200
     except Exception as e:
-        logger.error(f"API /buy-skin error: {e}")
+        logger.error(f"API /buy-skin error: {e}", exc_info=True)
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @flask_app.route('/api/webapp/use-item', methods=['POST'])
