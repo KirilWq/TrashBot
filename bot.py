@@ -3302,23 +3302,39 @@ def inventory_cmd(message):
         items = get_shop_items()
         items_dict = {i['item_id']: i for i in items}
         
-        if not inventory:
+        # Get user's skins
+        skins = get_user_skins(user_id, chat_id)
+
+        if not inventory and not skins:
             bot.reply_to(message, "🎒 ІНВЕНТАР\n\nПорожньо!")
             return
-        
+
         text = "🎒 **ІНВЕНТАР**\n\n"
-        for inv_item in inventory:
-            item = items_dict.get(inv_item['item_id'])
-            if item:
-                text += f"`{inv_item['item_id']}` - {item['name']} x{inv_item['quantity']}\n"
-                if inv_item['expires_at']:
-                    expires = inv_item['expires_at'] - int(time.time())
-                    hours = expires // 3600
-                    text += f"  _⏰ Ще {hours} год_\n"
-                text += "\n"
+        
+        # Show items
+        if inventory:
+            text += "**Предмети:**\n"
+            for inv_item in inventory:
+                item = items_dict.get(inv_item['item_id'])
+                if item:
+                    text += f"`{inv_item['item_id']}` - {item['name']} x{inv_item['quantity']}\n"
+                    if inv_item['expires_at']:
+                        expires = inv_item['expires_at'] - int(time.time())
+                        hours = expires // 3600
+                        text += f"  _⏰ Ще {hours} год_\n"
+                    text += "\n"
+        
+        # Show skins
+        if skins:
+            text += "**Скіни:**\n"
+            for skin in skins:
+                equipped = "✅ Одягнуто" if skin['equipped'] else ""
+                text += f"{skin['icon']} {skin['display_name']} {equipped}\n"
+            text += "\n"
 
         text += "**Команди:**\n"
-        text += "/use <item_id> - використати предмет\n\n"
+        text += "/use <item_id> - використати предмет\n"
+        text += "/equipskin <назва> - одягнути скін\n\n"
         text += "**Приклад:** `/use vitamins`"
 
         bot.reply_to(message, text, parse_mode="Markdown")

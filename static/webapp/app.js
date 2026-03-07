@@ -229,12 +229,15 @@ async function loadSkins() {
 
 async function loadInventory() {
     try {
-        const response = await fetch(`${API_BASE}/inventory?user_id=${userData.id}`);
+        const chatId = userData.chat_id || -1;
+        const response = await fetch(`${API_BASE}/inventory?user_id=${userData.id}&chat_id=${chatId}`);
         const data = await response.json();
-        
+
+        console.log('Inventory response:', data);
+
         const container = document.getElementById('inventoryItems');
         container.innerHTML = '';
-        
+
         if (data.success && data.data.length > 0) {
             data.data.forEach(item => {
                 const itemEl = document.createElement('div');

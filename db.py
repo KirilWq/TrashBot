@@ -1297,33 +1297,6 @@ def get_item(item_id):
 # ФУНКЦІЇ ДЛЯ ІНВЕНТАРЮ
 # ============================================
 
-def get_user_inventory(user_id, chat_id):
-    """Отримує інвентар користувача"""
-    conn = get_connection()
-    if not conn:
-        return []
-
-    cursor = conn.cursor()
-    try:
-        cursor.execute('SELECT item_id, quantity, expires_at FROM user_inventory WHERE user_id = %s AND chat_id = %s', (user_id, chat_id))
-        rows = cursor.fetchall()
-        inventory = []
-        now = int(time.time())
-        for row in rows:
-            if row[2] is None or row[2] > now:  # Не прострочено
-                inventory.append({
-                    'item_id': row[0],
-                    'quantity': int(row[1]),
-                    'expires_at': int(row[2]) if row[2] else None
-                })
-        return inventory
-    except Exception as e:
-        logger.error(f"❌ Помилка отримання інвентарю: {e}")
-        return []
-    finally:
-        cursor.close()
-        conn.close()
-
 def add_to_inventory(user_id, chat_id, item_id, quantity=1, duration=0):
     """Додає предмет в інвентар"""
     conn = get_connection()
@@ -2504,21 +2477,36 @@ def get_user_inventory(user_id, chat_id):
     cursor = conn.cursor()
     try:
         cursor.execute('''
-            SELECT ui.item_id, ui.quantity, s.name, s.description
+            SELECT ui.item_id, ui.quantity, ui.expires_at, s.name, s.description, s.effect_type
             FROM user_inventory ui
             LEFT JOIN shop_items s ON ui.item_id = s.item_id
             WHERE ui.user_id = %s AND ui.chat_id = %s
         ''', (user_id, chat_id))
         rows = cursor.fetchall()
         inventory = []
+        now = int(time.time())
         for row in rows:
-            inventory.append({
-                'item_id': row[0],
-                'quantity': int(row[1]) if row[1] else 0,
-                'name': row[2] or row[0],
-                'description': row[3] or '',
-                'icon': '📦'  # Default icon
-            })
+            # Check if not expired
+            expires_at = int(row[2]) if row[2] else None
+            if expires_at is None or expires_at > now:
+                # Get icon based on effect_type
+                icon_map = {
+                    'weight_bonus': '🍎',
+                    'agility_bonus': '💪',
+                    'shield': '🛡️',
+                    'remove_cooldown': '⚡',
+                    'luck_bonus': '🍀'
+                }
+                icon = icon_map.get(row[5], '📦')
+                
+                inventory.append({
+                    'item_id': row[0],
+                    'quantity': int(row[1]) if row[1] else 0,
+                    'expires_at': expires_at,
+                    'name': row[3] or row[0],
+                    'description': row[4] or '',
+                    'icon': icon
+                })
         return inventory
     except Exception as e:
         logger.error(f"❌ Помилка отримання інвентарю: {e}")
