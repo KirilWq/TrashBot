@@ -503,15 +503,8 @@ function loadGlobalLeaderboard() {
 }
 
 function openCommand(command) {
-    // Use bot username from window object
-    const botUsername = window.BOT_USERNAME || 'bot';
-    const commandPath = command.substring(1); // Remove '/'
-    const url = `https://t.me/${botUsername}?start=${commandPath}`;
-    
-    console.log('Opening command:', url);
-    
-    // Use tg.openLink which is more reliable
-    tg.openLink(url);
+    // Just show the command - user can copy it
+    tg.showAlert(`Команда: ${command}\n\nВведіть її в чаті з ботом`);
 }
 
 // Bottom nav buttons handlers
