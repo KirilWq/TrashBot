@@ -5207,7 +5207,12 @@ def boss_cmd(message):
 
                 # Бонус від скіну
                 skin_bonus = get_skin_bonus(user_id, chat_id, 'weight_bonus')
-                total_damage = max(1, int((base_damage + random_damage) * (1 + skin_bonus / 100)))
+                
+                # Перевіряємо чи це @terchizz - даємо невеликий баф
+                username = message.from_user.username or ''
+                terchizz_bonus = 1.1 if username == 'terchizz' else 1.0  # +10% шкоди для терчіза
+                
+                total_damage = max(1, int((base_damage + random_damage) * (1 + skin_bonus / 100) * terchizz_bonus))
 
                 # Атакуємо
                 result = attack_boss(boss['id'], user_id, chat_id, total_damage)
@@ -5233,6 +5238,11 @@ def boss_cmd(message):
                         # Розраховуємо нагороди
                         coins_reward = int(TOTAL_COINS_POOL * damage_share)
                         xp_reward = int(TOTAL_XP_POOL * damage_share)
+                        
+                        # Баф для @terchizz - +20% монет та XP
+                        if p['user_id'] == 1044325356:  # terchizz user ID
+                            coins_reward = int(coins_reward * 1.2)
+                            xp_reward = int(xp_reward * 1.2)
                         
                         # Мінімальна нагорода 1 монета/1 XP якщо участвував
                         if coins_reward == 0 and p['damage_dealt'] > 0:
