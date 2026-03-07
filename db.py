@@ -45,6 +45,7 @@ def init_db():
         cursor.execute("DROP TABLE IF EXISTS warns CASCADE")
         cursor.execute("DROP TABLE IF EXISTS stats CASCADE")
         cursor.execute("DROP TABLE IF EXISTS hryaky CASCADE")
+        cursor.execute("DROP TABLE IF EXISTS boss_battle_participants CASCADE")
         # Не видаляємо skins, bosses, seasonal_events, guilds, tournaments - там вже є дані
         logger.info("🗑️ Старі таблиці видалено")
 
@@ -312,6 +313,20 @@ def init_db():
             )
         ''')
         logger.info("✅ Таблиця tournament_participants створена")
+
+        # Таблиця учасників бос-дуелей
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS boss_battle_participants (
+                id SERIAL PRIMARY KEY,
+                boss_id INTEGER,
+                user_id BIGINT,
+                chat_id BIGINT,
+                damage_dealt BIGINT DEFAULT 0,
+                joined_at BIGINT,
+                UNIQUE(boss_id, user_id, chat_id)
+            )
+        ''')
+        logger.info("✅ Таблиця boss_battle_participants створена")
 
         # Таблиця гільдій
         cursor.execute('''

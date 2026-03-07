@@ -3074,7 +3074,7 @@ def on_chat_member_update(message):
 🐷 **Гра "Вирости Хряка":**
 /grow — отримати хряка
 /feed — нагодувати (раз на 12 год)
-/my — показат���� хряка
+/my — показат�������� хряка
 /name — змінити ім'я
 /hryaketop — топ хряків
 /achievements — досягнення
@@ -5461,6 +5461,14 @@ def spam_handler(message):
     # Додаємо повідомлення до статистики
     username = f"@{message.from_user.username}" if message.from_user.username else message.from_user.first_name
     add_message(chat_id, user_id, username)
+    
+    # Оновлюємо квест chat_active (напиши 50 повідомлень)
+    quests = get_daily_quests(user_id, chat_id)
+    quest_progress = {q['quest_id']: q for q in quests}
+    chat_quest = quest_progress.get('chat_active', {'progress': 0, 'target': 50})
+    new_chat_progress = min(chat_quest['progress'] + 1, 50)
+    chat_completed = new_chat_progress >= 50
+    update_daily_quest(user_id, chat_id, 'chat_active', new_chat_progress, 50, completed=chat_completed)
 
 
 logger.info("=" * 50)
@@ -6023,7 +6031,31 @@ def keep_alive():
 keep_alive_thread = Thread(target=keep_alive, daemon=True)
 keep_alive_thread.start()
 
-bot.polling(none_stop=True, interval=0)
+# Запускаємо бота з retry logic
+def run_bot_with_retry():
+    """Запускає бота з автоматичним перезапуском при помилках"""
+    max_retries = 5
+    retry_delay = 5
+    
+    for attempt in range(max_retries):
+        try:
+            logger.info(f"🤖 Запуск бота (спроба {attempt + 1}/{max_retries})...")
+            bot.polling(none_stop=True, interval=5, timeout=60)
+            break
+        except Exception as e:
+            error_msg = str(e)
+            if "terminated by other getUpdates request" in error_msg:
+                logger.error("❌ Бот вже запущений в іншому місці! Зупинка...")
+                break
+            logger.error(f"❌ Помилка бота: {e}")
+            if attempt < max_retries - 1:
+                logger.info(f"⏳ Перезапуск через {retry_delay} сек...")
+                time.sleep(retry_delay)
+            else:
+                logger.error("❌ Максимальна кількість спроб вичерпана")
+                raise
+
+run_bot_with_retry()
 
 
 # ============================================
