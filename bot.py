@@ -5120,6 +5120,31 @@ def claim_events_cmd(message):
         bot.reply_to(message, f"❌ Помилка: {e}")
 
 
+@bot.message_handler(commands=['webapp'])
+def webapp_cmd(message):
+    """Відкрити Web App"""
+    chat_id = message.chat.id
+    
+    # Отримуємо Render URL
+    render_url = os.environ.get('RENDER_EXTERNAL_URL', 'https://trashbot-n0nd.onrender.com')
+    webapp_url = f"{render_url}/webapp"
+    
+    # Створюємо inline кнопку
+    markup = types.InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton("🎮 Відкрити Web App", web_app=types.WebAppInfo(webapp_url)))
+    
+    bot.send_message(chat_id, f"""🎮 **Web App готовий!**
+
+Відкрий сучасний інтерфейс бота:
+- 🐷 Профіль хряка
+- 🏪 Магазин скінів
+- 🎒 Інвентар
+- 🏆 Лідерборди
+
+Натисни кнопку нижче 👇""", 
+    reply_markup=markup, parse_mode="Markdown")
+
+
 # ============================================
 # МУЛЬТИ-МОВНІСТЬ
 # ============================================
@@ -5322,18 +5347,30 @@ def ping():
 # ============================================
 
 @flask_app.route('/webapp')
+@flask_app.route('/webapp/')
 def webapp_index():
     """Головна сторінка Web App"""
     return flask_app.send_static_file('webapp/index.html')
 
-@flask_app.route('/webapp/style.css')
+@flask_app.route('/static/webapp/style.css')
 def webapp_style():
     """CSS для Web App"""
     return flask_app.send_static_file('webapp/style.css'), {'Content-Type': 'text/css'}
 
-@flask_app.route('/webapp/app.js')
+@flask_app.route('/static/webapp/app.js')
 def webapp_app():
     """JS для Web App"""
+    return flask_app.send_static_file('webapp/app.js'), {'Content-Type': 'application/javascript'}
+
+# Додамо також простіші routes
+@flask_app.route('/webapp/style.css')
+def webapp_style_alt():
+    """CSS для Web App (альтернативний route)"""
+    return flask_app.send_static_file('webapp/style.css'), {'Content-Type': 'text/css'}
+
+@flask_app.route('/webapp/app.js')
+def webapp_app_alt():
+    """JS для Web App (альтернативний route)"""
     return flask_app.send_static_file('webapp/app.js'), {'Content-Type': 'application/javascript'}
 
 
