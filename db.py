@@ -50,10 +50,15 @@ def init_db():
                 fed_on_1st BOOLEAN DEFAULT FALSE
             )
         ''')
+        logger.info("✅ Таблиця hryaky створена/перевірена")
 
-        # Фікс існуючої схеми - змінюємо тип колонок
-        cursor.execute('ALTER TABLE hryaky ALTER COLUMN created_at TYPE BIGINT')
-        cursor.execute('ALTER TABLE hryaky ALTER COLUMN last_feed TYPE BIGINT')
+        # Міграція: конвертуємо REAL в BIGINT для існуючих даних
+        try:
+            cursor.execute('ALTER TABLE hryaky ALTER COLUMN created_at TYPE BIGINT USING CAST(created_at AS BIGINT)')
+            cursor.execute('ALTER TABLE hryaky ALTER COLUMN last_feed TYPE BIGINT USING CAST(last_feed AS BIGINT)')
+            logger.info("✅ Міграція hryaky завершена")
+        except Exception as e:
+            logger.debug(f"Міграція hryaky: {e}")
 
         # Таблиця статистики
         cursor.execute('''
@@ -67,10 +72,15 @@ def init_db():
                 last_message BIGINT
             )
         ''')
+        logger.info("✅ Таблиця stats створена/перевірена")
 
-        # Фікс існуючої схеми - змінюємо тип колонок
-        cursor.execute('ALTER TABLE stats ALTER COLUMN first_message TYPE BIGINT')
-        cursor.execute('ALTER TABLE stats ALTER COLUMN last_message TYPE BIGINT')
+        # Міграція: конвертуємо REAL в BIGINT
+        try:
+            cursor.execute('ALTER TABLE stats ALTER COLUMN first_message TYPE BIGINT USING CAST(first_message AS BIGINT)')
+            cursor.execute('ALTER TABLE stats ALTER COLUMN last_message TYPE BIGINT USING CAST(last_message AS BIGINT)')
+            logger.info("✅ Міграція stats завершена")
+        except Exception as e:
+            logger.debug(f"Міграція stats: {e}")
 
         # Таблиця попереджень
         cursor.execute('''
@@ -83,6 +93,7 @@ def init_db():
                 banned BOOLEAN DEFAULT FALSE
             )
         ''')
+        logger.info("✅ Таблиця warns створена/перевірена")
 
         # Таблиця спаму
         cursor.execute('''
@@ -93,9 +104,14 @@ def init_db():
                 mute_until BIGINT
             )
         ''')
+        logger.info("✅ Таблиця spam створена/перевірена")
 
-        # Фікс існуючої схеми - змінюємо тип колонки
-        cursor.execute('ALTER TABLE spam ALTER COLUMN mute_until TYPE BIGINT')
+        # Міграція: конвертуємо REAL в BIGINT
+        try:
+            cursor.execute('ALTER TABLE spam ALTER COLUMN mute_until TYPE BIGINT USING CAST(mute_until AS BIGINT)')
+            logger.info("✅ Міграція spam завершена")
+        except Exception as e:
+            logger.debug(f"Міграція spam: {e}")
 
         # Таблиця ручних юзернеймів
         cursor.execute('''
@@ -105,12 +121,14 @@ def init_db():
                 users_json TEXT
             )
         ''')
+        logger.info("✅ Таблиця manual_users створена/перевірена")
 
         conn.commit()
         logger.info("✅ База даних ініціалізована")
     except Exception as e:
         logger.error(f"❌ Помилка ініціалізації БД: {e}")
         conn.rollback()
+        raise
     finally:
         cursor.close()
         conn.close()
@@ -156,7 +174,7 @@ def save_hryak_to_db(key, hryak):
     conn = get_connection()
     if not conn:
         return
-    
+
     cursor = conn.cursor()
     try:
         cursor.execute('''
@@ -172,10 +190,10 @@ def save_hryak_to_db(key, hryak):
                 max_gains_20 = EXCLUDED.max_gains_20,
                 fed_on_1st = EXCLUDED.fed_on_1st
         ''', (
-            key, hryak['user_id'], hryak['chat_id'], hryak['username'], hryak['name'],
-            hryak['weight'], hryak['last_feed'], hryak['feed_count'], hryak['max_weight'],
-            hryak['created_at'], hryak.get('has_lost_weight', False), hryak.get('max_gain', 0),
-            hryak.get('max_gains_20', 0), hryak.get('fed_on_1st', False)
+            key, int(hryak['user_id']), int(hryak['chat_id']), hryak['username'], hryak['name'],
+            int(hryak['weight']), int(hryak['last_feed']), int(hryak['feed_count']), int(hryak['max_weight']),
+            int(hryak['created_at']), bool(hryak.get('has_lost_weight', False)), int(hryak.get('max_gain', 0)),
+            int(hryak.get('max_gains_20', 0)), bool(hryak.get('fed_on_1st', False))
         ))
         conn.commit()
     except Exception as e:
@@ -282,7 +300,7 @@ def save_stats_to_db(stats_data):
     conn = get_connection()
     if not conn:
         return
-    
+
     cursor = conn.cursor()
     try:
         for key, data in stats_data.items():
@@ -293,8 +311,8 @@ def save_stats_to_db(stats_data):
                     count = EXCLUDED.count,
                     last_message = EXCLUDED.last_message,
                     username = EXCLUDED.username
-            ''', (key, data['user_id'], data['chat_id'], data['username'], 
-                  data['count'], data['first_message'], data['last_message']))
+            ''', (key, int(data['user_id']), int(data['chat_id']), data['username'],
+                  int(data['count']), int(data['first_message']), int(data['last_message'])))
         conn.commit()
     except Exception as e:
         logger.error(f"❌ Помилка збереження статистики: {e}")
@@ -309,7 +327,7 @@ def save_warns_to_db(warns_data):
     conn = get_connection()
     if not conn:
         return
-    
+
     cursor = conn.cursor()
     try:
         for key, data in warns_data.items():
@@ -319,8 +337,8 @@ def save_warns_to_db(warns_data):
                 ON CONFLICT (key) DO UPDATE SET
                     warns_json = EXCLUDED.warns_json,
                     banned = EXCLUDED.banned
-            ''', (key, data['user_id'], data['chat_id'], data['username'],
-                  json.dumps(data['warns']), data['banned']))
+            ''', (key, int(data['user_id']), int(data['chat_id']), data['username'],
+                  json.dumps(data['warns']), bool(data['banned'])))
         conn.commit()
     except Exception as e:
         logger.error(f"❌ Помилка збереження попереджень: {e}")
@@ -335,7 +353,7 @@ def save_spam_to_db(spam_data):
     conn = get_connection()
     if not conn:
         return
-    
+
     cursor = conn.cursor()
     try:
         for key, data in spam_data.items():
@@ -346,7 +364,7 @@ def save_spam_to_db(spam_data):
                     messages_json = EXCLUDED.messages_json,
                     muted = EXCLUDED.muted,
                     mute_until = EXCLUDED.mute_until
-            ''', (key, json.dumps(data['messages']), data['muted'], data['mute_until']))
+            ''', (key, json.dumps(data['messages']), bool(data['muted']), int(data['mute_until']) if data.get('mute_until') else None))
         conn.commit()
     except Exception as e:
         logger.error(f"❌ Помилка збереження спаму: {e}")
@@ -361,7 +379,7 @@ def save_manual_users_to_db(manual_users):
     conn = get_connection()
     if not conn:
         return
-    
+
     cursor = conn.cursor()
     try:
         for chat_id, users in manual_users.items():
@@ -371,7 +389,7 @@ def save_manual_users_to_db(manual_users):
                 VALUES (%s, %s, %s)
                 ON CONFLICT (key) DO UPDATE SET
                     users_json = EXCLUDED.users_json
-            ''', (key, chat_id, json.dumps(users)))
+            ''', (key, int(chat_id), json.dumps(users)))
         conn.commit()
     except Exception as e:
         logger.error(f"❌ Помилка збереження юзернеймів: {e}")
