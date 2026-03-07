@@ -5965,6 +5965,62 @@ def api_use_item():
         logger.error(f"API /use-item error: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
+@flask_app.route('/api/webapp/execute', methods=['POST'])
+def api_execute_command():
+    """Виконати команду з Web App"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        chat_id = data.get('chat_id')
+        command = data.get('command')
+        
+        if not user_id or not command:
+            return jsonify({'success': False, 'message': 'Missing user_id or command'}), 400
+        
+        # Create a fake message object for command handlers
+        class FakeMessage:
+            def __init__(self, user_id, chat_id, text):
+                self.from_user = type('obj', (object,), {'id': user_id, 'username': 'webapp'})
+                self.chat = type('obj', (object,), {'id': chat_id})
+                self.text = text
+                self.message_id = 0
+            
+            def reply_to(self, text, **kwargs):
+                # Just log the response
+                logger.info(f"WebApp command response: {text}")
+                return text
+        
+        fake_message = FakeMessage(user_id, chat_id, f'/{command}')
+        
+        # Execute command
+        if command == 'grow':
+            grow_hryak(fake_message)
+            return jsonify({'success': True, 'message': 'Хряка отримано!'})
+        elif command == 'daily':
+            daily_cmd(fake_message)
+            return jsonify({'success': True, 'message': 'Бонус отримано!'})
+        elif command == 'quests':
+            quests_cmd(fake_message)
+            return jsonify({'success': True, 'message': 'Квести показані!'})
+        elif command == 'achievements':
+            achievements_cmd(fake_message)
+            return jsonify({'success': True, 'message': 'Досягнення показані!'})
+        elif command == 'menu':
+            menu_cmd(fake_message)
+            return jsonify({'success': True, 'message': 'Меню показане!'})
+        elif command == 'help':
+            help_cmd(fake_message)
+            return jsonify({'success': True, 'message': 'Допомога показана!'})
+        elif command == 'boss':
+            boss_cmd(fake_message)
+            return jsonify({'success': True, 'message': 'Бос показаний!'})
+        else:
+            return jsonify({'success': False, 'message': 'Команда не підтримується'}), 400
+            
+    except Exception as e:
+        logger.error(f"API /execute error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 @flask_app.route('/api/webapp/equip-skin', methods=['POST'])
 def api_equip_skin():
     """Одягнути скін"""
@@ -5973,23 +6029,23 @@ def api_equip_skin():
         user_id = data.get('user_id')
         skin_name = data.get('skin_name')
         chat_id = data.get('chat_id', 0)
-        
+
         if not user_id or not skin_name:
             return jsonify({'success': False, 'message': 'Missing parameters'}), 400
-        
+
         # Get skin
         skin = get_skin_by_name(skin_name)
-        
+
         if not skin:
             return jsonify({'success': False, 'message': 'Skin not found'}), 404
-        
+
         # Check if has
         if not has_skin(user_id, chat_id, skin['id']):
             return jsonify({'success': False, 'message': 'You do not own this skin'}), 400
-        
+
         # Equip
         equip_skin(user_id, chat_id, skin['id'])
-        
+
         return jsonify({'success': True}), 200
     except Exception as e:
         logger.error(f"API /equip-skin error: {e}")

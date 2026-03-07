@@ -502,14 +502,32 @@ function loadGlobalLeaderboard() {
     // Similar to loadLeaderboard but for global top
 }
 
-function openCommand(command) {
-    // Send command to bot via WebApp data
-    // Bot will receive this as a web_app_data event
-    const commandPath = command.substring(1); // Remove '/'
-    tg.sendData(JSON.stringify({type: 'command', command: commandPath}));
-    
-    // Show confirmation
-    tg.showAlert(`${command}\n\nКоманду виконано!`);
+async function openCommand(command) {
+    // Call API to execute command directly
+    try {
+        const response = await fetch(`${API_BASE}/execute`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                user_id: userData.id,
+                chat_id: userData.chat_id,
+                command: command
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            tg.showAlert(`${command}\n\n✅ ${data.message || 'Виконано!'}`);
+            // Reload user data to show updated stats
+            loadUserData();
+        } else {
+            tg.showAlert(`${command}\n\n❌ ${data.message || 'Помилка!'}`);
+        }
+    } catch (error) {
+        console.error('Error executing command:', error);
+        tg.showAlert(`${command}\n\n❌ Помилка виконання`);
+    }
 }
 
 // Bottom nav buttons handlers
