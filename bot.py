@@ -9,7 +9,31 @@ from threading import Thread
 from telebot import types
 from dotenv import load_dotenv
 from flask import Flask
-from db import init_db, load_from_db, save_hryak_to_db, save_stats_to_db, save_warns_to_db, save_spam_to_db, save_manual_users_to_db, get_hryak_from_db
+from db import (
+    init_db, load_from_db, save_hryak_to_db, save_stats_to_db, save_warns_to_db,
+    save_spam_to_db, save_manual_users_to_db, get_hryak_from_db,
+    get_user_currency, update_user_currency, add_coins, add_xp,
+    get_daily_quests, update_daily_quest, reset_daily_quests,
+    get_lottery, update_lottery,
+    get_team_duel, create_team_duel, update_team_duel_status,
+    get_daily_bonus, update_daily_bonus,
+    get_user_stats, update_user_stats, increment_user_stat,
+    get_shop_items, get_item, add_to_inventory, remove_from_inventory, has_item, get_item_effect,
+    get_trachen_stats, get_last_trachen_time, add_trachen_record,
+    get_pregnancy, create_pregnancy, claim_pregnancy,
+    get_children, add_child, get_all_pregnancies,
+    create_tournament, get_tournament, get_active_tournament, join_tournament,
+    get_tournament_participants, update_tournament_status, eliminate_participant,
+    get_user_tournament_stats,
+    create_guild, get_guild, get_guild_by_name, get_user_guild, get_guild_members,
+    join_guild, leave_guild, get_guild_rank, update_guild_xp, add_guild_contribution,
+    get_all_guilds, get_user_guild_stats, transfer_guild_owner, delete_guild,
+    get_all_skins, get_skin, get_skin_by_name, get_user_skins, get_user_equipped_skin,
+    buy_skin, equip_skin, has_skin, get_skin_bonus,
+    get_active_boss, spawn_boss, attack_boss, get_boss_participants, get_user_boss_stats,
+    get_active_events, get_all_events, get_user_event_progress, update_event_progress, claim_event_reward,
+    get_user_language, set_user_language
+)
 
 # Налаштування логгера (ПОВИННО БУТИ ПЕРШИМ!)
 logging.basicConfig(
@@ -21,6 +45,97 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+# ============================================
+# МУЛЬТИ-МОВНІСТЬ - СЛОВНИКИ ПЕРЕКЛАДУ
+# ============================================
+LANGUAGES = {
+    'uk': '🇺🇦 Українська',
+    'en': '🇬🇧 English',
+    'ru': '🇷🇺 Русский'
+}
+
+TRANSLATIONS = {
+    'uk': {
+        'welcome': '🤖 Ласкаво просимо до TRASH BOT!',
+        'no_hryak': '❌ У тебе ще немає хряка! Введи /grow',
+        'feed_success': '✅ Хряк наївся!\nВага: {old} → {new} кг ({change:+d})',
+        'feed_cooldown': '⏳ Ще рано! Залишилось {hours} год {minutes} хв',
+        'duel_win': '🎉 Перемога! Твій хряк важить {weight} кг',
+        'duel_lose': '😞 Поразка... Спробуй ще раз!',
+        'balance': '💰 Твій баланс: {coins} монет, {xp} XP (Рівень {level})',
+        'help_text': '📜 **ПОВНИЙ СПИСОК КОМАНД:**\n\n',
+        'menu_button': '📋 Меню',
+        'close_button': '❌ Закрити',
+        'back_button': '⬅️ Назад',
+        'confirm_button': '✅ Підтвердити',
+        'cancel_button': '❌ Скасувати',
+        'error': '❌ Помилка: {error}',
+        'loading': '⏳ Завантаження...',
+        'event_active': '🎉 Активний івент: {name}\n{description}',
+        'no_active_events': '📭 Наразі немає активних івентів',
+        'lang_changed': '✅ Мову змінено на {lang}',
+        'lang_select': '🌍 Оберіть мову:',
+    },
+    'en': {
+        'welcome': '🤖 Welcome to TRASH BOT!',
+        'no_hryak': '❌ You do not have a hryak yet! Use /grow',
+        'feed_success': '✅ Your hryak ate!\nWeight: {old} → {new} kg ({change:+d})',
+        'feed_cooldown': '⏳ Too early! {hours}h {minutes}m left',
+        'duel_win': '🎉 Victory! Your hryak weighs {weight} kg',
+        'duel_lose': '😞 Defeat... Try again!',
+        'balance': '💰 Your balance: {coins} coins, {xp} XP (Level {level})',
+        'help_text': '📜 **COMMAND LIST:**\n\n',
+        'menu_button': '📋 Menu',
+        'close_button': '❌ Close',
+        'back_button': '⬅️ Back',
+        'confirm_button': '✅ Confirm',
+        'cancel_button': '❌ Cancel',
+        'error': '❌ Error: {error}',
+        'loading': '⏳ Loading...',
+        'event_active': '🎉 Active event: {name}\n{description}',
+        'no_active_events': '📭 No active events',
+        'lang_changed': '✅ Language changed to {lang}',
+        'lang_select': '🌍 Select language:',
+    },
+    'ru': {
+        'welcome': '🤖 Добро пожаловать в TRASH BOT!',
+        'no_hryak': '❌ У тебя еще нет хряка! Введи /grow',
+        'feed_success': '✅ Хряк наелся!\nВес: {old} → {new} кг ({change:+d})',
+        'feed_cooldown': '⏳ Еще рано! Осталось {hours} ч {minutes} мин',
+        'duel_win': '🎉 Победа! Твой хряк весит {weight} кг',
+        'duel_lose': '😞 Поражение... Попробуй еще раз!',
+        'balance': '💰 Твой баланс: {coins} монет, {xp} XP (Уровень {level})',
+        'help_text': '📜 **СПИСОК КОМАНД:**\n\n',
+        'menu_button': '📋 Меню',
+        'close_button': '❌ Закрыть',
+        'back_button': '⬅️ Назад',
+        'confirm_button': '✅ Подтвердить',
+        'cancel_button': '❌ Отмена',
+        'error': '❌ Ошибка: {error}',
+        'loading': '⏳ Загрузка...',
+        'event_active': '🎉 Активное событие: {name}\n{description}',
+        'no_active_events': '📭 Нет активных событий',
+        'lang_changed': '✅ Язык изменен на {lang}',
+        'lang_select': '🌍 Выберите язык:',
+    }
+}
+
+def get_text(user_id, key, **kwargs):
+    """Отримує текст для користувача на його мові"""
+    lang = get_user_language(user_id)
+    if lang not in TRANSLATIONS:
+        lang = 'uk'
+    
+    text = TRANSLATIONS[lang].get(key, TRANSLATIONS['uk'].get(key, key))
+    
+    if kwargs:
+        try:
+            text = text.format(**kwargs)
+        except:
+            pass
+    
+    return text
 
 # Завантажуємо змінні середовища з .env файлу (для локальної розробки)
 load_dotenv()
@@ -437,9 +552,104 @@ ACHIEVEMENTS = {
     '7_piatnyts': {'name': '7 п\'ятниць в тиждень 🍺📅', 'desc': 'Набрати вагу 7 днів поспіль', 'condition': lambda h: h.get('week_gain_streak', 0) >= 7},
     'kryak_dnya': {'name': 'Кряк дня 🐗🌞', 'desc': 'Стати хрячком дня', 'condition': lambda h: h.get('is_hryak_day', False)},
     'nova_nadiya': {'name': 'Нова надія 🌌✨', 'desc': 'Нагодувати 1 числа', 'condition': lambda h: h.get('fed_on_1st', False)},
+    # Трахензебітен досягнення
+    'first_trachen': {'name': 'Перший раз 💕', 'desc': 'Перший трахензебітен', 'condition': lambda h, ts: ts.get('total_times', 0) >= 1},
+    'donzhuan': {'name': 'Донжуан 😎', 'desc': '10 унікальних партнерів', 'condition': lambda h, ts: ts.get('unique_partners', 0) >= 10},
+    'plodovytyy': {'name': 'Плодовитий 🐷', 'desc': '50+ трахензебітенів', 'condition': lambda h, ts: ts.get('total_times', 0) >= 50},
+    'important': {'name': 'Важливий 💼', 'desc': '100+ трахензебітенів', 'condition': lambda h, ts: ts.get('total_times', 0) >= 100},
+    # Турнірні досягнення
+    'tournament_first': {'name': 'Дебютант 🏆', 'desc': 'Перший турнір', 'condition': lambda h, ts, t: t.get('tournaments_joined', 0) >= 1},
+    'tournament_winner': {'name': 'Чемпіон 🥇', 'desc': 'Виграти турнір', 'condition': lambda h, ts, t: t.get('tournaments_won', 0) >= 1},
+    'tournament_legend': {'name': 'Легенда 🏅', 'desc': '10 перемог в турнірах', 'condition': lambda h, ts, t: t.get('tournaments_won', 0) >= 10},
+    # Гільдійні досягнення
+    'guild_first': {'name': 'Член гільдії 🏰', 'desc': 'Вступити в гільдію', 'condition': lambda h, ts, t, g: g.get('guilds_joined', 0) >= 1},
+    'guild_contributor': {'name': 'Меценат 💰', 'desc': 'Внесок 1000+ монет', 'condition': lambda h, ts, t, g: g.get('total_contribution', 0) >= 1000},
+    'guild_leader': {'name': 'Лідер 👑', 'desc': 'Створити гільдію', 'condition': lambda h, ts, t, g: g.get('guilds_joined', 0) >= 1 and g.get('is_owner', False)},
 }
 
-# Образи для провинних користувачів
+# ============================================
+# ЩОДЕННІ КВЕСТИ
+# ============================================
+DAILY_QUESTS = {
+    'feed_3_times': {
+        'name': 'Годувальник 🍽️',
+        'desc': 'Нагодуй хряка 3 рази за день',
+        'target': 3,
+        'reward_coins': 50,
+        'reward_xp': 10
+    },
+    'win_2_duels': {
+        'name': 'Дуелянт ⚔️',
+        'desc': 'Виграй 2 дуелі',
+        'target': 2,
+        'reward_coins': 100,
+        'reward_xp': 25
+    },
+    'lose_10kg': {
+        'name': 'Схуднення 📉',
+        'desc': 'Схудни на 10 кг за раз',
+        'target': 1,
+        'reward_coins': 75,
+        'reward_xp': 15
+    },
+    'gain_20kg': {
+        'name': 'Набір маси 📈',
+        'desc': 'Набери +20 кг за раз',
+        'target': 1,
+        'reward_coins': 100,
+        'reward_xp': 20
+    },
+    'chat_active': {
+        'name': 'Балакун 💬',
+        'desc': 'Напиши 50 повідомлень в чаті',
+        'target': 50,
+        'reward_coins': 30,
+        'reward_xp': 10
+    },
+    'feed_friends': {
+        'name': 'Дружній 🐷',
+        'desc': 'Нагодуй хряка коли є 3+ гравці в чаті',
+        'target': 1,
+        'reward_coins': 60,
+        'reward_xp': 15
+    }
+}
+
+# ============================================
+# КАЗИНО - РУЛЕТКА
+# ============================================
+ROULETTE_NUMBERS = {
+    0: 'green',
+    1: 'red', 2: 'black', 3: 'red', 4: 'black', 5: 'red', 6: 'black',
+    7: 'red', 8: 'black', 9: 'red', 10: 'black', 11: 'red', 12: 'black',
+    13: 'red', 14: 'black'
+}
+
+# ============================================
+# ЛОТЕРЕЯ - ШАНСИ
+# ============================================
+LOTTERY_CHANCES = {
+    'nothing': 60,      # Нічого
+    'refund': 30,       # Повернення
+    'small': 8,         # Малий виграш (20 кг)
+    'medium': 1.9,      # Середній виграш (50 кг)
+    'jackpot': 0.1      # Джекпот (100 кг)
+}
+
+# ============================================
+# МАГАЗИН - ПРЕДМЕТИ
+# ============================================
+SHOP_ITEMS = {
+    'vitamins': {'name': '🍎 Вітаміни', 'desc': '+5 кг до наступного годування', 'price': 50, 'effect': 'weight_bonus', 'value': 5},
+    'trainer': {'name': '💪 Тренажер', 'desc': '+10% до проворності на 24 год', 'price': 100, 'effect': 'agility_bonus', 'value': 10},
+    'shield': {'name': '🛡️ Щит', 'desc': 'Захист від -10% ваги в дуелі', 'price': 75, 'effect': 'shield', 'value': 10},
+    'energy': {'name': '⚡ Енергетик', 'desc': 'Зняти кулдаун з /feed', 'price': 30, 'effect': 'remove_cooldown', 'value': 1},
+    'lucky_charm': {'name': '🍀 Підкова', 'desc': '+5% шанс на перемогу в дуелі', 'price': 200, 'effect': 'luck_bonus', 'value': 5}
+}
+
+# ============================================
+# ОБРАЗИ ДЛЯ ПРОВИННИХ
+# ============================================
 PROVIN_INSULTS = [
     "ти хто такий щоб писати?",
     "іди лісом",
@@ -516,22 +726,26 @@ def feed_hryak_cmd(message):
     """Нагодувати хряка"""
     chat_id = message.chat.id
     user_id = message.from_user.id
-    
+
     logger.info(f"🐷 /feed: chat_id={chat_id}, user_id={user_id}")
-    
+
     try:
         result, error = feed_hryak(user_id, chat_id)
-        
+
         if error:
             logger.warning(f"❌ /feed помилка: {error}")
             bot.reply_to(message, f"❌ {error}")
             return
-        
+
         logger.info(f"✅ Результат годування: {result}")
 
         # Формуємо повідомлення
         actual_change = result['new_weight'] - result['old_weight']
-        
+
+        # Нагорода за годування
+        add_coins(user_id, chat_id, 5)
+        add_xp(user_id, chat_id, 2)
+
         if actual_change > 0:
             emoji = "📈"
             title = "**Хряк наївся!**"
@@ -549,9 +763,10 @@ def feed_hryak_cmd(message):
 
 Вага: {result['old_weight']} → {result['new_weight']} кг ({text_change})
 Всього нагодовано: {result['feed_count']} разів
+💰 Нагорода: +5 монет, +2 XP
 
 🐷 {result['hryak']['name']}"""
-        
+
         # Перевіряємо досягнення
         unlocked = []
         hryak = result['hryak']
@@ -564,24 +779,47 @@ def feed_hryak_cmd(message):
             hryak['max_gain'] = max(hryak.get('max_gain', 0), 20)
             if hryak.get('max_gain', 0) >= 20:
                 unlocked.append('monster')
-        
+
         if actual_change == 20:
             hryak['max_gains_20'] = hryak.get('max_gains_20', 0) + 1
             if hryak['max_gains_20'] >= 5:
                 unlocked.append('kormilets')
-        
+
         import datetime
         now = datetime.datetime.now()
         if now.day == 1:
             hryak['fed_on_1st'] = True
             unlocked.append('nova_nadiya')
-        
+
         if unlocked:
             save_hryaky()
             text += "\n\n🏆 **Отримано досягнення:**\n"
             for ach in unlocked:
                 text += f"• {ACHIEVEMENTS[ach]['name']}\n"
+
+        # Оновлюємо прогрес квестів
+        quests = get_daily_quests(user_id, chat_id)
+        quest_progress = {q['quest_id']: q for q in quests}
         
+        # Квест: нагодуй 3 рази
+        feed_quest = quest_progress.get('feed_3_times', {'progress': 0, 'target': 3})
+        new_feed_progress = min(feed_quest['progress'] + 1, feed_quest['target'])
+        feed_completed = new_feed_progress >= feed_quest['target']
+        update_daily_quest(user_id, chat_id, 'feed_3_times', new_feed_progress, 3, completed=feed_completed)
+        
+        # Квест: набір 20 кг
+        if actual_change == 20:
+            gain_quest = quest_progress.get('gain_20kg', {'progress': 0, 'target': 1})
+            new_gain_progress = min(gain_quest['progress'] + 1, gain_quest['target'])
+            gain_completed = new_gain_progress >= gain_quest['target']
+            update_daily_quest(user_id, chat_id, 'gain_20kg', new_gain_progress, 1, completed=gain_completed)
+        
+        # Квест: схуднення на 10 кг
+        if actual_change <= -10:
+            lose_quest = quest_progress.get('lose_10kg', {'progress': 0, 'target': 1})
+            lose_completed = True
+            update_daily_quest(user_id, chat_id, 'lose_10kg', 1, 1, completed=lose_completed)
+
         bot.reply_to(message, text, parse_mode="Markdown")
         logger.info(f"✅ /feed успішно для {user_id}")
     except Exception as e:
@@ -785,31 +1023,55 @@ def achievements_cmd(message):
     """Показати досягнення"""
     chat_id = message.chat.id
     user_id = message.from_user.id
-    
+
     logger.info(f"🏆 /achievements: chat_id={chat_id}, user_id={user_id}")
-    
+
     try:
         hryak = get_hryak(user_id, chat_id)
+        trachen_stats = get_trachen_stats(user_id, chat_id) or {}
+        tournament_stats = get_user_tournament_stats(user_id, chat_id) or {}
+        guild_stats = get_user_guild_stats(user_id, chat_id) or {}
+        user_guild = get_user_guild(user_id, chat_id)
         
+        # Додаємо інформацію чи є власником гільдії
+        if user_guild:
+            guild_stats['is_owner'] = user_guild['owner_user_id'] == user_id
+        else:
+            guild_stats['is_owner'] = False
+
         if not hryak:
             bot.reply_to(message, "❌ У тебе ще немає хряка! Введи /grow")
             return
-        
+
         text = "🏆 **Твої досягнення:**\n\n"
-        
+
         unlocked_count = 0
         for ach_id, ach in ACHIEVEMENTS.items():
             try:
-                if ach['condition'](hryak):
+                # Перевіряємо які параметри потрібні для досягнення
+                code = ach['condition'].__code__
+                params = code.co_varnames[:code.co_argcount]
+                
+                if len(params) == 4:  # h, ts, t, g
+                    unlocked = ach['condition'](hryak, trachen_stats, tournament_stats, guild_stats)
+                elif len(params) == 3:  # h, ts, t
+                    unlocked = ach['condition'](hryak, trachen_stats, tournament_stats)
+                elif len(params) == 2:  # h, ts
+                    unlocked = ach['condition'](hryak, trachen_stats)
+                else:  # h only
+                    unlocked = ach['condition'](hryak)
+                
+                if unlocked:
                     text += f"✅ {ach['name']} - {ach['desc']}\n"
                     unlocked_count += 1
                 else:
                     text += f"🔒 {ach['name']} - {ach['desc']}\n"
-            except:
+            except Exception as e:
+                logger.debug(f"Досягнення {ach_id} помилка: {e}")
                 text += f"🔒 {ach['name']} - {ach['desc']}\n"
-        
+
         text += f"\n📊 Відкрито: {unlocked_count}/{len(ACHIEVEMENTS)}"
-        
+
         bot.reply_to(message, text, parse_mode="Markdown")
     except Exception as e:
         logger.error(f"❌ Помилка /achievements: {e}", exc_info=True)
@@ -982,6 +1244,552 @@ def duel_accept_callback(call):
     )
 
 
+# ============================================
+# КОМАНДИ ЩОДЕННИХ КВЕСТІВ
+# ============================================
+
+@bot.message_handler(commands=['quests'])
+def quests_cmd(message):
+    """Показати доступні квести"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        quests = get_daily_quests(user_id, chat_id)
+        quest_progress = {q['quest_id']: q for q in quests}
+        
+        text = "📋 **ЩОДЕННІ КВЕСТИ**\n\n"
+        
+        for quest_id, quest_info in DAILY_QUESTS.items():
+            progress_data = quest_progress.get(quest_id, {'progress': 0, 'completed': False, 'claimed': False})
+            progress = progress_data['progress']
+            target = quest_info['target']
+            completed = progress_data['completed']
+            claimed = progress_data['claimed']
+            
+            if claimed:
+                status = "✅ Забрано"
+            elif completed:
+                status = "🎁 Готово до нагороди!"
+            else:
+                status = f"📊 {progress}/{target}"
+            
+            text += f"{quest_info['name']} - {quest_info['desc']}\n"
+            text += f"  Нагорода: {quest_info['reward_coins']} монет, {quest_info['reward_xp']} XP\n"
+            text += f"  {status}\n\n"
+        
+        text += "/questclaim <quest_id> - забрати нагороду"
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+    except Exception as e:
+        logger.error(f"❌ Помилка /quests: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['questclaim'])
+def questclaim_cmd(message):
+    """Забрати нагороду за квест"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        parts = message.text.split(maxsplit=1)
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Вкажіть ID квесту!\nПриклад: /questclaim feed_3_times")
+            return
+        
+        quest_id = parts[1]
+        
+        if quest_id not in DAILY_QUESTS:
+            bot.reply_to(message, f"❌ Квест '{quest_id}' не знайдено!")
+            return
+        
+        quests = get_daily_quests(user_id, chat_id)
+        quest_progress = {q['quest_id']: q for q in quests}
+        progress_data = quest_progress.get(quest_id, {'progress': 0, 'completed': False, 'claimed': False})
+        
+        if progress_data.get('claimed', False):
+            bot.reply_to(message, "❌ Нагороду вже забрано!")
+            return
+        
+        if not progress_data.get('completed', False):
+            bot.reply_to(message, f"❌ Квест не виконано! Прогрес: {progress_data['progress']}/{DAILY_QUESTS[quest_id]['target']}")
+            return
+        
+        # Видаємо нагороду
+        quest_info = DAILY_QUESTS[quest_id]
+        add_coins(user_id, chat_id, quest_info['reward_coins'])
+        add_xp(user_id, chat_id, quest_info['reward_xp'])
+        
+        # Позначаємо як забране
+        update_daily_quest(user_id, chat_id, quest_id, progress_data['progress'], quest_info['target'], completed=True, claimed=True)
+        
+        text = f"""🎉 **НАГОРОДА ОТРИМАНА!**
+
+Квест: {quest_info['name']}
+💰 Монет: +{quest_info['reward_coins']}
+⭐ XP: +{quest_info['reward_xp']}"""
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+    except Exception as e:
+        logger.error(f"❌ Помилка /questclaim: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+# ============================================
+# КОМАНДИ КАЗИНО
+# ============================================
+
+@bot.message_handler(commands=['roulette'])
+def roulette_cmd(message):
+    """Рулетка - ставки на вагу"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        parts = message.text.split(maxsplit=2)
+        if len(parts) < 3:
+            bot.reply_to(message, "❌ Приклад: /roulette 10 red\nВаріанти: red/black, even/odd, number, over/under")
+            return
+        
+        try:
+            amount = int(parts[1])
+        except ValueError:
+            bot.reply_to(message, "❌ Сума має бути числом!")
+            return
+        
+        choice = parts[2].lower()
+        
+        if amount <= 0:
+            bot.reply_to(message, "❌ Сума має бути додатною!")
+            return
+        
+        # Перевіряємо вагу хряка
+        hryak = get_hryak(user_id, chat_id)
+        if not hryak:
+            bot.reply_to(message, "❌ Спочатку отримай хряка (/grow)!")
+            return
+        
+        if hryak['weight'] < amount:
+            bot.reply_to(message, f"❌ Недостатньо ваги! У тебе {hryak['weight']} кг")
+            return
+        
+        # Крутимо рулетку
+        result_number = random.randint(0, 14)
+        result_color = ROULETTE_NUMBERS[result_number]
+        
+        win = False
+        win_amount = 0
+        
+        # Перевіряємо виграш
+        if choice in ['red', 'black']:
+            if result_color == choice:
+                win = True
+                win_amount = amount * 2
+        elif choice in ['even', 'odd']:
+            if (choice == 'even' and result_number % 2 == 0) or (choice == 'odd' and result_number % 2 == 1):
+                win = True
+                win_amount = amount * 2
+        elif choice == 'number':
+            if len(parts) > 3:
+                try:
+                    num = int(parts[3])
+                    if num == result_number:
+                        win = True
+                        win_amount = amount * 14
+                except:
+                    pass
+        elif choice in ['over', 'under']:
+            if (choice == 'over' and result_number > 7) or (choice == 'under' and result_number < 7):
+                win = True
+                win_amount = amount * 2
+            elif result_number == 7:
+                win_amount = amount  # Повернення при 7
+        
+        # Оновлюємо вагу
+        if win:
+            hryak['weight'] += win_amount - amount  # Додаємо виграш мінус ставка
+            result_text = f"✅ ВИГРАШ!"
+        else:
+            hryak['weight'] -= amount
+            result_text = f"❌ ПРОГРАШ!"
+        
+        save_hryaky()
+        
+        text = f"""🎰 **РУЛЕТКА**
+
+Випало: {result_color.upper()} {result_number}
+Твій вибір: {choice}
+Ставка: {amount} кг
+{result_text}
+
+Нова вага: {hryak['weight']} кг"""
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+    except Exception as e:
+        logger.error(f"❌ Помилка /roulette: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['lottery'])
+def lottery_cmd(message):
+    """Лотерея - квиток за 5 кг"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        hryak = get_hryak(user_id, chat_id)
+        if not hryak:
+            bot.reply_to(message, "❌ Спочатку отримай хряка (/grow)!")
+            return
+        
+        ticket_cost = 5
+        if hryak['weight'] < ticket_cost:
+            bot.reply_to(message, f"❌ Недостатньо ваги! Потрібно {ticket_cost} кг")
+            return
+        
+        # Знімаємо вагу
+        hryak['weight'] -= ticket_cost
+        
+        # Отримуємо лотерею
+        lottery = get_lottery(chat_id)
+        
+        # Додаємо до джекпоту 10%
+        jackpot_contribution = int(ticket_cost * 0.1)
+        lottery['jackpot'] += jackpot_contribution
+        
+        # Визначаємо виграш
+        rand = random.random() * 100
+        win_amount = 0
+        win_type = ""
+        
+        if rand < LOTTERY_CHANCES['nothing']:
+            win_type = "nothing"
+            win_amount = 0
+        elif rand < LOTTERY_CHANCES['nothing'] + LOTTERY_CHANCES['refund']:
+            win_type = "refund"
+            win_amount = ticket_cost
+        elif rand < LOTTERY_CHANCES['nothing'] + LOTTERY_CHANCES['refund'] + LOTTERY_CHANCES['small']:
+            win_type = "small"
+            win_amount = 20
+        elif rand < LOTTERY_CHANCES['nothing'] + LOTTERY_CHANCES['refund'] + LOTTERY_CHANCES['small'] + LOTTERY_CHANCES['medium']:
+            win_type = "medium"
+            win_amount = 50
+        else:
+            win_type = "jackpot"
+            win_amount = lottery['jackpot']
+            lottery['jackpot'] = 1000  # Скидаємо джекпот
+        
+        # Додаємо виграш
+        hryak['weight'] += win_amount
+        
+        # Оновлюємо лотерею
+        update_lottery(chat_id, lottery['jackpot'], int(time.time()), lottery['participants'])
+        save_hryaky()
+        
+        win_texts = {
+            'nothing': "❌ Нічого",
+            'refund': "🔄 Повернення",
+            'small': "✅ Малий виграш",
+            'medium': "🎉 Середній виграш",
+            'jackpot': "🎰🎉 ДЖЕКПОТ!"
+        }
+        
+        text = f"""🎰 **ЛОТЕРЕЯ**
+
+Квиток: {ticket_cost} кг
+{win_texts[win_type]}!
+Виграш: +{win_amount} кг
+
+Джекпот: {lottery['jackpot']} кг
+Нова вага: {hryak['weight']} кг"""
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+    except Exception as e:
+        logger.error(f"❌ Помилка /lottery: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+# ============================================
+# КОМАНДНІ ДУЕЛІ (2v2, 3v3)
+# ============================================
+
+@bot.message_handler(commands=['duelteambattle'])
+def duelteambattle_cmd(message):
+    """Створити командну дуель"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        hryak = get_hryak(user_id, chat_id)
+        if not hryak:
+            bot.reply_to(message, "❌ Спочатку отримай хряка (/grow)!")
+            return
+        
+        text = f"""⚔️ **КОМАНДНА ДУЕЛЬ**
+
+🐗 {hryak['name']} ({hryak['weight']} кг) створює команду!
+
+Щоб приєднатися, натисни кнопку нижче.
+Перший до 3 гравців формує команду 1.
+"""
+        
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("🔥 Приєднатися до команди 1", callback_data=f"team1_join_{user_id}"))
+        
+        msg = bot.reply_to(message, text, parse_mode="Markdown", reply_markup=markup)
+        
+        # Зберігаємо дуель
+        duel_id = f"team_{chat_id}_{int(time.time())}"
+        create_team_duel(duel_id, chat_id, [{'user_id': user_id, 'hryak': hryak}], [], status='waiting')
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка /duelteambattle: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('team1_join_'))
+def team1_join_callback(call):
+    """Приєднання до команди 1"""
+    chat_id = call.message.chat.id
+    user_id = call.from_user.id
+    
+    try:
+        hryak = get_hryak(user_id, chat_id)
+        if not hryak:
+            bot.answer_callback_query(call.id, "❌ У тебе немає хряка!", show_alert=True)
+            return
+        
+        # Знаходимо дуель
+        duel_id = f"team_{chat_id}_{call.message.message_id}"
+        duel = get_team_duel(duel_id)
+        
+        if not duel:
+            bot.answer_callback_query(call.id, "❌ Дуель не знайдено!", show_alert=True)
+            return
+        
+        if len(duel['team1']) >= 3:
+            bot.answer_callback_query(call.id, "❌ Команда 1 повна!", show_alert=True)
+            return
+        
+        # Додаємо до команди
+        duel['team1'].append({'user_id': user_id, 'hryak': hryak})
+        
+        text = f"""⚔️ **КОМАНДНА ДУЕЛЬ**
+
+Команда 1 ({len(duel['team1'])}/3):
+"""
+        for player in duel['team1']:
+            text += f"🐗 {player['hryak']['name']} ({player['hryak']['weight']} кг)\n"
+        
+        text += "\nКоманда 2 (0/3):\n"
+        text += "Натисни кнопку щоб приєднатися!\n"
+        
+        markup = types.InlineKeyboardMarkup()
+        if len(duel['team1']) < 3:
+            markup.add(types.InlineKeyboardButton("🔥 Приєднатися до команди 1", callback_data=f"team1_join_{user_id}"))
+        markup.add(types.InlineKeyboardButton("⚔️ Створити команду 2", callback_data=f"team2_create_{call.message.message_id}"))
+        
+        bot.edit_message_text(text, chat_id=chat_id, message_id=call.message.message_id, parse_mode="Markdown", reply_markup=markup)
+        bot.answer_callback_query(call.id, "✅ Приєднано до команди 1!")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка team1_join: {e}", exc_info=True)
+        bot.answer_callback_query(call.id, "❌ Помилка!", show_alert=True)
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('team2_create_'))
+def team2_create_callback(call):
+    """Створення команди 2"""
+    chat_id = call.message.chat.id
+    user_id = call.from_user.id
+    
+    try:
+        hryak = get_hryak(user_id, chat_id)
+        if not hryak:
+            bot.answer_callback_query(call.id, "❌ У тебе немає хряка!", show_alert=True)
+            return
+        
+        msg_id = call.data.split('_')[-1]
+        duel_id = f"team_{chat_id}_{msg_id}"
+        duel = get_team_duel(duel_id)
+        
+        if not duel:
+            bot.answer_callback_query(call.id, "❌ Дуель не знайдено!", show_alert=True)
+            return
+        
+        if len(duel['team1']) < 2:
+            bot.answer_callback_query(call.id, "❌ Потрібно мінімум 2 гравці в команді 1!", show_alert=True)
+            return
+        
+        # Додаємо до команди 2
+        duel['team2'].append({'user_id': user_id, 'hryak': hryak})
+        
+        text = f"""⚔️ **КОМАНДНА ДУЕЛЬ**
+
+Команда 1 ({len(duel['team1'])}):
+"""
+        for player in duel['team1']:
+            text += f"🐗 {player['hryak']['name']} ({player['hryak']['weight']} кг)\n"
+        
+        text += f"\nКоманда 2 ({len(duel['team2'])}/3):\n"
+        text += f"🐗 {hryak['name']} ({hryak['weight']} кг)\n"
+        text += "\nНатисни кнопку щоб приєднатися до команди 2!\n"
+        
+        markup = types.InlineKeyboardMarkup()
+        if len(duel['team2']) < 3:
+            markup.add(types.InlineKeyboardButton("🔥 Приєднатися до команди 2", callback_data=f"team2_join_{user_id}"))
+        markup.add(types.InlineKeyboardButton("⚔️ ПОЧАТИ БИТВУ!", callback_data=f"team_battle_start_{msg_id}"))
+        
+        bot.edit_message_text(text, chat_id=chat_id, message_id=call.message.message_id, parse_mode="Markdown", reply_markup=markup)
+        bot.answer_callback_query(call.id, "✅ Команду 2 створено!")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка team2_create: {e}", exc_info=True)
+        bot.answer_callback_query(call.id, "❌ Помилка!", show_alert=True)
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('team2_join_'))
+def team2_join_callback(call):
+    """Приєднання до команди 2"""
+    chat_id = call.message.chat.id
+    user_id = call.from_user.id
+    
+    try:
+        hryak = get_hryak(user_id, chat_id)
+        if not hryak:
+            bot.answer_callback_query(call.id, "❌ У тебе немає хряка!", show_alert=True)
+            return
+        
+        msg_id = call.data.split('_')[-1]
+        duel_id = f"team_{chat_id}_{msg_id}"
+        duel = get_team_duel(duel_id)
+        
+        if not duel:
+            bot.answer_callback_query(call.id, "❌ Дуель не знайдено!", show_alert=True)
+            return
+        
+        if len(duel['team2']) >= 3:
+            bot.answer_callback_query(call.id, "❌ Команда 2 повна!", show_alert=True)
+            return
+        
+        duel['team2'].append({'user_id': user_id, 'hryak': hryak})
+        
+        text = f"""⚔️ **КОМАНДНА ДУЕЛЬ**
+
+Команда 1 ({len(duel['team1'])}):
+"""
+        for player in duel['team1']:
+            text += f"🐗 {player['hryak']['name']} ({player['hryak']['weight']} кг)\n"
+        
+        text += f"\nКоманда 2 ({len(duel['team2'])}/3):\n"
+        for player in duel['team2']:
+            text += f"🐗 {player['hryak']['name']} ({player['hryak']['weight']} кг)\n"
+        
+        markup = types.InlineKeyboardMarkup()
+        if len(duel['team2']) < 3:
+            markup.add(types.InlineKeyboardButton("🔥 Приєднатися до команди 2", callback_data=f"team2_join_{user_id}"))
+        if len(duel['team2']) >= 2:
+            markup.add(types.InlineKeyboardButton("⚔️ ПОЧАТИ БИТВУ!", callback_data=f"team_battle_start_{msg_id}"))
+        
+        bot.edit_message_text(text, chat_id=chat_id, message_id=call.message.message_id, parse_mode="Markdown", reply_markup=markup)
+        bot.answer_callback_query(call.id, "✅ Приєднано до команди 2!")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка team2_join: {e}", exc_info=True)
+        bot.answer_callback_query(call.id, "❌ Помилка!", show_alert=True)
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('team_battle_start_'))
+def team_battle_start_callback(call):
+    """Початок командної битви"""
+    chat_id = call.message.chat.id
+    user_id = call.from_user.id
+    
+    try:
+        msg_id = call.data.split('_')[-1]
+        duel_id = f"team_{chat_id}_{msg_id}"
+        duel = get_team_duel(duel_id)
+        
+        if not duel:
+            bot.answer_callback_query(call.id, "❌ Дуель не знайдено!", show_alert=True)
+            return
+        
+        if len(duel['team1']) < 2 or len(duel['team2']) < 2:
+            bot.answer_callback_query(call.id, "❌ Потрібно мінімум 2 гравці в кожній команді!", show_alert=True)
+            return
+        
+        # Розраховуємо силу команд
+        team1_weight = sum(p['hryak']['weight'] for p in duel['team1'])
+        team2_weight = sum(p['hryak']['weight'] for p in duel['team2'])
+        team1_agility = sum(p['hryak'].get('feed_count', 0) for p in duel['team1']) / len(duel['team1'])
+        team2_agility = sum(p['hryak'].get('feed_count', 0) for p in duel['team2']) / len(duel['team2'])
+        
+        team1_power = team1_weight * 0.6 + team1_agility * 0.4 + random.randint(0, 50)
+        team2_power = team2_weight * 0.6 + team2_agility * 0.4 + random.randint(0, 50)
+        
+        # Критичний удар (15% шанс)
+        team1_crit = random.random() < 0.15
+        team2_crit = random.random() < 0.15
+        if team1_crit:
+            team1_power *= 1.5
+        if team2_crit:
+            team2_power *= 1.5
+        
+        # Визначаємо переможця
+        if team1_power > team2_power:
+            winner = 1
+            winner_text = "Команда 1"
+            loser_team = duel['team2']
+            winner_team = duel['team1']
+        elif team2_power > team1_power:
+            winner = 2
+            winner_text = "Команда 2"
+            loser_team = duel['team1']
+            winner_team = duel['team2']
+        else:
+            winner = 0
+            winner_text = "Нічия"
+        
+        # Оновлюємо вагу
+        for player in winner_team:
+            player['hryak']['weight'] = int(player['hryak']['weight'] * 1.1)  # +10%
+            save_hryak_to_db(f"{chat_id}_{player['user_id']}", player['hryak'])
+        
+        for player in loser_team:
+            player['hryak']['weight'] = int(player['hryak']['weight'] * 0.95)  # -5%
+            save_hryak_to_db(f"{chat_id}_{player['user_id']}", player['hryak'])
+        
+        # Оновлюємо квести за перемогу в дуелі
+        for player in winner_team:
+            quests = get_daily_quests(player['user_id'], chat_id)
+            quest_progress = {q['quest_id']: q for q in quests}
+            duel_quest = quest_progress.get('win_2_duels', {'progress': 0, 'target': 2})
+            new_progress = min(duel_quest['progress'] + 1, 2)
+            completed = new_progress >= 2
+            update_daily_quest(player['user_id'], chat_id, 'win_2_duels', new_progress, 2, completed=completed)
+        
+        text = f"""⚔️ **РЕЗУЛЬТАТИ КОМАНДНОЇ БИТВИ!**
+
+{winner_text} перемогла!
+
+💪 Сила Команди 1: {team1_power:.1f}
+💪 Сила Команди 2: {team2_power:.1f}
+{"⚡️ КРИТИЧНИЙ УДАР Команди 1!" if team1_crit else ""}
+{"⚡️ КРИТИЧНИЙ УДАР Команди 2!" if team2_crit else ""}
+
+🏆 Переможці отримали +10% до ваги!
+💀 Програвші втратили -5% ваги!
+"""
+        
+        bot.edit_message_text(text, chat_id=chat_id, message_id=call.message.message_id, parse_mode="Markdown")
+        bot.answer_callback_query(call.id, f"⚔️ {winner_text} перемогла!")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка team_battle: {e}", exc_info=True)
+        bot.answer_callback_query(call.id, "❌ Помилка!", show_alert=True)
+
+
 @bot.message_handler(commands=['menu'])
 def menu_cmd(message):
     """Показати inline меню"""
@@ -993,8 +1801,21 @@ def menu_cmd(message):
         types.InlineKeyboardButton("✏️ Ім'я", callback_data="menu_name"),
         types.InlineKeyboardButton("🏆 Топ чату", callback_data="menu_top"),
         types.InlineKeyboardButton("🌍 Глоб топ", callback_data="menu_globaltop"),
-        types.InlineKeyboardButton("⚔️ Створити дуель", callback_data="duel_create"),
+        types.InlineKeyboardButton("⚔️ Дуель", callback_data="duel_create"),
+        types.InlineKeyboardButton("👥 Командна", callback_data="menu_teambattle"),
         types.InlineKeyboardButton("🏅 Досягнення", callback_data="menu_achievements"),
+        types.InlineKeyboardButton("📋 Квести", callback_data="menu_quests"),
+        types.InlineKeyboardButton("💰 Баланс", callback_data="menu_balance"),
+        types.InlineKeyboardButton("📊 Статистика", callback_data="menu_mystats"),
+        types.InlineKeyboardButton("🏪 Магазин", callback_data="menu_shop"),
+        types.InlineKeyboardButton("🎒 Інвентар", callback_data="menu_inventory"),
+        types.InlineKeyboardButton("🎁 Daily", callback_data="menu_daily"),
+        types.InlineKeyboardButton("🎰 Рулетка", callback_data="menu_roulette"),
+        types.InlineKeyboardButton("🎯 Лотерея", callback_data="menu_lottery"),
+        types.InlineKeyboardButton("💕 Трахен", callback_data="menu_trachen"),
+        types.InlineKeyboardButton("👶 Діти", callback_data="menu_children"),
+        types.InlineKeyboardButton("🤰 Вагітні", callback_data="menu_pregnancies"),
+        types.InlineKeyboardButton("🏆 Турнір", callback_data="menu_tournament"),
         types.InlineKeyboardButton("🎯 Підор", callback_data="menu_pidor"),
         types.InlineKeyboardButton("🔥 Roast", callback_data="menu_roast"),
         types.InlineKeyboardButton("🔮 Fortune", callback_data="menu_fortune"),
@@ -1002,7 +1823,7 @@ def menu_cmd(message):
     )
 
     bot.reply_to(message,
-        "📋 **МЕНЮ КОМАНД**\n\nОбери кнопку:",
+        "������������ **МЕНЮ КОМАНД**\n\nОбери кнопку:",
         parse_mode="Markdown",
         reply_markup=markup
     )
@@ -1203,10 +2024,57 @@ def menu_callback(call):
     
     elif command == 'rate':
         text = "⭐ **Rate**\n\nНапиши /rate в чаті!"
-    
+
+    elif command == 'quests':
+        text = "📋 **Квести**\n\nНапиши /quests щоб побачити доступні квести!"
+
+    elif command == 'balance':
+        currency = get_user_currency(user_id, chat_id)
+        if currency:
+            text = f"""💰 **БАЛАНС**
+
+💵 Монети: {currency['coins']}
+⭐ XP: {currency['xp']}/{100}
+🏆 Рівень: {currency['level']}"""
+        else:
+            text = "💰 **БАЛАНС**\n\n💵 Монети: 0\n⭐ XP: 0/100\n🏆 Рівень: 1"
+
+    elif command == 'roulette':
+        text = "🎰 **Рулетка**\n\nНапиши /roulette <сума> <вибір>\nПриклад: /roulette 10 red"
+
+    elif command == 'lottery':
+        text = "🎯 **Лотерея**\n\nНапиши /lottery щоб спробувати удачу за 5 кг!"
+
+    elif command == 'trachen':
+        text = "💕 **Трахензебітен**\n\nНапиши /trachen щоб спарувати хряка!\nКулдаун: 12 годин\nШанс вагітності: 10%"
+
+    elif command == 'children':
+        text = "👶 **Діти**\n\nНапиши /children щоб побачити своїх дітей!"
+
+    elif command == 'pregnancies':
+        text = "🤰 **Вагітності**\n\nНапиши /pregnancies щоб побачити вагітних хряків!"
+
+    elif command == 'tournament':
+        text = "🏆 **Турніри**\n\nНапиши /tournament щоб створити або приєднатися!"
+
+    elif command == 'teambattle':
+        text = "👥 **Командна дуель**\n\nНапиши /duelteambattle щоб створити командну битву!"
+
+    elif command == 'shop':
+        text = "🏪 **Магазин**\n\nНапиши /shop щоб побачити товари!"
+
+    elif command == 'inventory':
+        text = "🎒 **Інвентар**\n\nНапиши /inventory щоб побачити свої предмети!"
+
+    elif command == 'daily':
+        text = "🎁 **Щоденний бонус**\n\nНапиши /daily щоб отримати нагороду!"
+
+    elif command == 'mystats':
+        text = "📊 **Статистика**\n\nНапиши /mystats щоб побачити свою статистику!"
+
     else:
         text = "❌ Невідома команда"
-    
+
     # Редагуємо повідомлення або відправляємо нове
     bot.send_message(chat_id, text, parse_mode="Markdown")
 
@@ -1504,7 +2372,7 @@ RATE_COMMENTS = {
     5: "5/10. Золота середина для сірої мишки.",
     6: "6/10. Нормально, але могл�� б бути гірше.",
     7: "7/10. Ого, ти майже людина!",
-    8: "8/10. Ти сьогодні виглядаєш як людина, а не як помилка.",
+    8: "8/10. Ти сьогодні виглядаєш як людина, а не ��к помилка.",
     9: "9/10. Майже ідеал, але до ідеалу ще далеко.",
     10: "10/10. Ти сьогодні виглядаєш краще ніж зазвичай. Не звикай.",
 }
@@ -1531,7 +2399,7 @@ BOMBA_PHRASES = [
     "💥 БАБАХ! 💥 Ти це серйозно запитав?",
     "🧨 БОМБА! 🧨 Я зараз вибухну від сміху!",
     "💣 КАБУМ! 💣 Твоє питання — це просто щось!",
-    "🔥 ВИБУХ! 🔥 Я зараз розірвуся від емоцій!",
+    "🔥 ВИБУХ! 🔥 Я зараз ��озірвуся від емоцій!",
     "💢 ГРИБ! 💢 Це було занадто сильно!",
 ]
 
@@ -1583,7 +2451,7 @@ FACTS = [
     "ти знаєш що ніхто не читає ці факти?",
     "ти розумієш що це просто текст?",
     "ти усвідомлюєш що ти витрачаєш час?",
-    "ти знаєш що це нічого не змінить?",
+    "��и знаєш що це нічого не змінить?",
 ]
 
 # Команда /top
@@ -1680,15 +2548,33 @@ def help_cmd(message):
 
 🐷 **Гра "Вирости Хряка":**
 /grow — отримати хряка
-/feed — нагодувати хряка (раз на 12 год)
+/feed — нагодувати хряка (раз на 12 год) +5 монет, +2 XP
 /my — показати свого хряка
 /name — змінити ім'я хряка
 /hryaketop — топ хряків чату
 /globaltop — глобальний топ хряків (всі чати)
 /achievements — досягнення
 /duel — виклик на дуель (inline) чату
+/duelteambattle — командна дуель 2v2, 3v3
+
+📋 **Квести (щоденні):**
+/quests — показати доступні квести
+/questclaim <id> — забрати нагороду
+
+🎰 **Казино:**
+/roulette <сума> <вибір> — рулетка (red/black, even/odd, number)
+/lottery — лотерея за 5 кг (шанс виграти до 100 кг!)
+
+💰 **Економіка:**
+/balance — показати монети та XP
+/shop — магазин предметів
+/buy <предмет> — купити предмет
+/inventory — твій інвентар
+/use <предмет> — використати предмет
+/daily — щоденний бонус (+10-20 монет, +5-10 XP)
 
 📊 **Статистика:**
+/mystats — особиста статистика
 /stats — статистика чату
 /leaderboard — топ балакунів за тиждень
 /activity — активність користувачів
@@ -1725,8 +2611,50 @@ def help_cmd(message):
 /unpin — відкріпити
 /spam — інфо про спам контроль
 
+💕 **Трахензебітен (спарювання хряків):**
+/trachen — спарувати хряка (раз на 12 годин)
+/children — показати своїх дітей
+/pregnancies — показати вагітних хряків в чаті
+/claimchildren — забрати дітей після пологів
+
+🏆 **Турніри:**
+/tournament — створити або приєднатися до турніру
+/tournament create <назва> — створити турнір
+/tournament join — приєднатися до турніру
+/tournament start — почати турнір (адмін)
+/tournament info — інформація про турнір
+
+🏰 **Гільдії:**
+/createguild <назва> [опис] — створити гільдію (100 монет)
+/guild [назва] — інформація про гільдію
+/guildjoin <назва> — приєднатися до гільдії
+/guildleave — вийти з гільдії
+/guildtop — рейтинг гільдій
+/contribute <сума> — внесок до гільдії
+/transferguild <user_id> — передати володіння
+/deleteguild — видалити гільдію
+
+🎨 **Скіни:**
+/skins [назва] — магазин скінів або інформація
+/skins me — твої скіни
+/buyskin <назва> — купити скін
+/equipskin <назва> — одягнути скін
+
+🐲 **Бос-дуелі (PvE):**
+/boss — інформація про боса
+/boss attack — атакувати боса
+/boss info — детальна інформація
+
+🎉 **Сезонні івенти:**
+/events — активні івенти
+/eventsclaim <id> — забрати нагороду
+
+🌍 **Мульти-мовність:**
+/lang — вибрати мову (UA/EN/RU)
+
 ⚙️ **Інше:**
 /start — привітання
+/menu — inline меню з усіма командами
 /help — ця допомога
 
 **Як використовувати:**
@@ -2264,6 +3192,325 @@ logger.info("=" * 50)
 # СТАТИСТИКА ЧАТУ
 # ============================================
 
+# ============================================
+# МАГАЗИН ТА ІНВЕНТАР
+# ============================================
+
+@bot.message_handler(commands=['shop'])
+def shop_cmd(message):
+    """Показати магазин"""
+    try:
+        items = get_shop_items()
+        
+        text = "🏪 **МАГАЗИН**\n\n"
+        for item in items:
+            text += f"{item['name']} - {item['description']}\n"
+            text += f"  Ціна: {item['price']} {item['price_currency']}\n\n"
+        
+        text += "/buy <item_id> - купити предмет\n"
+        text += "/inventory - твій інвентар\n"
+        text += "/use <item_id> - використати предмет"
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+    except Exception as e:
+        logger.error(f"❌ Помилка /shop: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ П����милка: {e}")
+
+
+@bot.message_handler(commands=['buy'])
+def buy_cmd(message):
+    """Купити предмет"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        parts = message.text.split(maxsplit=1)
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Вкажіть предмет!\nПриклад: /buy vitamins")
+            return
+        
+        item_id = parts[1]
+        item = get_item(item_id)
+        
+        if not item:
+            bot.reply_to(message, f"❌ Предмет '{item_id}' не знайдено!")
+            return
+        
+        currency = get_user_currency(user_id, chat_id)
+        if not currency:
+            bot.reply_to(message, "❌ Помилка отримання балансу!")
+            return
+        
+        if item['price_currency'] == 'coins':
+            if currency['coins'] < item['price']:
+                bot.reply_to(message, f"❌ Недостатньо монет! Потрібно {item['price']}")
+                return
+            add_coins(user_id, chat_id, -item['price'])
+        elif item['price_currency'] == 'xp':
+            if currency['xp'] < item['price']:
+                bot.reply_to(message, f"❌ Недостатньо XP! Потрібно {item['price']}")
+                return
+            update_user_currency(user_id, chat_id, xp=currency['xp'] - item['price'])
+        
+        # Додаємо до інвентарю
+        add_to_inventory(user_id, chat_id, item_id, 1, item['duration'])
+        
+        text = f"""✅ **КУПЛЕНО!**
+
+{item['name']}
+Витрачено: {item['price']} {item['price_currency']}"""
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+    except Exception as e:
+        logger.error(f"❌ Помилка /buy: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['inventory'])
+def inventory_cmd(message):
+    """Показати інвентар"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        inventory = get_user_inventory(user_id, chat_id)
+        items = get_shop_items()
+        items_dict = {i['item_id']: i for i in items}
+        
+        if not inventory:
+            bot.reply_to(message, "🎒 ІНВЕНТАР\n\nПорожньо!")
+            return
+        
+        text = "🎒 **ІНВЕНТАР**\n\n"
+        for inv_item in inventory:
+            item = items_dict.get(inv_item['item_id'])
+            if item:
+                text += f"{item['name']} x{inv_item['quantity']}\n"
+                if inv_item['expires_at']:
+                    expires = inv_item['expires_at'] - int(time.time())
+                    hours = expires // 3600
+                    text += f"  ⏰ Ще {hours} год\n"
+                text += "\n"
+        
+        text += "/use <item_id> - використати"
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+    except Exception as e:
+        logger.error(f"❌ Помилка /inventory: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['use'])
+def use_cmd(message):
+    """Використати предмет"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        parts = message.text.split(maxsplit=1)
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Вкажіть предмет!\nПриклад: /use vitamins")
+            return
+        
+        item_id = parts[1]
+        
+        if not has_item(user_id, chat_id, item_id):
+            bot.reply_to(message, "❌ У тебе немає цього предмету!")
+            return
+        
+        item = get_item(item_id)
+        if not item:
+            bot.reply_to(message, "❌ Предмет не знайдено!")
+            return
+        
+        # Використовуємо предмет
+        if item_id == 'energy':
+            # Зняти кулдаун з годування
+            hryak = get_hryak(user_id, chat_id)
+            if hryak:
+                hryak['last_feed'] = 0
+                save_hryak_to_db(f"{chat_id}_{user_id}", hryak)
+                text = "⚡ **Енергетик використано!**\n\nТепер можна годувати хряка!"
+            else:
+                text = "❌ У тебе немає хряка!"
+        elif item_id == 'vitamins':
+            # Бонус до ваги
+            hryak = get_hryak(user_id, chat_id)
+            if hryak:
+                hryak['weight'] += item['value']
+                save_hryak_to_db(f"{chat_id}_{user_id}", hryak)
+                text = f"🍎 **Вітаміни ��икористано!**\n\nВага збільшена на +{item['value']} кг!"
+            else:
+                text = "❌ У тебе немає хряка!"
+        else:
+            text = f"✅ **{item['name']} використано!**\n\nЕфект: {item['desc']}"
+        
+        # Видаляємо предмет
+        remove_from_inventory(user_id, chat_id, item_id, 1)
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+    except Exception as e:
+        logger.error(f"❌ Помилка /use: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+# ============================================
+# ОСОБИСТА СТАТИСТИКА
+# ============================================
+
+@bot.message_handler(commands=['mystats'])
+def mystats_cmd(message):
+    """Особиста статистика"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        stats = get_user_stats(user_id, chat_id)
+        currency = get_user_currency(user_id, chat_id)
+        hryak = get_hryak(user_id, chat_id)
+        trachen_stats = get_trachen_stats(user_id, chat_id)
+        tournament_stats = get_user_tournament_stats(user_id, chat_id)
+        guild_stats = get_user_guild_stats(user_id, chat_id)
+        user_guild = get_user_guild(user_id, chat_id)
+        boss_stats = get_user_boss_stats(user_id, chat_id)
+
+        text = f"""📊 **ТВОЯ СТАТИСТИКА**
+
+💰 **Економіка:**
+  Монети: {currency['coins'] if currency else 0}
+  XP: {currency['xp'] if currency else 0}/{100}
+  Рівень: {currency['level'] if currency else 1}
+
+⚔️ **Дуелі:**
+  Перемог: {stats['duels_won']}
+  Поразок: {stats['duels_lost']}
+  Всього ігор: {stats['duels_won'] + stats['duels_lost']}
+
+📋 **Квести:**
+  Виконано: {stats['quests_completed']}
+
+🎰 **Казино:**
+  Виграшів: {stats['casino_wins']}
+  Програшів: {stats['casino_losses']}
+
+💕 **Трахензебітен:**
+  Разів: {trachen_stats['total_times'] if trachen_stats else 0}
+  Унікальних партнерів: {trachen_stats['unique_partners'] if trachen_stats else 0}
+  Зміна ваги: {trachen_stats['total_weight_change'] if trachen_stats else 0:+d} кг
+
+🏆 **Турніри:**
+  Участь: {tournament_stats['tournaments_joined'] if tournament_stats else 0}
+  Перемоги: {tournament_stats['tournaments_won'] if tournament_stats else 0}
+
+🏰 **Гільдії:**
+  Внесок: {guild_stats['total_contribution'] if guild_stats else 0}
+  Гільдія: {user_guild['name'] if user_guild else "Немає"}
+
+🐲 **Бос-дуелі:**
+  Битв: {boss_stats['bosses_fought'] if boss_stats else 0}
+  Всього шкоди: {boss_stats['total_damage'] if boss_stats else 0}
+  Вбито босів: {boss_stats['bosses_defeated'] if boss_stats else 0}
+
+🐷 **Хряк:**"""
+
+        if hryak:
+            text += f"""
+  Ім'я: {hryak['name']}
+  Вага: {hryak['weight']} кг
+  Нагодовано: {hryak['feed_count']} разів
+  Набрано всього: {stats['total_weight_gained']} кг"""
+        else:
+            text += "\n  Немає хряка! Введи /grow"
+
+        bot.reply_to(message, text, parse_mode="Markdown")
+    except Exception as e:
+        logger.error(f"❌ Помилка /mystats: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+# ============================================
+# ЩОДЕННИЙ БОНУС
+# ============================================
+
+@bot.message_handler(commands=['daily'])
+def daily_cmd(message):
+    """Щоденний бонус"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        bonus = get_daily_bonus(user_id, chat_id)
+        now = int(time.time())
+        day = 86400  # 24 години в секундах
+        
+        time_since_last = now - bonus['last_claim'] if bonus['last_claim'] > 0 else day
+        
+        if time_since_last < day:
+            hours_left = int((day - time_since_last) / 3600)
+            minutes_left = int(((day - time_since_last) % 3600) / 60)
+            text = f"⏳ **Ще рано!**\n\nЗалишилось: {hours_left} год {minutes_left} хв"
+        else:
+            # Визначаємо стрік
+            if time_since_last < day * 2:
+                new_streak = bonus['streak'] + 1
+            else:
+                new_streak = 1
+            
+            # Нагорода збільшується зі стріком
+            base_coins = 10
+            base_xp = 5
+            coins = base_coins + (new_streak * 2)
+            xp = base_xp + (new_streak // 3)
+            
+            add_coins(user_id, chat_id, coins)
+            add_xp(user_id, chat_id, xp)
+            update_daily_bonus(user_id, chat_id, now, new_streak)
+            
+            text = f"""🎁 **ЩОДЕННИЙ БОНУС!**
+
+💵 Монет: +{coins}
+⭐ XP: +{xp}
+🔥 Стрік: {new_streak} днів поспіль!
+
+Продовжуй заходити щодня для більших нагород!"""
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+    except Exception as e:
+        logger.error(f"❌ Помилка /daily: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['balance'])
+def balance_cmd(message):
+    """Показати баланс монет та XP"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        currency = get_user_currency(user_id, chat_id)
+        
+        if not currency:
+            bot.reply_to(message, "❌ Помилка отримання балансу!")
+            return
+        
+        text = f"""💰 **БАЛАНС**
+
+💵 Монети: {currency['coins']}
+⭐ XP: {currency['xp']}/{100}
+🏆 Рівень: {currency['level']}
+
+Як отримати:
+• /feed - +5 монет, +2 XP
+• /quests - до 100 монет, 25 XP
+• /roulette - ризикни!
+• /lottery - спробуй удачу!"""
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+    except Exception as e:
+        logger.error(f"❌ Помилка /balance: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
 @bot.message_handler(commands=['stats'])
 def stats_cmd(message):
     """Статистика чату"""
@@ -2595,12 +3842,1337 @@ def spam_cmd(message):
     """Увімкнути/вимкнути спам контроль (тільки адміни)"""
     chat_id = message.chat.id
     user_id = message.from_user.id
-    
+
     if not is_admin(chat_id, user_id):
         bot.reply_to(message, "❌ Ця команда тільки для адміністраторів!")
         return
-    
+
     bot.reply_to(message, "📍 Спам контроль: 5 повідомлень за 10 секунд = мут на 1 хвилину\n\nБот автоматично мутить спаммерів!")
+
+
+# ============================================
+# ТРАХЕНЗЕБІТЕН - СПАРЮВАННЯ ХРЯКІВ
+# ============================================
+
+TRACHEN_COOLDOWN = 43200  # 12 годин в секундах
+TRACHEN_ENERGY_COST = 10
+TRACHEN_PREGNANCY_CHANCE = 0.1  # 10% шанс вагітності
+
+@bot.message_handler(commands=['trachen'])
+def trachen_cmd(message):
+    """Трахензебітен - спарювання хряків"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        # Перевіряємо чи є хряк
+        hryak = get_hryak(user_id, chat_id)
+        if not hryak:
+            bot.reply_to(message, "❌ У тебе ще немає хряка! Введи /grow")
+            return
+        
+        # Перевіряємо кулдаун
+        last_trachen_time = get_last_trachen_time(user_id, chat_id)
+        now = int(time.time())
+        time_since_last = now - last_trachen_time
+        
+        if last_trachen_time > 0 and time_since_last < TRACHEN_COOLDOWN:
+            hours_left = int((TRACHEN_COOLDOWN - time_since_last) / 3600)
+            minutes_left = int(((TRACHEN_COOLDOWN - time_since_last) % 3600) / 60)
+            bot.reply_to(message, f"⏳ Ще рано! Трахензебітен доступний раз на 12 годин.\n\nЗалишилось: {hours_left} год {minutes_left} хв")
+            return
+        
+        # Витрачаємо енергію
+        energy = TRACHEN_ENERGY_COST
+        
+        # Перевіряємо чи є партнер
+        partner_id = None
+        partner_hryak = None
+        
+        # Якщо є згадка користувача
+        if message.reply_to_message and message.reply_to_message.from_user:
+            partner_id = message.reply_to_message.from_user.id
+            partner_hryak = get_hryak(partner_id, chat_id)
+            if not partner_hryak:
+                bot.reply_to(message, "❌ У цього користувача немає хряка!")
+                return
+            if partner_id == user_id:
+                bot.reply_to(message, "❌ Не можна з самим собою!")
+                return
+        
+        # Якщо немає партнера - вибираємо випадкового
+        if not partner_id:
+            # Отримуємо всіх гравців з хряками
+            all_hryaky = []
+            for key, h in hryaky_data.items():
+                if h.get('chat_id') == chat_id and h.get('user_id') != user_id:
+                    all_hryaky.append(h)
+            
+            if not all_hryaky:
+                bot.reply_to(message, "❌ Немає інших гравців з хряками в чаті!")
+                return
+            
+            partner_hryak = random.choice(all_hryaky)
+            partner_id = partner_hryak['user_id']
+        
+        # Розраховуємо зміну ваги (від -15 до +25 кг)
+        weight_change = random.randint(-15, 25)
+        
+        # Шанс вагітності (10%)
+        is_pregnant = random.random() < TRACHEN_PREGNANCY_CHANCE
+        children_count = 0
+        
+        if is_pregnant:
+            # Вагітність може настати у будь-якого з партнерів (50/50)
+            pregnant_user = user_id if random.random() < 0.5 else partner_id
+            pregnant_hryak_name = hryak['name'] if pregnant_user == user_id else partner_hryak['name']
+            other_user = partner_id if pregnant_user == user_id else user_id
+            other_hryak_name = partner_hryak['name'] if pregnant_user == user_id else hryak['name']
+            
+            # Кількість дітей (1-3)
+            children_count = random.randint(1, 3)
+            
+            # Створюємо вагітність
+            create_pregnancy(
+                pregnant_user, chat_id,
+                other_user, other_hryak_name,
+                pregnant_hryak_name, children_count
+            )
+        
+        # Записуємо трахензебітен
+        add_trachen_record(user_id, chat_id, partner_id, partner_hryak['name'], weight_change, energy)
+        
+        # Оновлюємо вагу хряка
+        old_weight = hryak['weight']
+        hryak['weight'] = max(1, hryak['weight'] + weight_change)
+        if hryak['weight'] > hryak['max_weight']:
+            hryak['max_weight'] = hryak['weight']
+        save_hryak_to_db(f"{chat_id}_{user_id}", hryak)
+        
+        # Формуємо повідомлення
+        emoji = "💕" if weight_change > 0 else "😔"
+        pregnancy_emoji = "🤰" if is_pregnant else ""
+        
+        text = f"""{emoji} **Трахензебітен відбувся!**
+
+🐷 Твій хряк: {hryak['name']}
+💑 Партнер: {partner_hryak['name']}
+⚖️ Зміна ваги: {weight_change:+d} кг ({old_weight} → {hryak['weight']})
+💪 Витрачено енергії: {energy}
+
+{pregnancy_emoji}{"🎉 Вітаємо! Хтось вагітний!" if is_pregnant else ""}"""
+        
+        if is_pregnant:
+            text += f"\n👶 Кількість дітей: {children_count}"
+            text += f"\n⏳ Час до пологів: 10 хвилин"
+        
+        text += f"\n\n⏰ Наступний трахензебітен через 12 годин"
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка /trachen: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['children'])
+def children_cmd(message):
+    """Показати дітей користувача"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        children_list = get_children(user_id, chat_id)
+        
+        if not children_list:
+            bot.reply_to(message, "👶 У тебе ще немає дітей!\n\nЗаведи дітей через /trachen")
+            return
+        
+        text = "👶 **Твої діти:**\n\n"
+        
+        for i, child in enumerate(children_list, 1):
+            born_date = time.strftime('%d.%m.%Y', time.localtime(child['born_at']))
+            text += f"{i}. **{child['name']}**\n"
+            text += f"   ⚖️ Вага: {child['weight']} кг\n"
+            text += f"   🎂 Народжений: {born_date}\n"
+            text += f"   🧬 Особливість: {child['inherited_trait'] or 'Немає'}\n\n"
+        
+        text += f"\nВсього: {len(children_list)} дітей"
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка /children: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['pregnancies'])
+def pregnancies_cmd(message):
+    """Показати вагітності в чаті"""
+    chat_id = message.chat.id
+    
+    try:
+        pregnancies_list = get_all_pregnancies(chat_id)
+        
+        if not pregnancies_list:
+            bot.reply_to(message, "🤰 Наразі немає вагітних хряків в чаті!")
+            return
+        
+        text = "🤰 **Вагітні хряки:**\n\n"
+        now = int(time.time())
+        
+        for i, preg in enumerate(pregnancies_list, 1):
+            time_left = preg['due_date'] - now
+            if time_left > 0:
+                minutes_left = int(time_left / 60)
+                hours_left = int(minutes_left / 60)
+                mins = minutes_left % 60
+                time_str = f"{hours_left} год {mins} хв" if hours_left > 0 else f"{mins} хв"
+            else:
+                time_str = "Готовий до пологів!"
+            
+            text += f"{i}. 🐷 {preg['mother_hryak_name']}\n"
+            text += f"   👨 Батько: {preg['father_hryak_name']}\n"
+            text += f"   👶 Дітей: {preg['children_count']}\n"
+            text += f"   ⏳ Час до пологів: {time_str}\n\n"
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка /pregnancies: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['claimchildren'])
+def claim_children_cmd(message):
+    """Забрати дітей після пологів"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        pregnancy = get_pregnancy(user_id, chat_id)
+        
+        if not pregnancy:
+            bot.reply_to(message, "❌ У тебе немає активної вагітності!")
+            return
+        
+        if pregnancy.get('claimed', False):
+            bot.reply_to(message, "❌ Ти вже забрав дітей!")
+            return
+        
+        now = int(time.time())
+        if now < pregnancy['due_date']:
+            time_left = int((pregnancy['due_date'] - now) / 60)
+            bot.reply_to(message, f"⏳ Ще рано! До пологів залишилось {time_left} хвилин.")
+            return
+        
+        # Народжуємо дітей
+        hryak = get_hryak(user_id, chat_id)
+        if not hryak:
+            bot.reply_to(message, "❌ У тебе немає хряка!")
+            return
+        
+        father_hryak = get_hryak(pregnancy['father_user_id'], chat_id)
+        father_name = father_hryak['name'] if father_hryak else "Невідомий"
+        
+        children_names = []
+        for i in range(pregnancy['children_count']):
+            # Генеруємо ім'я дитини
+            child_name = f"{hryak['name'][:3]}-{father_name[:3]}-{i+1}"
+            # Вага дитини (середнє між батьками + рандом)
+            father_weight = father_hryak['weight'] if father_hryak else 10
+            child_weight = max(1, int((hryak['weight'] + father_weight) / 2) + random.randint(-5, 5))
+            
+            # Спадкова ознака
+            traits = ['Швидкий', 'Сильний', 'Розумний', 'Хитрий', 'Великий', 'Малий']
+            inherited_trait = random.choice(traits) if random.random() < 0.3 else ''
+            
+            # Додаємо дитину
+            add_child(
+                user_id, chat_id,
+                pregnancy['father_user_id'], user_id,
+                child_name, child_weight, inherited_trait
+            )
+            children_names.append(child_name)
+        
+        # Позначаємо вагітність як виконану
+        claim_pregnancy(pregnancy['id'])
+        
+        # Нагорода за дітей
+        reward_coins = pregnancy['children_count'] * 50
+        reward_xp = pregnancy['children_count'] * 25
+        add_coins(user_id, chat_id, reward_coins)
+        add_xp(user_id, chat_id, reward_xp)
+        
+        text = f"""🎉 **Пологи відбулися!**
+
+🐷 {hryak['name']} народив {pregnancy['children_count']} дітей:
+{', '.join(children_names)}
+
+💰 Нагорода: +{reward_coins} монет, +{reward_xp} XP
+
+Використовуй /children щоб побачити дітей!"""
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка /claimchildren: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+# ============================================
+# ТУРНІРИ
+# ============================================
+
+@bot.message_handler(commands=['tournament'])
+def tournament_cmd(message):
+    """Турніри - створити або приєднатися"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        
+        # Якщо немає аргументів - показуємо інфо
+        if len(parts) < 2:
+            active_tournament = get_active_tournament(chat_id)
+            
+            if not active_tournament:
+                text = """🏆 **ТУРНІРИ**
+
+Вхідний внесок: 10 кг
+Призовий фонд: 70% від збору
+Друге місце: 20% від збору
+Організатор: 10%
+
+**Команди:**
+/tournament create <назва> - створити турнір
+/tournament join - приєднатися до турніру
+/tournament start - почати турнір (адмін)
+/tournament info - інформація про активний турнір
+
+**Формат:** Олімпійська система (на вибування)
+Переможець визначається за вагою хряка!"""
+            else:
+                participants = get_tournament_participants(active_tournament['id'])
+                text = f"""🏆 **ТУРНІР: {active_tournament['name']}**
+
+Вхідний внесок: {active_tournament['entry_fee']} кг
+Призовий фонд: {active_tournament['prize_pool']} кг
+Учасників: {len(participants)}
+Статус: {active_tournament['status']}
+
+**Учасники:**
+"""
+                for i, p in enumerate(participants, 1):
+                    hryak = get_hryak(p['user_id'], chat_id)
+                    name = hryak['name'] if hryak else "Невідомо"
+                    text += f"{i}. {name} - {p['hryak_weight']} кг\n"
+                
+                text += "\n**Команди:**\n/tournament join - приєднатися\n/tournament start - почати (адмін)"
+            
+            bot.reply_to(message, text, parse_mode="Markdown")
+            return
+        
+        action = parts[1].lower()
+        
+        # Створення турніру
+        if action == 'create':
+            # Перевіряємо чи вже є активний турнір
+            active_tournament = get_active_tournament(chat_id)
+            if active_tournament:
+                bot.reply_to(message, "❌ Вже є активний турнір! Зачекайте завершення.")
+                return
+            
+            # Отримуємо назву турніру
+            tournament_name = ' '.join(parts[2:]) if len(parts) > 2 else f"Турнір #{int(time.time()) % 10000}"
+            
+            # Створюємо турнір
+            tournament_id = create_tournament(chat_id, tournament_name, entry_fee=10)
+            
+            if tournament_id:
+                text = f"""🏆 **ТУРНІР СТВОРЕНО!**
+
+Назва: {tournament_name}
+Вхідний внесок: 10 кг
+ID турніру: {tournament_id}
+
+Напиши /tournament join щоб приєднатися!
+Мінімум 4 учасники для старту."""
+                bot.reply_to(message, text, parse_mode="Markdown")
+            else:
+                bot.reply_to(message, "❌ Помилка створення турніру!")
+        
+        # Приєднання до турніру
+        elif action == 'join':
+            active_tournament = get_active_tournament(chat_id)
+            
+            if not active_tournament:
+                bot.reply_to(message, "❌ Немає активного турніру!")
+                return
+            
+            if active_tournament['status'] != 'waiting':
+                bot.reply_to(message, "❌ Турнір вже почався!")
+                return
+            
+            # Перевіряємо чи вже в турнірі
+            participants = get_tournament_participants(active_tournament['id'])
+            for p in participants:
+                if p['user_id'] == user_id:
+                    bot.reply_to(message, "✅ Ти вже в турнірі!")
+                    return
+            
+            # Перевіряємо чи є хряк
+            hryak = get_hryak(user_id, chat_id)
+            if not hryak:
+                bot.reply_to(message, "❌ У тебе немає хряка! Введи /grow")
+                return
+            
+            # Перевіряємо баланс
+            currency = get_user_currency(user_id, chat_id)
+            if currency['coins'] < active_tournament['entry_fee']:
+                bot.reply_to(message, f"❌ Недостатньо монет! Потрібно {active_tournament['entry_fee']} кг")
+                return
+            
+            # Знімаємо вхідний внесок
+            update_user_currency(user_id, chat_id, coins=currency['coins'] - active_tournament['entry_fee'])
+            
+            # Приєднуємо до турніру
+            if join_tournament(active_tournament['id'], user_id, chat_id, hryak['weight']):
+                bot.reply_to(message, f"✅ Ти приєднався до турніру!\nХряк: {hryak['name']} ({hryak['weight']} кг)")
+            else:
+                bot.reply_to(message, "❌ Помилка приєднання!")
+        
+        # Початок турніру
+        elif action == 'start':
+            active_tournament = get_active_tournament(chat_id)
+            
+            if not active_tournament:
+                bot.reply_to(message, "❌ Немає активного турніру!")
+                return
+            
+            # Перевіряємо чи адмін
+            if not is_admin(chat_id, user_id):
+                bot.reply_to(message, "❌ Тільки адміни можуть почати турнір!")
+                return
+            
+            participants = get_tournament_participants(active_tournament['id'])
+            
+            if len(participants) < 2:
+                bot.reply_to(message, "❌ Потрібно мінімум 2 учасники!")
+                return
+            
+            # Починаємо турнір
+            update_tournament_status(active_tournament['id'], 'in_progress')
+            
+            # Визначаємо переможця (найбільша вага)
+            winner = max(participants, key=lambda x: x['hryak_weight'])
+            
+            # Розподіл призу
+            prize_pool = active_tournament['prize_pool']
+            winner_prize = int(prize_pool * 0.7)
+            second_prize = int(prize_pool * 0.2) if len(participants) > 1 else 0
+            
+            # Нагороджуємо переможця
+            add_coins(winner['user_id'], chat_id, winner_prize)
+            add_xp(winner['user_id'], chat_id, 50)
+            
+            # Нагороджуємо другого (якщо є)
+            if second_prize > 0 and len(participants) > 1:
+                participants.remove(winner)
+                second = max(participants, key=lambda x: x['hryak_weight'])
+                add_coins(second['user_id'], chat_id, second_prize)
+                add_xp(second['user_id'], chat_id, 25)
+            
+            # Завершуємо турнір
+            update_tournament_status(active_tournament['id'], 'finished', winner['user_id'])
+            
+            winner_hryak = get_hryak(winner['user_id'], chat_id)
+            
+            text = f"""🏆 **ТУРНІР ЗАВЕРШЕНО!**
+
+🥇 Переможець: <a href="tg://user?id={winner['user_id']}">{winner_hryak['name'] if winner_hryak else 'Unknown'}</a>
+💰 Нагорода: +{winner_prize} монет, +50 XP
+
+🥈 Друге місце: +{second_prize} монет, +25 XP
+
+Всього учасників: {len(participants)}
+Призовий фонд: {prize_pool} кг"""
+            
+            bot.reply_to(message, text, parse_mode="HTML")
+        
+        # Інформація про турнір
+        elif action == 'info':
+            active_tournament = get_active_tournament(chat_id)
+            
+            if not active_tournament:
+                bot.reply_to(message, "❌ Немає активного турніру!")
+                return
+            
+            participants = get_tournament_participants(active_tournament['id'])
+            
+            text = f"""🏆 **ІНФОРМАЦІЯ ПРО ТУРНІР**
+
+Назва: {active_tournament['name']}
+Вхідний внесок: {active_tournament['entry_fee']} кг
+Призовий фонд: {active_tournament['prize_pool']} кг
+Статус: {active_tournament['status']}
+Учасників: {len(participants)}
+
+**Учасники:**
+"""
+            for i, p in enumerate(participants, 1):
+                hryak = get_hryak(p['user_id'], chat_id)
+                name = hryak['name'] if hryak else "Невідомо"
+                text += f"{i}. {name} - {p['hryak_weight']} кг\n"
+            
+            bot.reply_to(message, text, parse_mode="Markdown")
+        
+        else:
+            bot.reply_to(message, "❌ Невідома дія! Використовуй /tournament для інфо.")
+    
+    except Exception as e:
+        logger.error(f"❌ Помилка /tournament: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+# ============================================
+# ГІЛЬДІЇ ХРЯКІВ
+# ============================================
+
+GUILD_CREATE_COST = 100  # Вартість створення гільдії
+
+@bot.message_handler(commands=['createguild'])
+def create_guild_cmd(message):
+    """Створити гільдію"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split(maxsplit=2)
+        
+        if len(parts) < 2:
+            bot.reply_to(message, """🏰 **СТВОРЕННЯ ГІЛЬДІЇ**
+
+Вартість: 100 монет
+Використання: /createguild <назва> [опис]
+
+Приклад: /createguild Сильні Хряки Найкраща гільдія""", parse_mode="Markdown")
+            return
+        
+        guild_name = parts[1]
+        description = parts[2] if len(parts) > 2 else ""
+        
+        # Перевіряємо довжину назви
+        if len(guild_name) < 3 or len(guild_name) > 32:
+            bot.reply_to(message, "❌ Назва має бути від 3 до 32 символів!")
+            return
+        
+        # Перевіряємо чи вже в гільдії
+        user_guild = get_user_guild(user_id, chat_id)
+        if user_guild:
+            bot.reply_to(message, f"❌ Ти вже в гільдії \"{user_guild['name']}\"!")
+            return
+        
+        # Перевіряємо баланс
+        currency = get_user_currency(user_id, chat_id)
+        if currency['coins'] < GUILD_CREATE_COST:
+            bot.reply_to(message, f"❌ Недостатньо монет! Потрібно {GUILD_CREATE_COST} монет")
+            return
+        
+        # Перевіряємо чи існує гільдія з такою назвою
+        existing_guild = get_guild_by_name(guild_name)
+        if existing_guild:
+            bot.reply_to(message, "❌ Гільдія з такою назвою вже існує!")
+            return
+        
+        # Знімаємо кошти
+        update_user_currency(user_id, chat_id, coins=currency['coins'] - GUILD_CREATE_COST)
+        
+        # Створюємо гільдію
+        guild_id = create_guild(chat_id, guild_name, user_id, description)
+        
+        if guild_id:
+            bot.reply_to(message, f"""🏰 **ГІЛЬДІЯ СТВОРЕНА!**
+
+Назва: {guild_name}
+Опис: {description or "Не вказано"}
+Власник: <a href="tg://user?id={user_id}">{message.from_user.first_name}</a>
+
+Використовуй /guild щоб побачити інформацію про гільдію!
+Запроси друзів командою /guildjoin""", parse_mode="HTML")
+        else:
+            bot.reply_to(message, "❌ Помилка створення гільдії!")
+    
+    except Exception as e:
+        logger.error(f"❌ Помилка /createguild: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['guild'])
+def guild_cmd(message):
+    """Інформація про гільдію"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        
+        # Якщо є назва гільдії - показуємо інформацію про неї
+        if len(parts) > 1:
+            guild_name = parts[1]
+            guild = get_guild_by_name(guild_name)
+            
+            if not guild:
+                bot.reply_to(message, "❌ Гільдію не знайдено!")
+                return
+            
+            members = get_guild_members(guild['id'])
+            
+            text = f"""🏰 **{guild['name']}**
+
+📝 Опис: {guild['description'] or "Не вказано"}
+👑 Власник: ID {guild['owner_user_id']}
+📊 Рівень: {guild['level']}
+⭐ XP: {guild['xp']}
+💰 Скарбниця: {guild['coins']} монет
+👥 Учасників: {guild['member_count']}
+
+**Топ учасників:**
+"""
+            for i, member in enumerate(members[:5], 1):
+                role_emoji = "👑" if member['role'] == 'owner' else "🔷" if member['role'] == 'officer' else "▫️"
+                text += f"{i}. {role_emoji} ID {member['user_id']} - {member['contribution']} внеску\n"
+            
+            bot.reply_to(message, text, parse_mode="Markdown")
+            return
+        
+        # Показуємо гільдію користувача
+        user_guild = get_user_guild(user_id, chat_id)
+        
+        if not user_guild:
+            bot.reply_to(message, """🏰 **ГІЛЬДІЇ**
+
+Ти не в гільдії!
+
+**Команди:**
+/createguild <назва> [опис] - створити гільдію (100 монет)
+/guildjoin <назва> - приєднатися до гільдії
+/guildtop - рейтинг гільдій
+
+**Переваги гільдій:**
+- Спільна скарбниця
+- Бонуси до XP (+10% за рівень гільдії)
+- Гільдійні війни (в розробці)
+- Рейтинг гільдій""", parse_mode="Markdown")
+            return
+        
+        members = get_guild_members(user_guild['id'])
+        user_rank = get_guild_rank(user_guild['id'], user_id)
+        
+        text = f"""🏰 **{user_guild['name']}**
+
+📝 Опис: {user_guild['description'] or "Не вказано"}
+👑 Власник: ID {user_guild['owner_user_id']}
+📊 Рівень: {user_guild['level']}
+⭐ XP: {user_guild['xp']}
+💰 Скарбниця: {user_guild['coins']} монет
+👥 Учасників: {user_guild['member_count']}
+
+**Твоя роль:** {user_rank['role'].upper()}
+**Твій внесок:** {user_rank['contribution']}
+
+**Учасники:**
+"""
+        for i, member in enumerate(members, 1):
+            role_emoji = "👑" if member['role'] == 'owner' else "🔷" if member['role'] == 'officer' else "▫️"
+            text += f"{i}. {role_emoji} ID {member['user_id']} - {member['contribution']} внеску\n"
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+    
+    except Exception as e:
+        logger.error(f"❌ Помилка /guild: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['guildjoin'])
+def guild_join_cmd(message):
+    """Приєднатися до гільдії"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Використання: /guildjoin <назва гільдії>")
+            return
+        
+        guild_name = parts[1]
+        guild = get_guild_by_name(guild_name)
+        
+        if not guild:
+            bot.reply_to(message, "❌ Гільдію не знайдено!")
+            return
+        
+        # Перевіряємо чи вже в гільдії
+        user_guild = get_user_guild(user_id, chat_id)
+        if user_guild:
+            bot.reply_to(message, f"❌ Ти вже в гільдії \"{user_guild['name']}\"!")
+            return
+        
+        # Приєднуємося
+        if join_guild(guild['id'], user_id, chat_id):
+            bot.reply_to(message, f"""✅ Ти приєднався до гільдії "{guild['name']}"!
+
+Використовуй /guild щоб побачити інформацію.""")
+        else:
+            bot.reply_to(message, "❌ Помилка вступу до гільдії!")
+    
+    except Exception as e:
+        logger.error(f"❌ Помилка /guildjoin: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['guildleave'])
+def guild_leave_cmd(message):
+    """Вийти з гільдії"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        user_guild = get_user_guild(user_id, chat_id)
+        
+        if not user_guild:
+            bot.reply_to(message, "❌ Ти не в гільдії!")
+            return
+        
+        # Перевіряємо чи не власник
+        if user_guild['owner_user_id'] == user_id:
+            bot.reply_to(message, """❌ Власник не може вийти з гільдії!
+
+**Команди:**
+/transferguild <user_id> - передати володіння
+/deleteguild - видалити гільдію""")
+            return
+        
+        # Виходимо
+        if leave_guild(user_guild['id'], user_id):
+            bot.reply_to(message, f"✅ Ти вийшов з гільдії \"{user_guild['name']}\"!")
+        else:
+            bot.reply_to(message, "❌ Помилка виходу з гільдії!")
+    
+    except Exception as e:
+        logger.error(f"❌ Помилка /guildleave: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['guildtop'])
+def guild_top_cmd(message):
+    """Рейтинг гільдій"""
+    chat_id = message.chat.id
+    
+    try:
+        guilds = get_all_guilds(chat_id)
+        
+        if not guilds:
+            bot.reply_to(message, "🏰 **ГІЛЬДІЇ**\n\nВ чаті ще немає гільдій!\n\nСтвори свою: /createguild <назва>")
+            return
+        
+        text = "🏆 **ТОП ГІЛЬДІЙ**\n\n"
+        
+        for i, guild in enumerate(guilds[:10], 1):
+            medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
+            text += f"{medal} **{guild['name']}** - {guild['level']} рівень, {guild['xp']} XP, {guild['member_count']} учасників\n"
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+    
+    except Exception as e:
+        logger.error(f"❌ Помилка /guildtop: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['transferguild'])
+def transfer_guild_cmd(message):
+    """Передати володіння гільдією"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Використання: /transferguild <user_id>")
+            return
+        
+        user_guild = get_user_guild(user_id, chat_id)
+        
+        if not user_guild:
+            bot.reply_to(message, "❌ Ти не в гільдії!")
+            return
+        
+        if user_guild['owner_user_id'] != user_id:
+            bot.reply_to(message, "❌ Тільки власник може передати володіння!")
+            return
+        
+        new_owner_id = int(parts[1])
+        
+        # Перевіряємо чи є новий власник в гільдії
+        members = get_guild_members(user_guild['id'])
+        member_ids = [m['user_id'] for m in members]
+        
+        if new_owner_id not in member_ids:
+            bot.reply_to(message, "❌ Цей користувач не в гільдії!")
+            return
+        
+        if new_owner_id == user_id:
+            bot.reply_to(message, "❌ Ти вже власник!")
+            return
+        
+        # Передаємо володіння
+        if transfer_guild_owner(user_guild['id'], new_owner_id):
+            bot.reply_to(message, f"✅ Ти передав володіння гільдією \"{user_guild['name']}\" користувачу ID {new_owner_id}!")
+        else:
+            bot.reply_to(message, "❌ Помилка передачі володіння!")
+    
+    except Exception as e:
+        logger.error(f"❌ Помилка /transferguild: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['deleteguild'])
+def delete_guild_cmd(message):
+    """Видалити гільдію"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        user_guild = get_user_guild(user_id, chat_id)
+        
+        if not user_guild:
+            bot.reply_to(message, "❌ Ти не в гільдії!")
+            return
+        
+        if user_guild['owner_user_id'] != user_id:
+            bot.reply_to(message, "❌ Тільки власник може видалити гільдію!")
+            return
+        
+        # Видаляємо гільдію
+        if delete_guild(user_guild['id']):
+            bot.reply_to(message, f"✅ Гільдія \"{user_guild['name']}\" видалена!")
+        else:
+            bot.reply_to(message, "❌ Помилка видалення гільдії!")
+    
+    except Exception as e:
+        logger.error(f"❌ Помилка /deleteguild: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['contribute'])
+def contribute_cmd(message):
+    """Внести внесок до гільдії"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Використання: /contribute <сума>")
+            return
+        
+        user_guild = get_user_guild(user_id, chat_id)
+        
+        if not user_guild:
+            bot.reply_to(message, "❌ Ти не в гільдії!")
+            return
+        
+        amount = int(parts[1])
+        
+        if amount <= 0:
+            bot.reply_to(message, "❌ Сума має бути додатною!")
+            return
+        
+        # Перевіряємо баланс
+        currency = get_user_currency(user_id, chat_id)
+        if currency['coins'] < amount:
+            bot.reply_to(message, "❌ Недостатньо монет!")
+            return
+        
+        # Знімаємо кошти і додаємо до гільдії
+        update_user_currency(user_id, chat_id, coins=currency['coins'] - amount)
+        
+        # Додаємо до скарбниці гільдії (тут поки просто оновлюємо XP)
+        update_guild_xp(user_guild['id'], amount)
+        add_guild_contribution(user_guild['id'], user_id, amount)
+        
+        bot.reply_to(message, f"""✅ Внесок: {amount} монет
+Твій загальний внесок: {get_guild_rank(user_guild['id'], user_id)['contribution']}
+XP гільдії: +{amount}""")
+    
+    except ValueError:
+        bot.reply_to(message, "❌ Невірна сума!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /contribute: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+# ============================================
+# СКІНИ ДЛЯ ХРЯКІВ
+# ============================================
+
+@bot.message_handler(commands=['skins'])
+def skins_cmd(message):
+    """Показати скіни"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        
+        # Якщо є аргумент - показуємо інформацію про скін
+        if len(parts) > 1:
+            skin_name = parts[1]
+            skin = get_skin_by_name(skin_name)
+            
+            if not skin:
+                # Спробуємо за ID
+                try:
+                    skin_id = int(skin_name)
+                    skin = get_skin(skin_id)
+                except:
+                    pass
+            
+            if not skin:
+                bot.reply_to(message, "❌ Скін не знайдено!")
+                return
+            
+            rarity_emoji = "⚪" if skin['rarity'] == 'common' else "🟢" if skin['rarity'] == 'rare' else "🔵" if skin['rarity'] == 'epic' else "🟣" if skin['rarity'] == 'legendary' else "🟡"
+            
+            text = f"""{skin['icon']} **{skin['display_name']}**
+
+{skin['description']}
+💰 Ціна: {skin['price']} монет
+⭐ Рідкість: {skin['rarity'].upper()} {rarity_emoji}"""
+            
+            if skin['bonus_type']:
+                text += f"\n🎁 Бонус: +{skin['bonus_value']}% до {skin['bonus_type']}"
+            
+            # Перевіряємо чи має користувач цей скін
+            user_has = has_skin(user_id, chat_id, skin['id'])
+            if user_has:
+                text += "\n\n✅ У тебе є цей скін!"
+            
+            bot.reply_to(message, text, parse_mode="Markdown")
+            return
+        
+        # Показуємо всі скіни або скіни користувача
+        action = parts[1] if len(parts) > 1 else 'all'
+        
+        if action == 'me':
+            user_skins = get_user_skins(user_id, chat_id)
+            
+            if not user_skins:
+                bot.reply_to(message, "🎨 **ТВОЇ СКІНИ**\n\nУ тебе ще немає скінів!\n\nКупи в /shop або використай /skins <назва>")
+                return
+            
+            text = "🎨 **ТВОЇ СКІНИ**\n\n"
+            for skin in user_skins:
+                equipped = "✅ " if skin['equipped'] else ""
+                text += f"{equipped}{skin['icon']} **{skin['display_name']}** - {skin['description']}\n"
+            
+            text += "\n**Використання:**\n/equipskin <назва> - одягнути скін"
+            bot.reply_to(message, text, parse_mode="Markdown")
+        else:
+            all_skins = get_all_skins()
+            
+            text = "🎨 **МАГАЗИН СКІНІВ**\n\n"
+            for skin in all_skins:
+                rarity_emoji = "⚪" if skin['rarity'] == 'common' else "🟢" if skin['rarity'] == 'rare' else "🔵" if skin['rarity'] == 'epic' else "🟣" if skin['rarity'] == 'legendary' else "🟡"
+                text += f"{skin['icon']} **{skin['display_name']}** - {skin['price']} монет {rarity_emoji}\n"
+                text += f"  _{skin['description']}_\n\n"
+            
+            text += "**Купити:** /buyskin <назва>\n**Одягнути:** /equipskin <назва>"
+            bot.reply_to(message, text, parse_mode="Markdown")
+    
+    except Exception as e:
+        logger.error(f"❌ Помилка /skins: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['buyskin'])
+def buy_skin_cmd(message):
+    """Купити скін"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Використання: /buyskin <назва скіну>")
+            return
+        
+        skin_name = parts[1]
+        skin = get_skin_by_name(skin_name)
+        
+        if not skin:
+            bot.reply_to(message, "❌ Скін не знайдено!")
+            return
+        
+        # Перевіряємо чи вже має
+        if has_skin(user_id, chat_id, skin['id']):
+            bot.reply_to(message, "✅ У тебе вже є цей скін!")
+            return
+        
+        # Перевіряємо баланс
+        currency = get_user_currency(user_id, chat_id)
+        if currency['coins'] < skin['price']:
+            bot.reply_to(message, f"❌ Недостатньо монет! Потрібно {skin['price']}")
+            return
+        
+        # Купуємо
+        if buy_skin(user_id, chat_id, skin['id']):
+            update_user_currency(user_id, chat_id, coins=currency['coins'] - skin['price'])
+            bot.reply_to(message, f"✅ Куплено скін: {skin['display_name']}!\n\nОдягни: /equipskin {skin['name']}")
+        else:
+            bot.reply_to(message, "❌ Помилка купівлі!")
+    
+    except Exception as e:
+        logger.error(f"❌ Помилка /buyskin: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['equipskin'])
+def equip_skin_cmd(message):
+    """Одягнути скін"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Використання: /equipskin <назва скіну>")
+            return
+        
+        skin_name = parts[1]
+        skin = get_skin_by_name(skin_name)
+        
+        if not skin:
+            bot.reply_to(message, "❌ Скін не знайдено!")
+            return
+        
+        # Перевіряємо чи має скін
+        if not has_skin(user_id, chat_id, skin['id']):
+            bot.reply_to(message, "❌ У тебе немає цього скіну!")
+            return
+        
+        # Одягаємо
+        if equip_skin(user_id, chat_id, skin['id']):
+            bot.reply_to(message, f"✅ Одягнуто скін: {skin['display_name']}!\n\nТвій хряк тепер виглядає як {skin['icon']}")
+        else:
+            bot.reply_to(message, "❌ Помилка одягання!")
+    
+    except Exception as e:
+        logger.error(f"❌ Помилка /equipskin: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+# ============================================
+# БОС-ДУЕЛІ (PvE)
+# ============================================
+
+@bot.message_handler(commands=['boss'])
+def boss_cmd(message):
+    """Бос-дуель"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        
+        # Отримуємо активного боса
+        boss = get_active_boss()
+        
+        if not boss:
+            bot.reply_to(message, """🐲 **БОС-ДУЕЛІ**
+
+Наразі немає активного боса!
+Бос з'явиться найближчим часом...
+
+**Як бити боса:**
+/boss attack - атакувати боса
+/boss info - інформація про боса""")
+            return
+        
+        # Якщо є аргумент
+        if len(parts) > 1:
+            action = parts[1].lower()
+            
+            if action == 'info':
+                hp_percent = int((boss['health'] / boss['max_health']) * 100)
+                hp_bar = "🟩" * (hp_percent // 10) + "🟥" * (10 - hp_percent // 10)
+                
+                participants = get_boss_participants(boss['id'])
+                
+                text = f"""🐲 **{boss['name']}**
+
+⭐ Рівень: {boss['level']}
+❤️ Здоров'я: {boss['health']}/{boss['max_health']}
+{hp_bar} {hp_percent}%
+⚔️ Шкода: {boss['damage']}
+💰 Нагорода: {boss['reward_coins']} монет, {boss['reward_xp']} XP
+
+**Топ гравців:**
+"""
+                for i, p in enumerate(participants[:5], 1):
+                    text += f"{i}. ID {p['user_id']} - {p['damage_dealt']} шкоди\n"
+                
+                bot.reply_to(message, text, parse_mode="Markdown")
+            
+            elif action == 'attack':
+                hryak = get_hryak(user_id, chat_id)
+                if not hryak:
+                    bot.reply_to(message, "❌ У тебе немає хряка! Введи /grow")
+                    return
+                
+                # Розраховуємо шкоду (вага хряка + рандом)
+                base_damage = hryak['weight'] * 2
+                random_damage = random.randint(-10, 20)
+                
+                # Бонус від скіну
+                skin_bonus = get_skin_bonus(user_id, chat_id, 'weight_bonus')
+                total_damage = max(1, int((base_damage + random_damage) * (1 + skin_bonus / 100)))
+                
+                # Атакуємо
+                result = attack_boss(boss['id'], user_id, chat_id, total_damage)
+                
+                if result and result.get('defeated'):
+                    # Бос переможений!
+                    participants = get_boss_participants(boss['id'])
+                    
+                    # Розподіл нагороди
+                    total_damage = sum(p['damage_dealt'] for p in participants)
+                    
+                    for p in participants:
+                        share = p['damage_dealt'] / total_damage if total_damage > 0 else 0
+                        coins_reward = int(boss['reward_coins'] * share)
+                        xp_reward = int(boss['reward_xp'] * share)
+                        
+                        if coins_reward > 0:
+                            add_coins(p['user_id'], chat_id, coins_reward)
+                        if xp_reward > 0:
+                            add_xp(p['user_id'], chat_id, xp_reward)
+                    
+                    # Оголошуємо перемогу
+                    winner_hryak = get_hryak(result.get('defeated_by_user_id', user_id), chat_id)
+                    winner_name = winner_hryak['name'] if winner_hryak else "Невідомо"
+                    
+                    bot.reply_to(message, f"""🎉 **БОСА ПЕРЕМОЖЕНО!**
+
+{boss['name']} загинув від рук героїв!
+Останній удар: {winner_name}
+
+**Нагороди розподілено:**
+Кожен учасник отримав монети та XP пропорційно до шкоди!
+
+Новий бос з'явиться найближчим часом...""")
+                else:
+                    # Бос ще жив
+                    remaining = result.get('remaining_health', boss['health'])
+                    hp_percent = int((remaining / boss['max_health']) * 100)
+                    
+                    bot.reply_to(message, f"""⚔️ **АТАКА!**
+
+Твій хряк {hryak['name']} завдав {total_damage} шкоди!
+
+🐲 {boss['name']}
+❤️ {remaining}/{boss['max_health']} ({hp_percent}%)
+
+Продовжуй атакувати командою /boss attack!""")
+            else:
+                bot.reply_to(message, "❌ Невідома дія! Використовуй /boss attack або /boss info")
+        else:
+            # Показуємо інформацію про боса
+            hp_percent = int((boss['health'] / boss['max_health']) * 100)
+            hp_bar = "🟩" * (hp_percent // 10) + "🟥" * (10 - hp_percent // 10)
+
+            text = f"""🐲 **{boss['name']}**
+
+⭐ Рівень: {boss['level']}
+❤️ Здоров'я: {boss['health']}/{boss['max_health']}
+{hp_bar} {hp_percent}%
+⚔️ Шкода: {boss['damage']}
+💰 Нагорода: {boss['reward_coins']} монет, {boss['reward_xp']} XP
+
+**Команди:**
+/boss attack - атакувати боса
+/boss info - детальна інформація
+
+**Як це працює:**
+1. Кожен гравець може атакувати боса
+2. Шкода = вага хряка × 2 + рандом
+3. Нагорода розподіляється пропорційно до шкоди
+4. Той хто нанесе останній удар - отримає бонус!"""
+
+            bot.reply_to(message, text, parse_mode="Markdown")
+
+    except Exception as e:
+        logger.error(f"❌ Помилка /boss: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+# ============================================
+# СЕЗОННІ ІВЕНТИ
+# ============================================
+
+@bot.message_handler(commands=['events'])
+def events_cmd(message):
+    """Показати сезонні івенти"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        events = get_all_events()
+        
+        if not events:
+            bot.reply_to(message, get_text(user_id, 'no_active_events'))
+            return
+        
+        text = "🎉 **СЕЗОННІ ІВЕНТИ**\n\n"
+        now = int(time.time())
+        
+        for event in events:
+            status_emoji = "✅" if event['is_active'] and event['start_date'] <= now <= event['end_date'] else "⏳" if event['start_date'] > now else "❌"
+            
+            # Прогрес користувача
+            progress = get_user_event_progress(user_id, event['id'])
+            progress_text = f" (Твій прогрес: {progress['progress']})" if progress else ""
+            
+            time_left = event['end_date'] - now if event['end_date'] > now else 0
+            days_left = time_left // 86400 if time_left > 0 else 0
+            
+            text += f"""{status_emoji} **{event['name']}**
+{event['description']}{progress_text}
+🎁 Нагорода: {event['special_reward_coins']} монет, {event['special_reward_xp']} XP
+⏳ Закінчується через: {days_left} дн.
+
+"""
+        
+        text += "**Команди:**\n/eventsclaim <event_id> - забрати нагороду"
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+    
+    except Exception as e:
+        logger.error(f"❌ Помилка /events: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['eventsclaim'])
+def claim_events_cmd(message):
+    """Забрати нагороду за івент"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Використання: /eventsclaim <event_id>")
+            return
+        
+        event_id = int(parts[1])
+        
+        # Перевіряємо івент
+        events = get_all_events()
+        event = next((e for e in events if e['id'] == event_id), None)
+        
+        if not event:
+            bot.reply_to(message, "❌ Івент не знайдено!")
+            return
+        
+        # Перевіряємо прогрес
+        progress = get_user_event_progress(user_id, event_id)
+        
+        if not progress:
+            bot.reply_to(message, "❌ Ти не брав участі в цьому івенті!")
+            return
+        
+        if progress['reward_claimed']:
+            bot.reply_to(message, "❌ Ти вже забрав нагороду!")
+            return
+        
+        # Забираємо нагороду
+        claim_event_reward(user_id, event_id)
+        add_coins(user_id, chat_id, event['special_reward_coins'])
+        add_xp(user_id, chat_id, event['special_reward_xp'])
+        
+        bot.reply_to(message, f"""🎉 **Нагороду отримано!**
+
++{event['special_reward_coins']} монет
++{event['special_reward_xp']} XP
+
+Дякуємо за участь в {event['name']}!""")
+    
+    except Exception as e:
+        logger.error(f"❌ Помилка /eventsclaim: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+# ============================================
+# МУЛЬТИ-МОВНІСТЬ
+# ============================================
+
+@bot.message_handler(commands=['lang'])
+def lang_cmd(message):
+    """Вибір мови"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        # Створюємо inline клавіатуру з мовами
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        
+        for lang_code, lang_name in LANGUAGES.items():
+            current_lang = get_user_language(user_id)
+            is_current = lang_code == current_lang
+            button_text = f"{'✅ ' if is_current else ''}{lang_name}"
+            markup.add(types.InlineKeyboardButton(button_text, callback_data=f"lang_{lang_code}"))
+        
+        bot.reply_to(message, get_text(user_id, 'lang_select'), reply_markup=markup)
+    
+    except Exception as e:
+        logger.error(f"❌ Помилка /lang: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('lang_'))
+def lang_callback(call):
+    """Обробка вибору мови"""
+    user_id = call.from_user.id
+    lang_code = call.data.split('_')[1]
+    
+    try:
+        if lang_code in LANGUAGES:
+            set_user_language(user_id, lang_code)
+            bot.answer_callback_query(call.id, get_text(user_id, 'lang_changed', lang=LANGUAGES[lang_code]))
+            
+            # Оновлюємо повідомлення
+            markup = types.InlineKeyboardMarkup(row_width=1)
+            for code, name in LANGUAGES.items():
+                is_current = code == lang_code
+                markup.add(types.InlineKeyboardButton(f"{'✅ ' if is_current else ''}{name}", callback_data=f"lang_{code}"))
+            
+            bot.edit_message_text(
+                get_text(user_id, 'lang_changed', lang=LANGUAGES[lang_code]),
+                call.message.chat.id,
+                call.message.message_id,
+                reply_markup=markup
+            )
+    except Exception as e:
+        logger.error(f"❌ Помилка lang_callback: {e}")
+        bot.answer_callback_query(call.id, "Error")
 
 
 # Обробник спам контролю
@@ -2743,6 +5315,309 @@ def bot_status():
 def ping():
     """Ping для keep-alive"""
     return "pong", 200
+
+
+# ============================================
+# WEB APP ROUTES
+# ============================================
+
+@flask_app.route('/webapp')
+def webapp_index():
+    """Головна сторінка Web App"""
+    return flask_app.send_static_file('webapp/index.html')
+
+@flask_app.route('/webapp/style.css')
+def webapp_style():
+    """CSS для Web App"""
+    return flask_app.send_static_file('webapp/style.css'), {'Content-Type': 'text/css'}
+
+@flask_app.route('/webapp/app.js')
+def webapp_app():
+    """JS для Web App"""
+    return flask_app.send_static_file('webapp/app.js'), {'Content-Type': 'application/javascript'}
+
+
+# ============================================
+# WEB APP API ENDPOINTS
+# ============================================
+
+@flask_app.route('/api/webapp/user', methods=['GET'])
+def api_get_user():
+    """Отримати дані користувача"""
+    try:
+        user_id = int(flask_app.request.args.get('user_id', 0))
+        chat_id = int(flask_app.request.args.get('chat_id', 0))
+        
+        if not user_id:
+            return jsonify({'success': False, 'message': 'User ID required'}), 400
+        
+        # Get user data
+        currency = get_user_currency(user_id, chat_id or -1)
+        hryak = get_hryak(user_id, chat_id or -1)
+        stats = get_user_stats(user_id, chat_id or -1)
+        trachen_stats = get_trachen_stats(user_id, chat_id or -1)
+        tournament_stats = get_user_tournament_stats(user_id, chat_id or -1)
+        guild_stats = get_user_guild_stats(user_id, chat_id or -1)
+        boss_stats = get_user_boss_stats(user_id, chat_id or -1)
+        user_guild = get_user_guild(user_id, chat_id or -1)
+        equipped_skin = get_user_equipped_skin(user_id, chat_id or -1)
+        
+        # Check if can feed
+        can_feed = False
+        if hryak:
+            now = time.time()
+            if hryak['last_feed'] == 0 or (now - hryak['last_feed']) >= 43200:
+                can_feed = True
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'coins': currency['coins'] if currency else 0,
+                'xp': currency['xp'] if currency else 0,
+                'level': currency['level'] if currency else 1,
+                'hryak': {
+                    'name': hryak['name'],
+                    'weight': hryak['weight'],
+                    'max_weight': hryak['max_weight'],
+                    'feed_count': hryak['feed_count'],
+                    'can_feed': can_feed
+                } if hryak else None,
+                'skin': equipped_skin,
+                'stats': stats,
+                'trachen_stats': trachen_stats,
+                'tournament_stats': tournament_stats,
+                'guild_stats': guild_stats,
+                'boss_stats': boss_stats,
+                'user_guild': user_guild
+            }
+        }), 200
+    except Exception as e:
+        logger.error(f"API /user error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@flask_app.route('/api/webapp/shop', methods=['GET'])
+def api_get_shop():
+    """Отримати магазин"""
+    try:
+        items = get_shop_items()
+        return jsonify({'success': True, 'data': items}), 200
+    except Exception as e:
+        logger.error(f"API /shop error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@flask_app.route('/api/webapp/skins', methods=['GET'])
+def api_get_skins():
+    """Отримати всі скіни"""
+    try:
+        skins = get_all_skins()
+        return jsonify({'success': True, 'data': skins}), 200
+    except Exception as e:
+        logger.error(f"API /skins error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@flask_app.route('/api/webapp/inventory', methods=['GET'])
+def api_get_inventory():
+    """Отримати інвентар"""
+    try:
+        user_id = int(flask_app.request.args.get('user_id', 0))
+        chat_id = int(flask_app.request.args.get('chat_id', 0))
+        
+        if not user_id:
+            return jsonify({'success': False, 'message': 'User ID required'}), 400
+        
+        # Get inventory from DB (need to add function)
+        return jsonify({'success': True, 'data': []}), 200
+    except Exception as e:
+        logger.error(f"API /inventory error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@flask_app.route('/api/webapp/my-skins', methods=['GET'])
+def api_get_my_skins():
+    """Отримати скіни користувача"""
+    try:
+        user_id = int(flask_app.request.args.get('user_id', 0))
+        chat_id = int(flask_app.request.args.get('chat_id', 0))
+        
+        if not user_id:
+            return jsonify({'success': False, 'message': 'User ID required'}), 400
+        
+        skins = get_user_skins(user_id, chat_id or -1)
+        return jsonify({'success': True, 'data': skins}), 200
+    except Exception as e:
+        logger.error(f"API /my-skins error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@flask_app.route('/api/webapp/leaderboard/chat', methods=['GET'])
+def api_get_chat_leaderboard():
+    """Топ хряків чату"""
+    try:
+        chat_id = int(flask_app.request.args.get('chat_id', 0))
+        
+        # Get from hryaky_data cache
+        chat_hryaky = []
+        for key, h in hryaky_data.items():
+            if chat_id and h.get('chat_id') != chat_id:
+                continue
+            chat_hryaky.append(h)
+        
+        chat_hryaky = sorted(chat_hryaky, key=lambda x: x['weight'], reverse=True)[:10]
+        
+        return jsonify({'success': True, 'data': chat_hryaky}), 200
+    except Exception as e:
+        logger.error(f"API /leaderboard/chat error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@flask_app.route('/api/webapp/feed', methods=['POST'])
+def api_feed_hryak():
+    """Нагодувати хряка"""
+    try:
+        data = flask_app.request.get_json()
+        user_id = data.get('user_id')
+        chat_id = data.get('chat_id', 0)
+        
+        if not user_id:
+            return jsonify({'success': False, 'message': 'User ID required'}), 400
+        
+        result, error = feed_hryak(user_id, chat_id)
+        
+        if error:
+            return jsonify({'success': False, 'message': error}), 400
+        
+        # Add rewards
+        add_coins(user_id, chat_id, 5)
+        add_xp(user_id, chat_id, 2)
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'old_weight': result['old_weight'],
+                'new_weight': result['new_weight'],
+                'change': result['change'],
+                'feed_count': result['feed_count']
+            }
+        }), 200
+    except Exception as e:
+        logger.error(f"API /feed error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@flask_app.route('/api/webapp/buy-item', methods=['POST'])
+def api_buy_item():
+    """Купити предмет"""
+    try:
+        data = flask_app.request.get_json()
+        user_id = data.get('user_id')
+        item_id = data.get('item_id')
+        chat_id = data.get('chat_id', 0)
+        
+        if not user_id or not item_id:
+            return jsonify({'success': False, 'message': 'Missing parameters'}), 400
+        
+        # Get item
+        items = get_shop_items()
+        item = next((i for i in items if i['item_id'] == item_id), None)
+        
+        if not item:
+            return jsonify({'success': False, 'message': 'Item not found'}), 404
+        
+        # Check balance
+        currency = get_user_currency(user_id, chat_id)
+        if currency['coins'] < item['price']:
+            return jsonify({'success': False, 'message': 'Not enough coins'}), 400
+        
+        # Buy item
+        update_user_currency(user_id, chat_id, coins=currency['coins'] - item['price'])
+        add_to_inventory(user_id, chat_id, item_id)
+        
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        logger.error(f"API /buy-item error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@flask_app.route('/api/webapp/buy-skin', methods=['POST'])
+def api_buy_skin():
+    """Купити скін"""
+    try:
+        data = flask_app.request.get_json()
+        user_id = data.get('user_id')
+        skin_name = data.get('skin_name')
+        chat_id = data.get('chat_id', 0)
+        
+        if not user_id or not skin_name:
+            return jsonify({'success': False, 'message': 'Missing parameters'}), 400
+        
+        # Get skin
+        skin = get_skin_by_name(skin_name)
+        
+        if not skin:
+            return jsonify({'success': False, 'message': 'Skin not found'}), 404
+        
+        # Check balance
+        currency = get_user_currency(user_id, chat_id)
+        if currency['coins'] < skin['price']:
+            return jsonify({'success': False, 'message': 'Not enough coins'}), 400
+        
+        # Check if already has
+        if has_skin(user_id, chat_id, skin['id']):
+            return jsonify({'success': False, 'message': 'Already owned'}), 400
+        
+        # Buy skin
+        update_user_currency(user_id, chat_id, coins=currency['coins'] - skin['price'])
+        buy_skin(user_id, chat_id, skin['id'])
+        
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        logger.error(f"API /buy-skin error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@flask_app.route('/api/webapp/use-item', methods=['POST'])
+def api_use_item():
+    """Використати предмет"""
+    try:
+        data = flask_app.request.get_json()
+        user_id = data.get('user_id')
+        item_id = data.get('item_id')
+        chat_id = data.get('chat_id', 0)
+        
+        if not user_id or not item_id:
+            return jsonify({'success': False, 'message': 'Missing parameters'}), 400
+        
+        # TODO: Implement item usage logic
+        
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        logger.error(f"API /use-item error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@flask_app.route('/api/webapp/equip-skin', methods=['POST'])
+def api_equip_skin():
+    """Одягнути скін"""
+    try:
+        data = flask_app.request.get_json()
+        user_id = data.get('user_id')
+        skin_name = data.get('skin_name')
+        chat_id = data.get('chat_id', 0)
+        
+        if not user_id or not skin_name:
+            return jsonify({'success': False, 'message': 'Missing parameters'}), 400
+        
+        # Get skin
+        skin = get_skin_by_name(skin_name)
+        
+        if not skin:
+            return jsonify({'success': False, 'message': 'Skin not found'}), 404
+        
+        # Check if has
+        if not has_skin(user_id, chat_id, skin['id']):
+            return jsonify({'success': False, 'message': 'You do not own this skin'}), 400
+        
+        # Equip
+        equip_skin(user_id, chat_id, skin['id'])
+        
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        logger.error(f"API /equip-skin error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 
 def run_flask():
     """Запускає Flask сервер на порту Render"""
@@ -3132,7 +6007,7 @@ def query_achievements_inline(inline_query):
         types.InlineQueryResultArticle(
             id='1',
             title='🏅 Досягнення',
-            description='Твої відкриті досягнення',
+            description='Т��ої відкриті досягнення',
             input_message_content=types.InputTextMessageContent(text, parse_mode="Markdown")
         )
     ])
@@ -3243,7 +6118,7 @@ def query_duel(inline_query):
     
     bot.answer_inline_query(inline_query.id, [
         types.InlineQueryResultArticle(
-            id='1',
+                                            id='1',
             title=f'🐗 {hryak["name"]} ({hryak["weight"]} кг)',
             description='Натисни щоб викликати на дуель!',
             input_message_content=types.InputTextMessageContent(

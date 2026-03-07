@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Trash Bot - Web App</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="user-info">
+                <div class="avatar" id="userAvatar">👤</div>
+                <div class="user-details">
+                    <span class="username" id="username">Гравець</span>
+                    <span class="level" id="userLevel">Рівень 1</span>
+                </div>
+            </div>
+            <div class="balance">
+                <span class="coins">💰 <span id="coins">0</span></span>
+                <span class="xp">⭐ <span id="xp">0</span>/100</span>
+            </div>
+        </header>
+
+        <!-- Tabs Navigation -->
+        <nav class="tabs">
+            <button class="tab-btn active" data-tab="profile"><span>🐷 Профіль</span></button>
+            <button class="tab-btn" data-tab="shop"><span>🏪 Магазин</span></button>
+            <button class="tab-btn" data-tab="inventory"><span>🎒 Інвентар</span></button>
+            <button class="tab-btn" data-tab="leaderboard"><span>🏆 Топ</span></button>
+        </nav>
+
+        <!-- Content -->
+        <main class="content">
+            <!-- Profile Tab -->
+            <div class="tab-content active" id="profile">
+                <div class="hryak-card">
+                    <div class="hryak-avatar" id="hryakAvatar">🐷</div>
+                    <h2 id="hryakName">Безіменний Хряк</h2>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-label">Вага</span>
+                            <span class="stat-value" id="hryakWeight">0 кг</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Макс вага</span>
+                            <span class="stat-value" id="maxWeight">0 кг</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Нагодовано</span>
+                            <span class="stat-value" id="feedCount">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Скін</span>
+                            <span class="stat-value" id="equippedSkin">-</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" id="feedBtn">🍽️ Нагодувати</button>
+                </div>
+
+                <div class="actions-grid">
+                    <button class="action-btn" onclick="openCommand('/grow')">🐷 Отримати хряка</button>
+                    <button class="action-btn" onclick="openCommand('/daily')">🎁 Daily</button>
+                    <button class="action-btn" onclick="openCommand('/quests')">📋 Квести</button>
+                    <button class="action-btn" onclick="openCommand('/achievements')">🏅 Досягнення</button>
+                </div>
+
+                <div class="section">
+                    <h3>📊 Статистика</h3>
+                    <div class="stats-list">
+                        <div class="stat-row">
+                            <span>⚔️ Дуелі</span>
+                            <span id="duelsStats">0/0</span>
+                        </div>
+                        <div class="stat-row">
+                            <span>🎰 Казино</span>
+                            <span id="casinoStats">0/0</span>
+                        </div>
+                        <div class="stat-row">
+                            <span>💕 Трахензебітен</span>
+                            <span id="trachenStats">0</span>
+                        </div>
+                        <div class="stat-row">
+                            <span>🏆 Турніри</span>
+                            <span id="tournamentStats">0</span>
+                        </div>
+                        <div class="stat-row">
+                            <span>🏰 Гільдія</span>
+                            <span id="guildStats">-</span>
+                        </div>
+                        <div class="stat-row">
+                            <span>🐲 Боси</span>
+                            <span id="bossStats">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Shop Tab -->
+            <div class="tab-content" id="shop">
+                <h3>🏪 Магазин предметів</h3>
+                <div class="shop-grid" id="shopItems">
+                    <!-- Items will be loaded here -->
+                </div>
+
+                <h3>🎨 Магазин скінів</h3>
+                <div class="skins-grid" id="shopSkins">
+                    <!-- Skins will be loaded here -->
+                </div>
+            </div>
+
+            <!-- Inventory Tab -->
+            <div class="tab-content" id="inventory">
+                <h3>🎒 Інвентар предметів</h3>
+                <div class="inventory-list" id="inventoryItems">
+                    <!-- Items will be loaded here -->
+                </div>
+
+                <h3>🎨 Мої скіни</h3>
+                <div class="skins-list" id="mySkins">
+                    <!-- Skins will be loaded here -->
+                </div>
+            </div>
+
+            <!-- Leaderboard Tab -->
+            <div class="tab-content" id="leaderboard">
+                <h3>🏆 Топ хряків чату</h3>
+                <div class="leaderboard-list" id="chatTop">
+                    <!-- Leaders will be loaded here -->
+                </div>
+
+                <h3>🌍 Глобальний топ</h3>
+                <div class="leaderboard-list" id="globalTop">
+                    <!-- Global leaders will be loaded here -->
+                </div>
+            </div>
+        </main>
+
+        <!-- Bottom Navigation -->
+        <nav class="bottom-nav">
+            <button class="nav-btn" onclick="openCommand('/menu')">📋 Меню</button>
+            <button class="nav-btn" onclick="openCommand('/help')">❓ Допомога</button>
+            <button class="nav-btn" onclick="openCommand('/boss')">🐲 Бос</button>
+        </nav>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
