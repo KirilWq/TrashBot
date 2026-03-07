@@ -17,7 +17,7 @@ from db import (
     get_lottery, update_lottery,
     get_team_duel, create_team_duel, update_team_duel_status,
     get_daily_bonus, update_daily_bonus,
-    get_user_stats, update_user_stats, increment_user_stat,
+    get_user_stats, update_user_stats, increment_user_stat, update_casino_quest,
     get_shop_items, get_item, add_to_inventory, remove_from_inventory, has_item, get_item_effect,
     get_trachen_stats, get_last_trachen_time, add_trachen_record,
     get_pregnancy, create_pregnancy, claim_pregnancy,
@@ -1235,7 +1235,23 @@ def duel_accept_callback(call):
 """
 
     bot.answer_callback_query(call.id, "⚔️ Дуель завершена!")
+
+    # Оновлюємо квести за перемогу в дуелі
+    if winner == 1:
+        winner_user_id = challenger_id
+    elif winner == 2:
+        winner_user_id = opponent_id
+    else:
+        winner_user_id = None
     
+    if winner_user_id:
+        quests = get_daily_quests(winner_user_id, chat_id)
+        quest_progress = {q['quest_id']: q for q in quests}
+        duel_quest = quest_progress.get('win_2_duels', {'progress': 0, 'target': 2})
+        new_progress = min(duel_quest['progress'] + 1, 2)
+        completed = new_progress >= 2
+        update_daily_quest(winner_user_id, chat_id, 'win_2_duels', new_progress, 2, completed=completed)
+
     # Редагуємо повідомлення з дуеллю
     bot.edit_message_text(
         chat_id=chat_id,
@@ -1418,10 +1434,19 @@ def roulette_cmd(message):
         if win:
             hryak['weight'] += win_amount - amount  # Додаємо виграш мінус ставка
             result_text = f"✅ ВИГРАШ!"
+            
+            # Оновлюємо статистику казино
+            increment_user_stat(user_id, chat_id, 'casino_wins')
+            # Оновлюємо квести казино
+            update_casino_quest(user_id, chat_id, True)
         else:
             hryak['weight'] -= amount
             result_text = f"❌ ПРОГРАШ!"
-        
+            
+            # Оновлюємо статистику казино
+            increment_user_stat(user_id, chat_id, 'casino_losses')
+            update_casino_quest(user_id, chat_id, False)
+
         save_hryaky()
         
         text = f"""🎰 **РУЛЕТКА**
@@ -6235,7 +6260,7 @@ def query_top_inline(inline_query):
 
 @bot.inline_handler(lambda query: query.query.lower().strip() == 'globaltop')
 def query_globaltop_inline(inline_query):
-    """Inline для /globaltop"""
+    """Inline ��ля /globaltop"""
     # Отримуємо всіх хряків з БД
     all_hryaky = []
     from db import get_connection

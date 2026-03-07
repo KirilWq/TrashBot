@@ -96,11 +96,14 @@ async function loadUserData() {
             ? `${API_BASE}/user?user_id=${userData.id}&chat_id=${userData.chat_id}`
             : `${API_BASE}/user?user_id=${userData.id}`;
         
+        console.log('Loading user data from:', url);
         const response = await fetch(url);
         const data = await response.json();
+        console.log('User data response:', data);
 
         if (data.success) {
             const user = data.data;
+            console.log('User data:', user);
 
             // Update header
             document.getElementById('coins').textContent = user.coins || 0;
@@ -109,6 +112,7 @@ async function loadUserData() {
 
             // Update hryak info
             if (user.hryak) {
+                console.log('Hryak found:', user.hryak);
                 document.getElementById('hryakName').textContent = user.hryak.name;
                 document.getElementById('hryakWeight').textContent = `${user.hryak.weight} кг`;
                 document.getElementById('maxWeight').textContent = `${user.hryak.max_weight} кг`;
@@ -118,11 +122,13 @@ async function loadUserData() {
 
                 // Show feed button if can feed
                 const canFeed = user.hryak.can_feed;
+                console.log('Can feed:', canFeed);
                 tg.MainButton.setVisible(canFeed);
                 tg.MainButton.setParams({
                     color: canFeed ? tg.themeParams.button_color : '#999999'
                 });
             } else {
+                console.log('No hryak found');
                 document.getElementById('hryakName').textContent = 'Немає хряка';
                 tg.MainButton.hide();
             }
@@ -139,7 +145,7 @@ async function loadUserData() {
         }
     } catch (error) {
         console.error('Error loading user data:', error);
-        tg.showAlert('Помилка завантаження даних');
+        tg.showAlert('Помилка завантаження даних: ' + error.message);
     } finally {
         showLoading(false);
     }
@@ -530,7 +536,7 @@ async function loadUserChats() {
 
             chatSelect.addEventListener('change', (e) => {
                 userData.chat_id = e.target.value;
-                console.log('Chat changed to:', userData.chat_id);
+                console.log('✅ Chat changed to:', userData.chat_id);
                 // Reload all data for new chat
                 loadUserData();
                 loadTabData(currentTab || 'profile');

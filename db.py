@@ -1201,6 +1201,18 @@ def increment_user_stat(user_id, chat_id, stat_name, amount=1):
         stats[stat_name] = stats.get(stat_name, 0) + amount
         update_user_stats(user_id, chat_id, stats)
 
+def update_casino_quest(user_id, chat_id, is_win):
+    """Оновлює квести казино"""
+    quests = get_daily_quests(user_id, chat_id)
+    quest_progress = {q['quest_id']: q for q in quests}
+    
+    # Квест: виграти в казино (потрібно 3 перемоги)
+    if is_win:
+        casino_quest = quest_progress.get('casino_wins', {'progress': 0, 'target': 3})
+        new_progress = min(casino_quest['progress'] + 1, 3)
+        completed = new_progress >= 3
+        update_daily_quest(user_id, chat_id, 'casino_wins', new_progress, 3, completed=completed)
+
 
 # ============================================
 # ФУНКЦІЇ ДЛЯ МАГАЗИНУ
@@ -2477,7 +2489,7 @@ def get_user_inventory(user_id, chat_id):
     cursor = conn.cursor()
     try:
         cursor.execute('''
-            SELECT ui.item_id, ui.quantity, s.name, s.description, s.icon
+            SELECT ui.item_id, ui.quantity, s.name, s.description
             FROM user_inventory ui
             LEFT JOIN shop_items s ON ui.item_id = s.item_id
             WHERE ui.user_id = %s AND ui.chat_id = %s
@@ -2490,7 +2502,7 @@ def get_user_inventory(user_id, chat_id):
                 'quantity': int(row[1]) if row[1] else 0,
                 'name': row[2] or row[0],
                 'description': row[3] or '',
-                'icon': row[4] or '📦'
+                'icon': '📦'  # Default icon
             })
         return inventory
     except Exception as e:
