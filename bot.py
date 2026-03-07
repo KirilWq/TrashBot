@@ -5308,19 +5308,20 @@ def boss_cmd(message):
 ❤️ Здоров'я: {boss['health']}/{boss['max_health']}
 {hp_bar} {hp_percent}%
 ⚔️ Шкода: {boss['damage']}
-💰 Нагорода: {boss['reward_coins']} монет, {boss['reward_xp']} XP
+💰 Нагорода: 1000 монет + 500 XP (розподіл за % урону)
 
 **Команди:**
-/boss attack - атакувати боса
+/boss attack - атакувати боса (кулдаун 30 сек)
 /boss info - детальна інформація
 
 **Як це працює:**
 1. Кожен гравець може атакувати боса
 2. Шкода = вага хряка × 2 + рандом
-3. Нагорода розподіляється пропорційно до шкоди
-4. Той хто нанесе останній удар - отримає бонус!"""
+3. Кулдаун між атаками: 30 секунд
+4. Нагороди: 1000 монет + 500 XP (розподіл за % урону)
+5. Після перемоги бос не з'являється 24 години"""
 
-            bot.reply_to(message, text, parse_mode="Markdown")
+            bot.reply_to(message, text)
 
     except Exception as e:
         logger.error(f"❌ Помилка /boss: {e}", exc_info=True)
