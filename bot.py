@@ -5272,9 +5272,14 @@ def boss_cmd(message):
 
 ⏰ Наступний бос з'явиться через 24 години!""")
                 elif result and not result.get('defeated'):
-                    # Бос ще жив - використовуємо дані з result
-                    remaining = result.get('remaining_health', boss['health'])
-                    max_health = result.get('max_health', boss['max_health'])
+                    # Бос ще жив - отримуємо АКТУАЛЬНІ дані з БД
+                    updated_boss = get_active_boss()
+                    if updated_boss:
+                        remaining = updated_boss['health']
+                        max_health = updated_boss['max_health']
+                    else:
+                        remaining = result.get('remaining_health', boss['health'])
+                        max_health = result.get('max_health', boss['max_health'])
 
                     hp_percent = int((remaining / max_health) * 100)
                     hp_bar = "🟩" * (hp_percent // 10) + "🟥" * (10 - hp_percent // 10)
