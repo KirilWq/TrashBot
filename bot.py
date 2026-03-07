@@ -3078,7 +3078,7 @@ def on_chat_member_update(message):
 👥 **Чат:**
 /members — показати учасників
 /adduser — додати юзернейма
-/removeuser — видалити ��зернейма
+/removeuser — видалити ����������зернейма
 
 🔇 **Мут (адміни):**
 /mute — замути на X хв (/mute 10)
@@ -4673,7 +4673,7 @@ def guild_cmd(message):
 **Команди:**
 /createguild <назва> [опис] - створити гільдію (100 монет)
 /guildjoin <назва> - приєднатися до гільдії
-/guildtop - рейтинг гільдій
+/guildtop - рей��ин�� гільдій
 
 **Переваги гільдій:**
 - Спільна скарбниця
@@ -5161,7 +5161,7 @@ def boss_cmd(message):
 ❤️ Здоров'я: {boss['health']}/{boss['max_health']}
 {hp_bar} {hp_percent}%
 ⚔️ Шкода: {boss['damage']}
-💰 Нагорода: 1000 монет + 500 XP (розподіляється за % урону)
+💰 Нагорода: 500 монет + 250 XP (розподіл за % урону)
 
 **Топ гравців:**
 """
@@ -5170,14 +5170,14 @@ def boss_cmd(message):
 
                 text += """
 **Команди:**
-/boss attack - атакувати боса (кулдаун 30 сек)
+/boss attack - атакувати боса (кулдаун 2 год)
 /boss info - детальна інформація
 
 **Як це працює:**
 1. Кожен гравець може атакувати боса
 2. Шкода = вага хряка × 2 + рандом
-3. Кулдаун між атаками: 30 секунд
-4. Нагороди: 1000 монет + 500 XP (розподіл за % урону)
+3. Кулдаун між атаками: 2 години
+4. Нагороди: 500 монет + 250 XP (розподіл за % урону)
 5. Після перемоги бос не з'являється 24 години"""
 
                 bot.reply_to(message, text)
@@ -5188,12 +5188,13 @@ def boss_cmd(message):
                     bot.reply_to(message, "🐲 Бос вже переможений!\n\nНаступний з'явиться через 24 години.")
                     return
 
-                # Перевіряємо кулдаун атаки (30 секунд)
+                # Перевіряємо кулдаун атаки (2 години)
                 last_attack = get_last_boss_attack_time(user_id, chat_id)
                 now = int(time.time())
-                if last_attack and (now - last_attack) < 30:
-                    seconds_left = 30 - (now - last_attack)
-                    bot.reply_to(message, f"⏳ Ще рано! Атакувати боса можна раз на 30 секунд.\n\nЗалишилось: {seconds_left} сек.")
+                if last_attack and (now - last_attack) < 7200:  # 2 години = 7200 секунд
+                    hours_left = int((7200 - (now - last_attack)) / 3600)
+                    minutes_left = int(((7200 - (now - last_attack)) % 3600) / 60)
+                    bot.reply_to(message, f"⏳ Ще рано! Атакувати боса можна раз на 2 години.\n\nЗалишилось: {hours_left} год {minutes_left} хв.")
                     return
 
                 # Перевіряємо чи нещодавно бос був переможений (24 години блок)
@@ -5229,8 +5230,8 @@ def boss_cmd(message):
                     participants = get_boss_participants(boss['id'])
 
                     # Фіксований пул нагород
-                    TOTAL_COINS_POOL = 1000
-                    TOTAL_XP_POOL = 500
+                    TOTAL_COINS_POOL = 500
+                    TOTAL_XP_POOL = 250
                     
                     # Рахуємо загальну шкоду
                     total_damage = sum(p['damage_dealt'] for p in participants)
@@ -5309,7 +5310,7 @@ def boss_cmd(message):
 ❤️ {remaining}/{max_health} ({hp_percent}%)
 {hp_bar}
 
-⏰ Наступна атака через 30 секунд!
+⏰ Наступна атака через 2 години!
 
 Продовжуй атакувати командою /boss attack!""")
                 else:
