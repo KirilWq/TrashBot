@@ -1591,7 +1591,7 @@ TOP_CATEGORIES = [
     "найбільший підор",
     "найбільший гей",
     "найбільший лох",
-    "на��більший бич",
+    "на����більший бич",
     "найбільший алкаш",
     "найбільший наркоман",
     "найбільший псих",
@@ -2710,21 +2710,78 @@ flask_app = Flask(__name__)
 
 @flask_app.route('/')
 def health():
-    return "🤖 TRASH BOT is running!", 200
+    """Головна сторінка"""
+    return """
+    <html>
+        <head><title>TRASH BOT</title></head>
+        <body>
+            <h1>🤖 TRASH BOT is running!</h1>
+            <p>Bot status: <strong>Online</strong></p>
+            <p>Uptime: <span id="uptime"></span></p>
+            <script>
+                document.getElementById('uptime').innerText = new Date().toLocaleString();
+            </script>
+        </body>
+    </html>
+    """, 200
 
 @flask_app.route('/health')
 def health_check():
-    return "OK", 200
+    """Health check для UptimeRobot"""
+    return {"status": "ok", "timestamp": time.time()}, 200
+
+@flask_app.route('/api/status')
+def bot_status():
+    """Статус бота"""
+    return {
+        "bot": "running",
+        "flask": "ok",
+        "polling": "active"
+    }, 200
+
+@flask_app.route('/ping')
+def ping():
+    """Ping для keep-alive"""
+    return "pong", 200
 
 def run_flask():
     """Запускає Flask сервер на порту Render"""
     port = int(os.environ.get('PORT', 10000))
-    flask_app.run(host='0.0.0.0', port=port, debug=False)
+    flask_app.run(host='0.0.0.0', port=port, debug=False, threaded=True)
 
 # Запускаємо Flask в окремому потоці
 flask_thread = Thread(target=run_flask, daemon=True)
 flask_thread.start()
 logger.info(f"✅ Flask сервер запущено на порту {os.environ.get('PORT', 10000)}")
+
+# ============================================
+# KEEP-ALIVE: Періодичний ping для Render
+# ============================================
+def keep_alive():
+    """Періодично робить запити щоб Render не присипав бота"""
+    import urllib.request
+    import urllib.error
+    
+    # Отримуємо URL з Render
+    render_url = os.environ.get('RENDER_EXTERNAL_URL', '')
+    
+    if render_url:
+        logger.info(f"🔄 Keep-alive увімкнено для {render_url}")
+        
+        while True:
+            try:
+                # Робимо запит кожні 4 хвилини (менше ніж 5 хв таймаут Render)
+                time.sleep(240)  # 4 хвилини
+                urllib.request.urlopen(f"{render_url}/ping", timeout=5)
+                logger.debug("💓 Keep-alive ping відправлено")
+            except Exception as e:
+                logger.debug(f"⚠️ Keep-alive помилка: {e}")
+    else:
+        logger.info("⚠️ RENDER_EXTERNAL_URL не знайдено, keep-alive вимкнено")
+
+# Запускаємо keep-alive в окремому потоці
+keep_alive_thread = Thread(target=keep_alive, daemon=True)
+keep_alive_thread.start()
 
 bot.polling(none_stop=True, interval=0)
 
