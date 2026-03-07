@@ -425,16 +425,20 @@ async function buySkin(skinName, price) {
     tg.showConfirm(`Купити скін за ${price} монет?`, async (confirm) => {
         if (confirm) {
             showLoading(true);
-            
+
             try {
                 const response = await fetch(`${API_BASE}/buy-skin`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: userData.id, skin_name: skinName })
+                    body: JSON.stringify({ 
+                        user_id: userData.id,
+                        chat_id: userData.chat_id,
+                        skin_name: skinName
+                    })
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (data.success) {
                     tg.showAlert('Куплено!');
                     loadUserData();
