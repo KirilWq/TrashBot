@@ -320,8 +320,10 @@ async function loadMySkins() {
 
 async function loadLeaderboard() {
     try {
+        const chatId = userData.chat_id || -1;
+        
         // Load chat top
-        const chatResponse = await fetch(`${API_BASE}/leaderboard/chat`);
+        const chatResponse = await fetch(`${API_BASE}/leaderboard/chat?chat_id=${chatId}`);
         const chatData = await chatResponse.json();
 
         const chatContainer = document.getElementById('chatTop');
