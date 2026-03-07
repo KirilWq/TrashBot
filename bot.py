@@ -2562,147 +2562,147 @@ def help_cmd(message):
     text = """📜 **ПОВНИЙ СПИСОК КОМАНД:**
 
 🎯 **Образливі:**
-/pidor — хто сьогодні підор
-/roast — жорстке приниження
-/insult — образити когось
-/hardinsult — дуже жорсткі образи
-/slap — дати ляпаса комусь
+• /pidor — хто сьогодні підор
+• /roast — жорстке приниження
+• /insult — образити когось
+• /hardinsult — дуже жорсткі образи
+• /slap — дати ляпаса комусь
 
 🔮 **Передбачення:**
-/fortune — передбачення на день
-/whosgay — хто гей сьогодні
-/rate — оцінка тебе від бота
+• /fortune — передбачення на день
+• /whosgay — хто гей сьогодні
+• /rate — оцінка тебе від бота
 
 🤯 **Розваги:**
-/fact — випадковий факт
-/choose — обрати когось
-/top — рейтинг чату
-/такні — питання Так/Ні
+• /fact — випадковий факт
+• /choose — обрати когось
+• /top — рейтинг чату
+• /такні — питання Так/Ні
 
 🐷 **Гра "Вирости Хряка":**
-/grow — отримати хряка
-/feed — нагодувати хряка (раз на 12 год) +5 монет, +2 XP
-/my — показати свого хряка
-/name — змінити ім'я хряка
-/hryaketop — топ хряків чату
-/globaltop — глобальний топ хряків (всі чати)
-/achievements — досягнення
-/duel — виклик на дуель (inline) чату
-/duelteambattle — командна дуель 2v2, 3v3
+• /grow — отримати хряка
+• /feed — нагодувати (раз на 12 год)
+• /my — показати свого хряка
+• /name — змінити ім'я
+• /hryaketop — топ хряків чату
+• /globaltop — глобальний топ
+• /achievements — досягнення
+• /duel — виклик на дуель
+• /duelteambattle — командна дуель 2v2, 3v3
 
-📋 **Квести (щоденні):**
-/quests — показати доступні квести
-/questclaim <id> — забрати нагороду
+📋 **Квести:**
+• /quests — доступні квести
+• /questclaim <id> — забрати нагороду
 
 🎰 **Казино:**
-/roulette <сума> <вибір> — рулетка (red/black, even/odd, number)
-/lottery — лотерея за 5 кг (шанс виграти до 100 кг!)
+• /roulette <сума> <вибір> — рулетка
+• /lottery — лотерея за 5 кг
 
 💰 **Економіка:**
-/balance — показати монети та XP
-/shop — магазин предметів
-/buy <предмет> — купити предмет
-/inventory — твій інвентар
-/use <предмет> — використати предмет
-/daily — щоденний бонус (+10-20 монет, +5-10 XP)
+• /balance — показати монети та XP
+• /shop — магазин предметів
+• /buy <предмет> — купити
+• /inventory — твій інвентар
+• /use <предмет> — використати
+• /daily — щоденний бонус
 
 📊 **Статистика:**
-/mystats — особиста статистика
-/stats — статистика чату
-/leaderboard — топ балакунів за тиждень
-/activity — активність користувачів
+• /mystats — особиста статистика
+• /stats — статистика чату
+• /leaderboard — топ балакунів
+• /activity — активність
 
 👥 **Чат:**
-/members — показати всіх учасників
-/adduser — додати юзернейма
-/removeuser — видалити юзернейма
-/clearcache — очистити кеш
-/random — випадковий юзер
-/kickme — хочу вигнати себе
+• /members — показати учасників
+• /adduser — додати юзернейма
+• /removeuser — видалити
+• /clearcache — очистити кеш
+• /random — випадковий юзер
+• /kickme — вигнати себе
 
 🔇 **Мут (адміни):**
-/mute — замути (відповідь + /mute 10)
-/unmute — розмутити
+• /mute — замути (відповідь + /mute 10)
+• /unmute — розмутити
 
 😈 **Провини (адміни):**
-/provin — дати провину (відповідь + /provin 10)
-/unprovin — зняти провину
-/provinlist — список провинних
+• /provin — дати провину
+• /unprovin — зняти провину
+• /provinlist — список провинних
 
 ⚠️ **Попередження (адміни):**
-/warn — видати попередження (відповідь + /warn причина)
-/warnings — показати попередження
-/clearwarns — очистити попередження
+• /warn — видати попередження
+• /warnings — показати попередження
+• /clearwarns — очистити попередження
 
 🚫 **Бан (адміни):**
-/ban — забанити назавжди (відповідь)
-/unban — розбанити (відповідь)
+• /ban — забанити назавжди
+• /unban — розбанити
 
 📌 **Інше (адміни):**
-/del — видалити повідомлення (відповідь)
-/pin — закріпити повідомлення (відповідь)
-/unpin — відкріпити
-/spam — інфо про спам контроль
+• /del — видалити повідомлення
+• /pin — закріпити повідомлення
+• /unpin — відкріпити
+• /spam — інфо про спам контроль
 
-💕 **Трахензебітен (спарювання хряків):**
-/trachen — спарувати хряка (раз на 12 годин)
-/children — показати своїх дітей
-/pregnancies — показати вагітних хряків в чаті
-/claimchildren — забрати дітей після пологів
-/childinfo <ID> — інформація про дитину
-/renamechild <ID> <ім'я> — перейменувати дитину
-/childtop — топ дітей за вагою
-/sacrificechild <ID> — жертва (монети + XP)
-/childmarry <ID1> <ID2> — одружити дітей (онук)
+💕 **Трахензебітен:**
+• /trachen — спарювання хряків
+• /children — показати дітей
+• /pregnancies — вагітні хряки
+• /claimchildren — забрати дітей
+• /childinfo <ID> — інформація
+• /renamechild <ID> <ім'я> — перейменувати
+• /childtop — топ дітей
+• /sacrificechild <ID> — жертва
+• /childmarry <ID1> <ID2> — одружити
 
 🏆 **Турніри:**
-/tournament — створити або приєднатися до турніру
-/tournament create <назва> — створити турнір
-/tournament join — приєднатися до турніру
-/tournament start — почати турнір (адмін)
-/tournament info — інформація про турнір
+• /tournament — створити або приєднатися
+• /tournament create <назва> — створити
+• /tournament join — приєднатися
+• /tournament start — почати (адмін)
+• /tournament info — інформація
 
 🏰 **Гільдії:**
-/createguild <назва> [опис] — створити гільдію (100 монет)
-/guild [назва] — інформація про гільдію
-/guildjoin <назва> — приєднатися до гільдії
-/guildleave — вийти з гільдії
-/guildtop — рейтинг гільдій
-/contribute <сума> — внесок до гільдії
-/transferguild <user_id> — передати володіння
-/deleteguild — видалити гільдію
+• /createguild <назва> — створити (100 монет)
+• /guild [назва] — інформація
+• /guildjoin <назва> — приєднатися
+• /guildleave — вийти
+• /guildtop — рейтинг
+• /contribute <сума> — внесок
+• /transferguild <user_id> — передати
+• /deleteguild — видалити
 
 🎨 **Скіни:**
-/skins [назва] — магазин скінів або інформація
-/skins me — твої скіни
-/buyskin <назва> — купити скін
-/equipskin <назва> — одягнути скін
+• /skins [назва] — магазин
+• /skins me — твої скіни
+• /buyskin <назва> — купити
+• /equipskin <назва> — одягнути
 
-🐲 **Бос-дуелі (PvE):**
-/boss — інформація про боса
-/boss attack — атакувати боса
-/boss info — детальна інформація
+🐲 **Бос-дуелі:**
+• /boss — інформація про боса
+• /boss attack — атакувати
+• /boss info — детальна інформація
 
-🎉 **Сезонні івенти:**
-/events — активні івенти
-/eventsclaim <id> — забрати нагороду
+🎉 **Івенти:**
+• /events — активні івенти
+• /eventsclaim <id> — забрати нагороду
 
-🌍 **Мульти-мовність:**
-/lang — вибрати мову (UA/EN/RU)
+🌍 **Мова:**
+• /lang — вибрати мову (UA/EN/RU)
 
 ⚙️ **Інше:**
-/start — привітання
-/menu — inline меню з усіма командами
-/help — ця допомога
+• /start — привітання
+• /menu — inline меню
+• /help — ця допомога
 
 **Як використовувати:**
-1. Відповідай на повідомлення — команда буде до тієї людини
-2. Згадай @username в повідомленні
-3. Просто напиши команду — обере випадкового з чату
-4. Використовуй /adduser щоб додати друзів в список
-5. **Inline меню:** Напиши /menu або натисни на рядок і введи @bot (пробіл)
+1. Відповідай на повідомлення
+2. Згадай @username
+3. Просто напиши команду
+4. /adduser щоб додати друзів
+5. /menu для inline меню
 
-⚠️ Всі команди працюють з рандомом. Не сприймай серйозно!"""
+⚠️ Всі команди працюють з рандомом!"""
     bot.reply_to(message, text, parse_mode="Markdown")
 
 
@@ -5210,24 +5210,25 @@ def boss_cmd(message):
                 if result and result.get('defeated'):
                     # Бос переможений!
                     participants = get_boss_participants(boss['id'])
-                    
+
                     # Розподіл нагороди
                     total_damage = sum(p['damage_dealt'] for p in participants)
-                    
+
                     for p in participants:
                         share = p['damage_dealt'] / total_damage if total_damage > 0 else 0
                         coins_reward = int(boss['reward_coins'] * share)
                         xp_reward = int(boss['reward_xp'] * share)
-                        
+
                         if coins_reward > 0:
                             add_coins(p['user_id'], chat_id, coins_reward)
                         if xp_reward > 0:
                             add_xp(p['user_id'], chat_id, xp_reward)
-                    
+
                     # Оголошуємо перемогу
-                    winner_hryak = get_hryak(result.get('defeated_by_user_id', user_id), chat_id)
+                    defeated_by = result.get('defeated_by_user_id') if result else None
+                    winner_hryak = get_hryak(defeated_by or user_id, chat_id)
                     winner_name = winner_hryak['name'] if winner_hryak else "Невідомо"
-                    
+
                     bot.reply_to(message, f"""🎉 **БОСА ПЕРЕМОЖЕНО!**
 
 {boss['name']} загинув від рук героїв!
@@ -5239,7 +5240,7 @@ def boss_cmd(message):
 Новий бос з'явиться найближчим часом...""")
                 else:
                     # Бос ще жив
-                    remaining = result.get('remaining_health', boss['health'])
+                    remaining = result.get('remaining_health', boss['health']) if result else boss['health']
                     hp_percent = int((remaining / boss['max_health']) * 100)
                     
                     bot.reply_to(message, f"""⚔️ **АТАКА!**
