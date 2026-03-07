@@ -1591,7 +1591,7 @@ TOP_CATEGORIES = [
     "найбільший підор",
     "найбільший гей",
     "найбільший лох",
-    "на����більший бич",
+    "на������більший бич",
     "найбільший алкаш",
     "найбільший наркоман",
     "найбільший псих",
@@ -2762,22 +2762,36 @@ def keep_alive():
     import urllib.request
     import urllib.error
     
-    # Отримуємо URL з Render
+    # Отримуємо URL з Render (пріоритети)
     render_url = os.environ.get('RENDER_EXTERNAL_URL', '')
     
-    if render_url:
-        logger.info(f"🔄 Keep-alive увімкнено для {render_url}")
-        
-        while True:
-            try:
-                # Робимо запит кожні 4 хвилини (менше ніж 5 хв таймаут Render)
-                time.sleep(240)  # 4 хвилини
-                urllib.request.urlopen(f"{render_url}/ping", timeout=5)
-                logger.debug("💓 Keep-alive ping відправлено")
-            except Exception as e:
-                logger.debug(f"⚠️ Keep-alive помилка: {e}")
-    else:
-        logger.info("⚠️ RENDER_EXTERNAL_URL не знайдено, keep-alive вимкнено")
+    # Якщо не знайдено, пробуємо сформувати з INTERNAL_PORT
+    if not render_url:
+        port = os.environ.get('PORT', '10000')
+        render_url = f'http://0.0.0.0:{port}'
+    
+    logger.info(f"🌍 Render URL: {render_url}")
+    logger.info(f"🔄 Keep-alive увімкнено")
+    
+    while True:
+        try:
+            # Робимо запит кожні 4 хвилини (менше ніж 5 хв таймаут Render)
+            time.sleep(240)  # 4 хвилини
+            
+            # Пробуємо різні ендпоінти
+            endpoints = ['/ping', '/health', '/api/status']
+            for endpoint in endpoints:
+                try:
+                    url = f"{render_url}{endpoint}"
+                    urllib.request.urlopen(url, timeout=5)
+                    logger.debug(f"💓 Keep-alive ping: {endpoint} ✓")
+                    break
+                except Exception as e:
+                    logger.debug(f"⚠️ {endpoint} помилка: {e}")
+                    continue
+                    
+        except Exception as e:
+            logger.debug(f"⚠️ Keep-alive помилка: {e}")
 
 # Запускаємо keep-alive в окремому потоці
 keep_alive_thread = Thread(target=keep_alive, daemon=True)
