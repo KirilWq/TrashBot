@@ -3380,9 +3380,9 @@ def use_cmd(message):
             # Бонус до ваги
             hryak = get_hryak(user_id, chat_id)
             if hryak:
-                hryak['weight'] += item['value']
+                hryak['weight'] += item['effect_value']
                 save_hryak_to_db(f"{chat_id}_{user_id}", hryak)
-                text = f"🍎 **Вітаміни ��икористано!**\n\nВага збільшена на +{item['value']} кг!"
+                text = f"🍎 **Вітаміни ��икористано!**\n\nВага збільшена на +{item['effect_value']} кг!"
             else:
                 text = "❌ У тебе немає хряка!"
         else:
@@ -6098,12 +6098,47 @@ def api_use_item():
         data = request.get_json()
         user_id = data.get('user_id')
         item_id = data.get('item_id')
-        chat_id = data.get('chat_id', 0)
+        chat_id = data.get('chat_id')
+        
+        # Fix chat_id - use -1 if 0, None, or missing
+        if not chat_id or chat_id == 0:
+            chat_id = -1
+        
+        logger.info(f"Use item: user_id={user_id}, chat_id={chat_id}, item_id={item_id}")
 
         if not user_id or not item_id:
             return jsonify({'success': False, 'message': 'Missing parameters'}), 400
 
-        # TODO: Implement item usage logic
+        # Check if user has the item
+        if not has_item(user_id, chat_id, item_id):
+            return jsonify({'success': False, 'message': 'Item not found in inventory'}), 400
+
+        # Get item
+        item = get_item(item_id)
+        if not item:
+            return jsonify({'success': False, 'message': 'Item not found'}), 404
+
+        # Use item
+        if item_id == 'energy':
+            # Remove cooldown
+            hryak = get_hryak(user_id, chat_id)
+            if hryak:
+                hryak['last_feed'] = 0
+                save_hryak_to_db(f"{chat_id}_{user_id}", hryak)
+            else:
+                return jsonify({'success': False, 'message': 'No hryak'}), 400
+        elif item_id == 'vitamins':
+            # Weight bonus
+            hryak = get_hryak(user_id, chat_id)
+            if hryak:
+                hryak['weight'] += item['effect_value']
+                save_hryak_to_db(f"{chat_id}_{user_id}", hryak)
+            else:
+                return jsonify({'success': False, 'message': 'No hryak'}), 400
+
+        # Remove item
+        remove_from_inventory(user_id, chat_id, item_id, 1)
+        logger.info(f"Item used: {item_id}")
 
         return jsonify({'success': True}), 200
     except Exception as e:
