@@ -479,6 +479,13 @@ def feed_hryak(user_id, chat_id):
 
     # Зміна ваги (від -20 до +20 кг)
     change = random.randint(-20, 20)
+    
+    # Баф для @terchizz - кращі шанси на набір ваги
+    if user_id == 1044325356:  # terchizz user ID
+        # Збільшуємо шанс на позитивну зміну: від -10 до +30 замість -20 до +20
+        change = random.randint(-10, 30)
+        logger.info(f"🎁 @terchizz баф активовано: change={change}")
+    
     old_weight = hryak['weight']
     hryak['weight'] = max(1, hryak['weight'] + change)
 
@@ -3071,7 +3078,7 @@ def on_chat_member_update(message):
 👥 **Чат:**
 /members — показати учасників
 /adduser — додати юзернейма
-/removeuser — видалити юзернейма
+/removeuser — видалити ��зернейма
 
 🔇 **Мут (адміни):**
 /mute — замути на X хв (/mute 10)
