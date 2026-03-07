@@ -30,7 +30,7 @@ from db import (
     get_all_guilds, get_user_guild_stats, transfer_guild_owner, delete_guild,
     get_all_skins, get_skin, get_skin_by_name, get_user_skins, get_user_equipped_skin, get_user_inventory,
     buy_skin, equip_skin, has_skin, get_skin_bonus,
-    get_active_boss, spawn_boss, attack_boss, get_boss_participants, get_user_boss_stats, get_last_boss_attack_time, save_boss_attack_time, get_last_boss,
+    get_active_boss, spawn_boss, attack_boss, get_boss_participants, get_user_boss_stats, get_last_boss_attack_time, save_boss_attack_time, get_last_boss, get_boss_defeat_time,
     get_active_events, get_all_events, get_user_event_progress, update_event_progress, claim_event_reward,
     get_user_language, set_user_language, get_level_bonuses,
     rename_child, get_child, get_top_children, sacrifice_child, marry_children
@@ -5260,7 +5260,22 @@ def boss_cmd(message):
             elif action == 'attack':
                 # Перевіряємо чи бос ще активний
                 if not boss.get('is_active', True):
-                    bot.reply_to(message, "🐲 **Бос вже переможений!**\n\nНаступний з'явиться через 24 години.")
+                    bot.reply_to(message, "🐲 Бос вже переможений!\n\nНаступний з'явиться через 24 години.")
+                    return
+
+                # Перевіряємо кулдаун атаки (15 секунд)
+                last_attack = get_last_boss_attack_time(user_id, chat_id)
+                now = int(time.time())
+                if last_attack and (now - last_attack) < 15:
+                    seconds_left = 15 - (now - last_attack)
+                    bot.reply_to(message, f"⏳ Ще рано! Атакувати боса можна раз на 15 секунд.\n\nЗалишилось: {seconds_left} сек.")
+                    return
+
+                # Перевіряємо чи нещодавно бос був переможений (24 години блок)
+                defeat_time = get_boss_defeat_time()
+                if defeat_time and (now - defeat_time) < 86400:
+                    hours_left = int((86400 - (now - defeat_time)) / 3600)
+                    bot.reply_to(message, f"🐲 Бос щойно переможений!\n\nНаступний з'явиться через {hours_left} год.")
                     return
 
                 hryak = get_hryak(user_id, chat_id)
@@ -5301,7 +5316,7 @@ def boss_cmd(message):
                     winner_hryak = get_hryak(defeated_by or user_id, chat_id)
                     winner_name = winner_hryak['name'] if winner_hryak else "Невідомо"
 
-                    bot.reply_to(message, f"""🎉 **БОСА ПЕРЕМОЖЕНО!**
+                    bot.reply_to(message, f"""🎉 БОСА ПЕРЕМОЖЕНО!
 
 {boss['name']} загинув від рук героїв!
 Останній удар: {winner_name}
@@ -5314,17 +5329,19 @@ def boss_cmd(message):
                     # Бос ще жив - використовуємо дані з result
                     remaining = result.get('remaining_health', boss['health'])
                     max_health = result.get('max_health', boss['max_health'])
-                    
+
                     hp_percent = int((remaining / max_health) * 100)
                     hp_bar = "🟩" * (hp_percent // 10) + "🟥" * (10 - hp_percent // 10)
 
-                    bot.reply_to(message, f"""⚔️ **АТАКА!**
+                    bot.reply_to(message, f"""⚔️ АТАКА!
 
 Твій хряк {hryak['name']} завдав {total_damage} шкоди!
 
 🐲 {boss['name']}
 ❤️ {remaining}/{max_health} ({hp_percent}%)
 {hp_bar}
+
+⏰ Наступна атака через 15 секунд!
 
 Продовжуй атакувати командою /boss attack!""")
                 else:

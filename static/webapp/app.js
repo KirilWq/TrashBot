@@ -26,7 +26,7 @@ function startAutoRefresh() {
         clearInterval(autoRefreshInterval);
     }
     
-    // Update data every 10 seconds
+    // Update data every 30 seconds
     autoRefreshInterval = setInterval(() => {
         console.log('Auto-refreshing data...');
         loadUserData();
@@ -35,7 +35,6 @@ function startAutoRefresh() {
         const activeTab = document.querySelector('.tab-content.active');
         if (activeTab && activeTab.id === 'leaderboard') {
             loadLeaderboard();
-            loadGlobalLeaderboard();
         }
         
         // Refresh inventory if that tab is active
@@ -43,7 +42,7 @@ function startAutoRefresh() {
             loadInventory();
             loadMySkins();
         }
-    }, 10000); // 10 seconds
+    }, 30000); // 30 seconds
 }
 
 function stopAutoRefresh() {
