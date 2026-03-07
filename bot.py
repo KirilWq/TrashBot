@@ -5148,20 +5148,32 @@ def boss_cmd(message):
                 
                 participants = get_boss_participants(boss['id'])
                 
-                text = f"""🐲 **{boss['name']}**
+                text = f"""🐲 {boss['name']}
 
 ⭐ Рівень: {boss['level']}
 ❤️ Здоров'я: {boss['health']}/{boss['max_health']}
 {hp_bar} {hp_percent}%
 ⚔️ Шкода: {boss['damage']}
-💰 Нагорода: {boss['reward_coins']} монет, {boss['reward_xp']} XP
+💰 Нагорода: 1000 монет, 500 XP (розподіляється за % урону)
 
 **Топ гравців:**
 """
                 for i, p in enumerate(participants[:5], 1):
                     text += f"{i}. ID {p['user_id']} - {p['damage_dealt']} шкоди\n"
-                
-                bot.reply_to(message, text, parse_mode="Markdown")
+
+                text += """
+**Команди:**
+/boss attack - атакувати боса
+/boss info - детальна інформація
+
+**Як це працює:**
+1. Кожен гравець може атакувати боса
+2. Шкода = вага хряка × 2 + рандом
+3. Кулдаун між атаками: 15 секунд
+4. Нагороди розподіляються за % урону
+5. Після перемоги бос не з'являється 24 години"""
+
+                bot.reply_to(message, text)
             
             elif action == 'attack':
                 # Перевіряємо чи бос ще активний
@@ -6229,7 +6241,7 @@ def query_main_menu(inline_query):
 
     # Кнопки дуелей
     btn_duel = types.InlineKeyboardButton("⚔️ Дуель", switch_inline_query="duel")
-    btn_achievements = types.InlineKeyboardButton("🏅 Досягнення", switch_inline_query="achievements")
+    btn_achievements = types.InlineKeyboardButton("🏅 Досяг��ення", switch_inline_query="achievements")
 
     # Кнопки розваг
     btn_pidor = types.InlineKeyboardButton("🎯 Підор", switch_inline_query="pidor")

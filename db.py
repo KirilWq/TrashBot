@@ -2856,13 +2856,22 @@ def get_last_boss_attack_time(user_id, chat_id):
         conn.close()
 
 def get_boss_defeat_time():
-    """Отримує час останньої перемоги над босом"""
+    """Отримує час останньої перемоги над босом (тільки якщо немає активного боса)"""
     conn = get_connection()
     if not conn:
         return 0
 
     cursor = conn.cursor()
     try:
+        # Спочатку перевіряємо чи є активний бос
+        cursor.execute('SELECT id FROM bosses WHERE is_active = TRUE LIMIT 1')
+        active_boss = cursor.fetchone()
+        
+        # Якщо є активний бос - повертаємо 0 (немає блоку)
+        if active_boss:
+            return 0
+        
+        # Якщо немає активного боса - перевіряємо коли був переможений останній
         cursor.execute('''
             SELECT defeat_date FROM bosses 
             WHERE is_active = FALSE AND defeat_date IS NOT NULL
