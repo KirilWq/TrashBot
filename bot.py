@@ -670,41 +670,113 @@ def name_hryak(message):
 def top_hryaky(message):
     """Топ хряків чату"""
     chat_id = message.chat.id
-    
+
     logger.info(f"🐷 /hryaketop: chat_id={chat_id}")
-    
+
     try:
-        # Збираємо всіх хряків цього чату
+        # Отримуємо всіх хряків з БД і фільтруємо по chat_id
         chat_hryaky = []
         for key, hryak in hryaky_data.items():
             if hryak.get('chat_id') == chat_id:
                 chat_hryaky.append(hryak)
-        
+
+        # Якщо в кеші немає, пробуємо завантажити з БД
+        if not chat_hryaky:
+            # Завантажуємо всі хряки з БД і фільтруємо
+            from db import get_connection
+            conn = get_connection()
+            if conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT key FROM hryaky WHERE chat_id = %s', (chat_id,))
+                rows = cursor.fetchall()
+                for row in rows:
+                    key = row[0]
+                    hryak = get_hryak_from_db(key)
+                    if hryak:
+                        chat_hryaky.append(hryak)
+                        hryaky_data[key] = hryak  # Додаємо в кеш
+                cursor.close()
+                conn.close()
+
         if not chat_hryaky:
             bot.reply_to(message, "📭 У цьому чаті ще немає хряків!")
             return
-        
+
         # Сортуємо за вагою
         chat_hryaky.sort(key=lambda x: x['weight'], reverse=True)
-        
+
         # Беремо топ 10
         top_count = min(10, len(chat_hryaky))
-        
+
         text = "🏆 **ТОП ХРЯКІВ ЧАТУ**\n\n"
         emojis = ["🥇", "🥈", "🥉"]
-        
+
         for i, hryak in enumerate(chat_hryaky[:top_count]):
             if i < 3:
                 emoji = emojis[i]
             else:
                 emoji = f"{i+1}."
-            
+
             name = hryak['name'][:20]
             text += f"{emoji} {name} - {hryak['weight']} кг\n"
-        
+
         bot.reply_to(message, text, parse_mode="Markdown")
     except Exception as e:
         logger.error(f"❌ Помилка /hryaketop: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['globaltop'])
+def global_top_hryaky(message):
+    """Глобальний топ хряків (всі чати)"""
+    chat_id = message.chat.id
+
+    logger.info(f"🌍 /globaltop: chat_id={chat_id}")
+
+    try:
+        # Завантажуємо всіх хряків з БД
+        all_hryaky = []
+        from db import get_connection
+        conn = get_connection()
+        if conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT key FROM hryaky')
+            rows = cursor.fetchall()
+            for row in rows:
+                key = row[0]
+                hryak = get_hryak_from_db(key)
+                if hryak:
+                    all_hryaky.append(hryak)
+                    hryaky_data[key] = hryak  # Додаємо в кеш
+            cursor.close()
+            conn.close()
+
+        if not all_hryaky:
+            bot.reply_to(message, "📭 Ще немає хряків ніде!")
+            return
+
+        # Сортуємо за вагою
+        all_hryaky.sort(key=lambda x: x['weight'], reverse=True)
+
+        # Беремо топ 10
+        top_count = min(10, len(all_hryaky))
+
+        text = "🌍 **ГЛОБАЛЬНИЙ ТОП ХРЯКІВ**\n\n"
+        emojis = ["🥇", "🥈", "🥉"]
+
+        for i, hryak in enumerate(all_hryaky[:top_count]):
+            if i < 3:
+                emoji = emojis[i]
+            else:
+                emoji = f"{i+1}."
+
+            name = hryak['name'][:20]
+            chat_info = f"(чат {hryak.get('chat_id', '???')})"
+            text += f"{emoji} {name} - {hryak['weight']} кг {chat_info}\n"
+
+        bot.reply_to(message, text, parse_mode="Markdown")
+    except Exception as e:
+        logger.error(f"❌ Помилка /globaltop: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
 
 
@@ -2575,13 +2647,15 @@ try:
         types.BotCommand("grow", "🐷 Отримати хряка"),
         types.BotCommand("feed", "🍽️ Нагодувати"),
         types.BotCommand("my", "📊 Мій хряк"),
-        types.BotCommand("hryaketop", "🏆 Топ хряків"),
+        types.BotCommand("name", "✏️ Перейменувати хряка"),
+        types.BotCommand("hryaketop", "🏆 Топ хряків чату"),
+        types.BotCommand("globaltop", "🌍 Глобальний топ"),
         types.BotCommand("duel", "⚔️ Створити дуель"),
         types.BotCommand("achievements", "🏅 Досягнення"),
         types.BotCommand("pidor", "🎯 Хто підор"),
         types.BotCommand("roast", "🔥 Roast"),
         types.BotCommand("fortune", "🔮 Передбачення"),
-        types.BotCommand("rate", "⭐ Оцінка"),
+        types.BotCommand("rate", "⭐ Оціпка"),
         types.BotCommand("help", "ℹ️ Допомога")
     ])
     logger.info("✅ Команди встановлено")
