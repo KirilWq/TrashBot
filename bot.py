@@ -1607,7 +1607,7 @@ def duelteambattle_cmd(message):
         
         text = f"""⚔️ **КОМАНДНА ДУЕЛЬ**
 
-🐗 {hryak['name']} ({hryak['weight']} кг) створює к��������манду!
+🐗 {hryak['name']} ({hryak['weight']} кг) створює к����������манду!
 
 Щоб приєднатися, натисни кнопку нижче.
 Перший до 3 гравців формує команду 1.
@@ -6103,37 +6103,6 @@ def api_execute_command():
     except Exception as e:
         logger.error(f"API /execute error: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
-
-@flask_app.route('/api/webapp/equip-skin', methods=['POST'])
-def api_equip_skin():
-    """Одягнути скін"""
-    try:
-        data = request.get_json()
-        user_id = data.get('user_id')
-        skin_name = data.get('skin_name')
-        chat_id = data.get('chat_id', 0)
-
-        if not user_id or not skin_name:
-            return jsonify({'success': False, 'message': 'Missing parameters'}), 400
-
-        # Get skin
-        skin = get_skin_by_name(skin_name)
-
-        if not skin:
-            return jsonify({'success': False, 'message': 'Skin not found'}), 404
-
-        # Check if has
-        if not has_skin(user_id, chat_id, skin['id']):
-            return jsonify({'success': False, 'message': 'You do not own this skin'}), 400
-
-        # Equip
-        equip_skin(user_id, chat_id, skin['id'])
-
-        return jsonify({'success': True}), 200
-    except Exception as e:
-        logger.error(f"API /equip-skin error: {e}")
-        return jsonify({'success': False, 'message': str(e)}), 500
-
 
 def run_flask():
     """Запускає Flask сервер на порту Render"""
