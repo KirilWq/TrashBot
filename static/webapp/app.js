@@ -263,59 +263,52 @@ async function loadMySkins() {
     try {
         const chatId = userData.chat_id || -1;
         
-        // Load all skins and user's skins
-        const [allSkinsResponse, mySkinsResponse] = await Promise.all([
-            fetch(`${API_BASE}/skins`),
-            fetch(`${API_BASE}/my-skins?user_id=${userData.id}&chat_id=${chatId}`)
-        ]);
-        
-        const allSkinsData = await allSkinsResponse.json();
+        // Load only user's owned skins
+        const mySkinsResponse = await fetch(`${API_BASE}/my-skins?user_id=${userData.id}&chat_id=${chatId}`);
         const mySkinsData = await mySkinsResponse.json();
 
-        console.log('All skins:', allSkinsData);
         console.log('My skins:', mySkinsData);
 
         const container = document.getElementById('mySkins');
         container.innerHTML = '';
 
-        // Create a map of owned skins
-        const ownedSkins = {};
         if (mySkinsData.success && mySkinsData.data.length > 0) {
             mySkinsData.data.forEach(skin => {
-                ownedSkins[skin.name] = skin;
-            });
-        }
-
-        // Show all skins
-        if (allSkinsData.success && allSkinsData.data.length > 0) {
-            allSkinsData.data.forEach(skin => {
                 const skinEl = document.createElement('div');
                 skinEl.className = `my-skin-item rarity-${skin.rarity}`;
                 
-                const ownedSkin = ownedSkins[skin.name];
-                const isOwned = !!ownedSkin;
-                const isEquipped = ownedSkin && ownedSkin.equipped;
+                const isEquipped = skin.equipped;
                 
                 skinEl.innerHTML = `
                     <div class="item-info">
                         <span class="item-icon">${skin.icon}</span>
                         <div class="item-details">
                             <span class="item-name">${skin.display_name}</span>
-                            <span class="item-quantity" style="color: ${isOwned ? 'var(--tg-theme-text-color)' : 'var(--tg-theme-hint-color)'}">
-                                ${isEquipped ? '✅ Одягнуто' : (isOwned ? 'У власності' : 'Не куплено')}
+                            <span class="item-quantity">
+                                ${isEquipped ? '✅ Одягнуто' : 'У власності'}
                             </span>
                         </div>
                     </div>
-                    ${isOwned && !isEquipped ? 
+                    ${!isEquipped ? 
                         `<button class="btn btn-primary" style="width: auto; padding: 8px 16px;" onclick="equipSkin('${skin.name}')">Одягнути</button>` : 
-                        (isOwned && isEquipped ? 
-                            `<button class="btn" disabled style="width: auto; padding: 8px 16px; background: #4caf50; color: white;" disabled>Одягнуто</button>` : 
-                            `<button class="btn" disabled style="width: auto; padding: 8px 16px; background: #666; color: #999; cursor: not-allowed;" disabled>Не куплено</button>`)}
+                        `<button class="btn" disabled style="width: auto; padding: 8px 16px; background: #4caf50; color: white;" disabled>Одягнуто</button>`}
                 `;
                 container.appendChild(skinEl);
             });
         } else {
-            container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--tg-theme-hint-color);">Немає скінів</div>';
+            // User has no skins - show default classic skin
+            container.innerHTML = `
+                <div class="my-skin-item rarity-common">
+                    <div class="item-info">
+                        <span class="item-icon">🐷</span>
+                        <div class="item-details">
+                            <span class="item-name">🐷 Класичний</span>
+                            <span class="item-quantity">✅ Одягнуто (за замовчуванням)</span>
+                        </div>
+                    </div>
+                    <button class="btn" disabled style="width: auto; padding: 8px 16px; background: #4caf50; color: white;" disabled>Одягнуто</button>
+                </div>
+            `;
         }
     } catch (error) {
         console.error('Error loading my skins:', error);
@@ -543,34 +536,8 @@ function loadGlobalLeaderboard() {
 }
 
 async function openCommand(command) {
-    // Call API to execute command directly
-    try {
-        // Remove leading slash if present
-        const commandPath = command.startsWith('/') ? command.substring(1) : command;
-        
-        const response = await fetch(`${API_BASE}/execute`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                user_id: userData.id,
-                chat_id: userData.chat_id,
-                command: commandPath  // Send without /
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            tg.showAlert(`${command}\n\n✅ ${data.message || 'Виконано!'}`);
-            // Reload user data to show updated stats
-            loadUserData();
-        } else {
-            tg.showAlert(`${command}\n\n❌ ${data.message || 'Помилка!'}`);
-        }
-    } catch (error) {
-        console.error('Error executing command:', error);
-        tg.showAlert(`${command}\n\n❌ Помилка виконання`);
-    }
+    // Just show the command and let user type it manually
+    tg.showAlert(`Команда: ${command}\n\nВведіть її в чаті з ботом`);
 }
 
 // Bottom nav buttons handlers

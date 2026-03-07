@@ -491,8 +491,54 @@ def create_hryak(user_id, chat_id, username):
     save_hryak_to_db(key, hryak)
     # Додаємо в кеш
     hryaky_data[key] = hryak
+    
+    # Додаємо класичний скін
+    try:
+        buy_skin(user_id, chat_id, 1)  # Classic skin id = 1
+        logger.info(f"✅ Додано класичний скін для {key}")
+    except Exception as e:
+        logger.error(f"❌ Помилка додавання скіну: {e}")
+    
     logger.info(f"✅ Створено хряка: {key}, вага={weight}")
     return hryak
+
+def grow_hryak(message):
+    """Отримати хряка для вирощування"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    username = f"@{message.from_user.username}" if message.from_user.username else message.from_user.first_name
+
+    logger.info(f"🐷 /grow: chat_id={chat_id}, user_id={user_id}, username={username}")
+
+    try:
+        hryak = get_hryak(user_id, chat_id)
+
+        if hryak:
+            text = f"""🐷 **Вже маєш хряка!**
+
+Ім'я: {hryak['name']}
+Вага: {hryak['weight']} кг
+Нагодовано: {hryak['feed_count']} разів
+
+Використовуй /feed щоб нагодувати!"""
+        else:
+            # Створюємо нового хряка
+            hryak = create_hryak(user_id, chat_id, username)
+            text = f"""🎉 **Ти отримав хряка!**
+
+🐷 {hryak['name']}
+⚖️ Вага: {hryak['weight']} кг
+
+Тепер ти можеш його годувати раз на 12 годин командою /feed
+Вирости найбільшого хряка в чаті!
+
+🎁 Тобі додано класичний скін 🐷!"""
+
+        bot.reply_to(message, text, parse_mode="Markdown")
+        logger.info(f"✅ /grow успішно для {user_id}")
+    except Exception as e:
+        logger.error(f"❌ Помилка /grow: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
 
 def feed_hryak(user_id, chat_id):
     """Годує хряка (раз на 12 годин)"""
@@ -1561,7 +1607,7 @@ def duelteambattle_cmd(message):
         
         text = f"""⚔️ **КОМАНДНА ДУЕЛЬ**
 
-🐗 {hryak['name']} ({hryak['weight']} кг) створює команду!
+🐗 {hryak['name']} ({hryak['weight']} кг) створює к��манду!
 
 Щоб приєднатися, натисни кнопку нижче.
 Перший до 3 гравців формує команду 1.
