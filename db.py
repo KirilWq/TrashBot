@@ -31,6 +31,14 @@ def init_db():
     cursor = conn.cursor()
 
     try:
+        # Видаляємо старі таблиці для чистої міграції
+        cursor.execute("DROP TABLE IF EXISTS manual_users CASCADE")
+        cursor.execute("DROP TABLE IF EXISTS spam CASCADE")
+        cursor.execute("DROP TABLE IF EXISTS warns CASCADE")
+        cursor.execute("DROP TABLE IF EXISTS stats CASCADE")
+        cursor.execute("DROP TABLE IF EXISTS hryaky CASCADE")
+        logger.info("🗑️ Старі таблиці видалено")
+
         # Таблиця хряків
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS hryaky (
@@ -50,15 +58,7 @@ def init_db():
                 fed_on_1st BOOLEAN DEFAULT FALSE
             )
         ''')
-        logger.info("✅ Таблиця hryaky створена/перевірена")
-
-        # Міграція: конвертуємо REAL в BIGINT для існуючих даних
-        try:
-            cursor.execute('ALTER TABLE hryaky ALTER COLUMN created_at TYPE BIGINT USING CAST(created_at AS BIGINT)')
-            cursor.execute('ALTER TABLE hryaky ALTER COLUMN last_feed TYPE BIGINT USING CAST(last_feed AS BIGINT)')
-            logger.info("✅ Міграція hryaky завершена")
-        except Exception as e:
-            logger.debug(f"Міграція hryaky: {e}")
+        logger.info("✅ Таблиця hryaky створена")
 
         # Таблиця статистики
         cursor.execute('''
@@ -72,15 +72,7 @@ def init_db():
                 last_message BIGINT
             )
         ''')
-        logger.info("✅ Таблиця stats створена/перевірена")
-
-        # Міграція: конвертуємо REAL в BIGINT
-        try:
-            cursor.execute('ALTER TABLE stats ALTER COLUMN first_message TYPE BIGINT USING CAST(first_message AS BIGINT)')
-            cursor.execute('ALTER TABLE stats ALTER COLUMN last_message TYPE BIGINT USING CAST(last_message AS BIGINT)')
-            logger.info("✅ Міграція stats завершена")
-        except Exception as e:
-            logger.debug(f"Міграція stats: {e}")
+        logger.info("✅ Таблиця stats створена")
 
         # Таблиця попереджень
         cursor.execute('''
@@ -93,7 +85,7 @@ def init_db():
                 banned BOOLEAN DEFAULT FALSE
             )
         ''')
-        logger.info("✅ Таблиця warns створена/перевірена")
+        logger.info("✅ Таблиця warns створена")
 
         # Таблиця спаму
         cursor.execute('''
@@ -104,14 +96,7 @@ def init_db():
                 mute_until BIGINT
             )
         ''')
-        logger.info("✅ Таблиця spam створена/перевірена")
-
-        # Міграція: конвертуємо REAL в BIGINT
-        try:
-            cursor.execute('ALTER TABLE spam ALTER COLUMN mute_until TYPE BIGINT USING CAST(mute_until AS BIGINT)')
-            logger.info("✅ Міграція spam завершена")
-        except Exception as e:
-            logger.debug(f"Міграція spam: {e}")
+        logger.info("✅ Таблиця spam створена")
 
         # Таблиця ручних юзернеймів
         cursor.execute('''
@@ -121,7 +106,7 @@ def init_db():
                 users_json TEXT
             )
         ''')
-        logger.info("✅ Таблиця manual_users створена/перевірена")
+        logger.info("✅ Таблиця manual_users створена")
 
         conn.commit()
         logger.info("✅ База даних ініціалізована")
@@ -139,28 +124,28 @@ def get_hryak_from_db(key):
     conn = get_connection()
     if not conn:
         return None
-    
+
     cursor = conn.cursor()
     try:
         cursor.execute('SELECT * FROM hryaky WHERE key = %s', (key,))
         row = cursor.fetchone()
         if not row:
             return None
-        
+
         return {
-            'user_id': row[1],
-            'chat_id': row[2],
+            'user_id': int(row[1]) if row[1] else None,
+            'chat_id': int(row[2]) if row[2] else None,
             'username': row[3],
             'name': row[4],
-            'weight': row[5],
-            'last_feed': row[6],
-            'feed_count': row[7],
-            'max_weight': row[8],
-            'created_at': row[9],
-            'has_lost_weight': row[10] or False,
-            'max_gain': row[11] or 0,
-            'max_gains_20': row[12] or 0,
-            'fed_on_1st': row[13] or False
+            'weight': int(row[5]) if row[5] else 0,
+            'last_feed': int(row[6]) if row[6] else 0,
+            'feed_count': int(row[7]) if row[7] else 0,
+            'max_weight': int(row[8]) if row[8] else 0,
+            'created_at': int(row[9]) if row[9] else int(time.time()),
+            'has_lost_weight': bool(row[10]) if row[10] is not None else False,
+            'max_gain': int(row[11]) if row[11] is not None else 0,
+            'max_gains_20': int(row[12]) if row[12] is not None else 0,
+            'fed_on_1st': bool(row[13]) if row[13] is not None else False
         }
     except Exception as e:
         logger.error(f"❌ Помилка отримання хряка: {e}")
@@ -208,13 +193,13 @@ def load_from_db(hryaky_data, stats_data, warns_data, spam_data, manual_users):
     global logger
     import logging
     logger = logging.getLogger(__name__)
-    
+
     conn = get_connection()
     if not conn:
         return
-    
+
     cursor = conn.cursor()
-    
+
     try:
         # Завантажуємо хряків
         cursor.execute('SELECT key, user_id, chat_id, username, name, weight, last_feed, feed_count, max_weight, created_at, has_lost_weight, max_gain, max_gains_20, fed_on_1st FROM hryaky')
@@ -222,51 +207,51 @@ def load_from_db(hryaky_data, stats_data, warns_data, spam_data, manual_users):
         for row in rows:
             key = row[0]
             hryaky_data[key] = {
-                'user_id': row[1],
-                'chat_id': row[2],
+                'user_id': int(row[1]) if row[1] else None,
+                'chat_id': int(row[2]) if row[2] else None,
                 'username': row[3],
                 'name': row[4],
-                'weight': row[5],
-                'last_feed': row[6],
-                'feed_count': row[7],
-                'max_weight': row[8],
-                'created_at': row[9],
-                'has_lost_weight': row[10] or False,
-                'max_gain': row[11] or 0,
-                'max_gains_20': row[12] or 0,
-                'fed_on_1st': row[13] or False
+                'weight': int(row[5]) if row[5] else 0,
+                'last_feed': int(row[6]) if row[6] else 0,
+                'feed_count': int(row[7]) if row[7] else 0,
+                'max_weight': int(row[8]) if row[8] else 0,
+                'created_at': int(row[9]) if row[9] else int(time.time()),
+                'has_lost_weight': bool(row[10]) if row[10] is not None else False,
+                'max_gain': int(row[11]) if row[11] is not None else 0,
+                'max_gains_20': int(row[12]) if row[12] is not None else 0,
+                'fed_on_1st': bool(row[13]) if row[13] is not None else False
             }
         logger.info(f"📦 Завантажено {len(hryaky_data)} хряків з БД")
-        
+
         # Завантажуємо статистику
         cursor.execute('SELECT key, user_id, chat_id, username, count, first_message, last_message FROM stats')
         rows = cursor.fetchall()
         for row in rows:
             key = row[0]
             stats_data[key] = {
-                'user_id': row[1],
-                'chat_id': row[2],
+                'user_id': int(row[1]) if row[1] else None,
+                'chat_id': int(row[2]) if row[2] else None,
                 'username': row[3],
-                'count': row[4],
-                'first_message': row[5],
-                'last_message': row[6]
+                'count': int(row[4]) if row[4] else 0,
+                'first_message': int(row[5]) if row[5] else 0,
+                'last_message': int(row[6]) if row[6] else 0
             }
         logger.info(f"📊 Завантажено {len(stats_data)} записів статистики з БД")
-        
+
         # Завантажуємо попередження
         cursor.execute('SELECT key, user_id, chat_id, username, warns_json, banned FROM warns')
         rows = cursor.fetchall()
         for row in rows:
             key = row[0]
             warns_data[key] = {
-                'user_id': row[1],
-                'chat_id': row[2],
+                'user_id': int(row[1]) if row[1] else None,
+                'chat_id': int(row[2]) if row[2] else None,
                 'username': row[3],
                 'warns': json.loads(row[4]) if row[4] else [],
                 'banned': bool(row[5])
             }
         logger.info(f"⚠️ Завантажено {len(warns_data)} записів попереджень з БД")
-        
+
         # Завантажуємо спам
         cursor.execute('SELECT key, messages_json, muted, mute_until FROM spam')
         rows = cursor.fetchall()
@@ -275,16 +260,16 @@ def load_from_db(hryaky_data, stats_data, warns_data, spam_data, manual_users):
             spam_data[key] = {
                 'messages': json.loads(row[1]) if row[1] else [],
                 'muted': bool(row[2]),
-                'mute_until': row[3] if row[3] else 0
+                'mute_until': int(row[3]) if row[3] else 0
             }
         logger.info(f"🛡️ Завантажено {len(spam_data)} записів спаму з БД")
-        
+
         # Завантажуємо ручних юзернеймів
         cursor.execute('SELECT key, chat_id, users_json FROM manual_users')
         rows = cursor.fetchall()
         for row in rows:
             key = row[0]
-            chat_id = row[1]
+            chat_id = int(row[1]) if row[1] else None
             manual_users[chat_id] = json.loads(row[2]) if row[2] else []
         logger.info(f"👥 Завантажено {len(manual_users)} чатів з ручними юзернеймами")
         
