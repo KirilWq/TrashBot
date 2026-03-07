@@ -376,18 +376,6 @@ def init_db():
         ''')
         logger.info("✅ Таблиця user_skins створена")
 
-        # Додаємо скіни в базу
-        cursor.execute('''
-            INSERT INTO skins (name, display_name, description, price, rarity, bonus_type, bonus_value, icon) VALUES
-            ('classic', '🐷 Класичний', 'Звичайний хряк', 0, 'common', NULL, 0, '🐷'),
-            ('wild', '🐗 Дикий кабан', 'Міцний як дуб', 100, 'rare', 'weight_bonus', 5, '🐗'),
-            ('golden', '✨ Золотий', 'Багатий хряк', 500, 'epic', 'luck_bonus', 10, '✨'),
-            ('rainbow', '🌈 Веселка', 'Яскравий як мрія', 1000, 'legendary', 'xp_bonus', 15, '🌈'),
-            ('cyber', '🤖 Кіберхряк', 'Майбутнє вже тут', 2000, 'legendary', 'all_bonus', 20, '🤖'),
-            ('royal', '👑 Королівський', 'Для обраних', 5000, 'mythic', 'all_bonus', 30, '👑')
-        ''')
-        logger.info("✅ Скіни додано в базу")
-
         # Таблиця босів
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS bosses (
