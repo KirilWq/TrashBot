@@ -5405,6 +5405,42 @@ def webapp_cmd(message):
 
 
 # ============================================
+# WEB APP DATA HANDLER
+# ============================================
+
+@bot.message_handler(content_types=['web_app_data'])
+def webapp_data_handler(message):
+    """Обробка даних з Web App"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        # Отримуємо дані з Web App
+        data = json.loads(message.web_app_data.data)
+        
+        if data.get('type') == 'command':
+            command = data.get('command')
+            
+            # Імітуємо виконання команди
+            if command == 'grow':
+                grow_hryak(message)
+            elif command == 'daily':
+                daily_cmd(message)
+            elif command == 'quests':
+                quests_cmd(message)
+            elif command == 'achievements':
+                achievements_cmd(message)
+            elif command == 'menu':
+                menu_cmd(message)
+            elif command == 'help':
+                help_cmd(message)
+            elif command == 'boss':
+                boss_cmd(message)
+    except Exception as e:
+        logger.error(f"❌ Помилка web_app_data: {e}")
+
+
+# ============================================
 # МУЛЬТИ-МОВНІСТЬ
 # ============================================
 
@@ -6226,7 +6262,7 @@ def query_my_inline(inline_query):
 🍽️ Нагодовано: {hryak['feed_count']} разів
 🕐 Годування: {feed_status}
 
-⚔️ Натисни "Виклик на дуель" щоб створити виклик!"""
+⚔️ Натисни "Викл��к на дуель" щоб створити виклик!"""
     
     bot.answer_inline_query(inline_query.id, [
         types.InlineQueryResultArticle(

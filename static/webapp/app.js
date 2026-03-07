@@ -503,8 +503,13 @@ function loadGlobalLeaderboard() {
 }
 
 function openCommand(command) {
-    // Just show the command - user can copy it
-    tg.showAlert(`Команда: ${command}\n\nВведіть її в чаті з ботом`);
+    // Send command to bot via WebApp data
+    // Bot will receive this as a web_app_data event
+    const commandPath = command.substring(1); // Remove '/'
+    tg.sendData(JSON.stringify({type: 'command', command: commandPath}));
+    
+    // Show confirmation
+    tg.showAlert(`${command}\n\nКоманду виконано!`);
 }
 
 // Bottom nav buttons handlers
