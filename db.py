@@ -31,7 +31,7 @@ def init_db():
     cursor = conn.cursor()
 
     try:
-        # Видаляємо старі таблиці для чистої міграції
+        # Видаляємо старі таблиці для чистої міграції (тільки якщо існують)
         cursor.execute("DROP TABLE IF EXISTS user_inventory CASCADE")
         cursor.execute("DROP TABLE IF EXISTS shop_items CASCADE")
         cursor.execute("DROP TABLE IF EXISTS user_stats CASCADE")
@@ -45,6 +45,7 @@ def init_db():
         cursor.execute("DROP TABLE IF EXISTS warns CASCADE")
         cursor.execute("DROP TABLE IF EXISTS stats CASCADE")
         cursor.execute("DROP TABLE IF EXISTS hryaky CASCADE")
+        # Не видаляємо skins, bosses, seasonal_events, guilds, tournaments - там вже є дані
         logger.info("🗑️ Старі таблиці видалено")
 
         # Таблиця хряків
@@ -485,15 +486,48 @@ def init_db():
         ))
         logger.info("✅ Сезонні івенти додано")
 
-        # Додаємо предмети в магазин
+        # Додаємо скіни в базу (якщо не існують)
+        skins_data = [
+            ('classic', '🐷 Класичний', 'Звичайний хряк', 0, 'common', None, 0, '🐷'),
+            ('wild', '🐗 Дикий кабан', 'Міцний як дуб', 100, 'rare', 'weight_bonus', 5, '🐗'),
+            ('golden', '✨ Золотий', 'Багатий хряк', 500, 'epic', 'luck_bonus', 10, '✨'),
+            ('rainbow', '🌈 Веселка', 'Яскравий як мрія', 1000, 'legendary', 'xp_bonus', 15, '🌈'),
+            ('cyber', '🤖 Кіберхряк', 'Майбутнє вже тут', 2000, 'legendary', 'all_bonus', 20, '🤖'),
+            ('royal', '👑 Королівський', 'Для обраних', 5000, 'mythic', 'all_bonus', 30, '👑')
+        ]
+        
+        for skin in skins_data:
+            cursor.execute('''
+                INSERT INTO skins (name, display_name, description, price, rarity, bonus_type, bonus_value, icon)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (name) DO NOTHING
+            ''', skin)
+        logger.info("✅ Скіни додано в базу")
+
+        # Додаємо першого боса (якщо не існує)
+        now = int(time.time())
         cursor.execute('''
-            INSERT INTO shop_items (item_id, name, description, price, price_currency, effect_type, effect_value, duration) VALUES
+            INSERT INTO bosses (name, level, health, max_health, damage, reward_coins, reward_xp, spawn_date)
+            SELECT '🐲 Древній Дракон', 1, 1000, 1000, 50, 500, 250, %s
+            WHERE NOT EXISTS (SELECT 1 FROM bosses WHERE name = '🐲 Древній Дракон')
+        ''', (now,))
+        logger.info("✅ Перший бос додано")
+
+        # Додаємо предмети в магазин (якщо не існують)
+        shop_items_data = [
             ('vitamins', '🍎 Вітаміни', '+5 кг до наступного годування', 50, 'coins', 'weight_bonus', 5, 0),
             ('trainer', '💪 Тренажер', '+10% до проворності на 24 год', 100, 'coins', 'agility_bonus', 10, 86400),
             ('shield', '🛡️ Щит', 'Захист від -10% ваги в дуелі', 75, 'coins', 'shield', 10, 0),
             ('energy', '⚡ Енергетик', 'Зняти кулдаун з /feed', 30, 'coins', 'remove_cooldown', 0, 0),
             ('lucky_charm', '🍀 Підкова', '+5% шанс на перемогу в дуелі', 200, 'coins', 'luck_bonus', 5, 86400)
-        ''')
+        ]
+        
+        for item in shop_items_data:
+            cursor.execute('''
+                INSERT INTO shop_items (item_id, name, description, price, price_currency, effect_type, effect_value, duration)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (item_id) DO NOTHING
+            ''', item)
         conn.commit()
         logger.info("✅ Предмети додано в магазин")
 
