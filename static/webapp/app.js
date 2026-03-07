@@ -262,27 +262,55 @@ async function loadInventory() {
 async function loadMySkins() {
     try {
         const chatId = userData.chat_id || -1;
-        const response = await fetch(`${API_BASE}/my-skins?user_id=${userData.id}&chat_id=${chatId}`);
-        const data = await response.json();
+        
+        // Load all skins and user's skins
+        const [allSkinsResponse, mySkinsResponse] = await Promise.all([
+            fetch(`${API_BASE}/skins`),
+            fetch(`${API_BASE}/my-skins?user_id=${userData.id}&chat_id=${chatId}`)
+        ]);
+        
+        const allSkinsData = await allSkinsResponse.json();
+        const mySkinsData = await mySkinsResponse.json();
 
-        console.log('Load my skins response:', data);
+        console.log('All skins:', allSkinsData);
+        console.log('My skins:', mySkinsData);
 
         const container = document.getElementById('mySkins');
         container.innerHTML = '';
 
-        if (data.success && data.data.length > 0) {
-            data.data.forEach(skin => {
+        // Create a map of owned skins
+        const ownedSkins = {};
+        if (mySkinsData.success && mySkinsData.data.length > 0) {
+            mySkinsData.data.forEach(skin => {
+                ownedSkins[skin.name] = skin;
+            });
+        }
+
+        // Show all skins
+        if (allSkinsData.success && allSkinsData.data.length > 0) {
+            allSkinsData.data.forEach(skin => {
                 const skinEl = document.createElement('div');
                 skinEl.className = `my-skin-item rarity-${skin.rarity}`;
+                
+                const ownedSkin = ownedSkins[skin.name];
+                const isOwned = !!ownedSkin;
+                const isEquipped = ownedSkin && ownedSkin.equipped;
+                
                 skinEl.innerHTML = `
                     <div class="item-info">
                         <span class="item-icon">${skin.icon}</span>
                         <div class="item-details">
                             <span class="item-name">${skin.display_name}</span>
-                            <span class="item-quantity">${skin.equipped ? '✅ Одягнуто' : ''}</span>
+                            <span class="item-quantity" style="color: ${isOwned ? 'var(--tg-theme-text-color)' : 'var(--tg-theme-hint-color)'}">
+                                ${isEquipped ? '✅ Одягнуто' : (isOwned ? 'У власності' : 'Не куплено')}
+                            </span>
                         </div>
                     </div>
-                    ${!skin.equipped ? `<button class="btn btn-primary" style="width: auto; padding: 8px 16px;" onclick="equipSkin('${skin.name}')">Одягнути</button>` : ''}
+                    ${isOwned && !isEquipped ? 
+                        `<button class="btn btn-primary" style="width: auto; padding: 8px 16px;" onclick="equipSkin('${skin.name}')">Одягнути</button>` : 
+                        (isOwned && isEquipped ? 
+                            `<button class="btn" disabled style="width: auto; padding: 8px 16px; background: #4caf50; color: white;" disabled>Одягнуто</button>` : 
+                            `<button class="btn" disabled style="width: auto; padding: 8px 16px; background: #666; color: #999; cursor: not-allowed;" disabled>Не куплено</button>`)}
                 `;
                 container.appendChild(skinEl);
             });

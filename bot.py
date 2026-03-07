@@ -1891,7 +1891,7 @@ def menu_callback(call):
             text = "❌ Спочатку отримай хряка (/grow)!"
         else:
             now = time.time()
-            
+
             # Якщо last_feed = 0, значить ще не годував — можна годувати
             if hryak['last_feed'] == 0:
                 # Годуємо хряка
@@ -1910,13 +1910,26 @@ def menu_callback(call):
                         emoji = "➡️"
                         title = "**Вага не змінилась!**"
                         text_change = "0 кг"
-                    
+
+                    # Add rewards
+                    add_coins(user_id, chat_id, 5)
+                    add_xp(user_id, chat_id, 2)
+
                     text = f"""{emoji} {title}
 
 Вага: {result['old_weight']} → {result['new_weight']} кг ({text_change})
 Всього нагодовано: {result['feed_count']} разів
+💰 Нагорода: +5 монет, +2 XP
 
 🐷 {result['hryak']['name']}"""
+                    
+                    # Update quests
+                    quests = get_daily_quests(user_id, chat_id)
+                    quest_progress = {q['quest_id']: q for q in quests}
+                    feed_quest = quest_progress.get('feed_3_times', {'progress': 0, 'target': 3})
+                    new_feed_progress = min(feed_quest['progress'] + 1, 3)
+                    feed_completed = new_feed_progress >= 3
+                    update_daily_quest(user_id, chat_id, 'feed_3_times', new_feed_progress, 3, completed=feed_completed)
                 else:
                     text = "❌ Помилка годування!"
             else:
@@ -1938,20 +1951,33 @@ def menu_callback(call):
                             emoji = "➡️"
                             title = "**Вага не змінилась!**"
                             text_change = "0 кг"
-                        
+
+                        # Add rewards
+                        add_coins(user_id, chat_id, 5)
+                        add_xp(user_id, chat_id, 2)
+
                         text = f"""{emoji} {title}
 
 Вага: {result['old_weight']} → {result['new_weight']} кг ({text_change})
 Всього нагодовано: {result['feed_count']} разів
+💰 Нагорода: +5 монет, +2 XP
 
 🐷 {result['hryak']['name']}"""
+                        
+                        # Update quests
+                        quests = get_daily_quests(user_id, chat_id)
+                        quest_progress = {q['quest_id']: q for q in quests}
+                        feed_quest = quest_progress.get('feed_3_times', {'progress': 0, 'target': 3})
+                        new_feed_progress = min(feed_quest['progress'] + 1, 3)
+                        feed_completed = new_feed_progress >= 3
+                        update_daily_quest(user_id, chat_id, 'feed_3_times', new_feed_progress, 3, completed=feed_completed)
                     else:
                         text = "❌ Помилка годування!"
                 else:
                     hours = int(time_left / 3600)
                     minutes = int((time_left % 3600) / 60)
                     text = f"⏳ **Ще рано!**\n\nЗалишилось: {hours} год {minutes} хв\n\n🐷 {hryak['name']}"
-    
+
     elif command == 'my':
         hryak = get_hryak(user_id, chat_id)
         if not hryak:
@@ -4614,7 +4640,7 @@ def guild_cmd(message):
             bot.reply_to(message, text, parse_mode="Markdown")
             return
         
-        # Показуємо гільдію користувача
+        # Показуємо гільдію к��ристувача
         user_guild = get_user_guild(user_id, chat_id)
         
         if not user_guild:
