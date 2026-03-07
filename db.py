@@ -2468,6 +2468,38 @@ def get_user_equipped_skin(user_id, chat_id):
         cursor.close()
         conn.close()
 
+def get_user_inventory(user_id, chat_id):
+    """Отримує інвентар користувача"""
+    conn = get_connection()
+    if not conn:
+        return []
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT ui.item_id, ui.quantity, s.name, s.description, s.icon
+            FROM user_inventory ui
+            LEFT JOIN shop_items s ON ui.item_id = s.item_id
+            WHERE ui.user_id = %s AND ui.chat_id = %s
+        ''', (user_id, chat_id))
+        rows = cursor.fetchall()
+        inventory = []
+        for row in rows:
+            inventory.append({
+                'item_id': row[0],
+                'quantity': int(row[1]) if row[1] else 0,
+                'name': row[2] or row[0],
+                'description': row[3] or '',
+                'icon': row[4] or '📦'
+            })
+        return inventory
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання інвентарю: {e}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+
 def buy_skin(user_id, chat_id, skin_id):
     """Купує скін"""
     conn = get_connection()

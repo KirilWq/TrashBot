@@ -28,7 +28,7 @@ from db import (
     create_guild, get_guild, get_guild_by_name, get_user_guild, get_guild_members,
     join_guild, leave_guild, get_guild_rank, update_guild_xp, add_guild_contribution,
     get_all_guilds, get_user_guild_stats, transfer_guild_owner, delete_guild,
-    get_all_skins, get_skin, get_skin_by_name, get_user_skins, get_user_equipped_skin,
+    get_all_skins, get_skin, get_skin_by_name, get_user_skins, get_user_equipped_skin, get_user_inventory,
     buy_skin, equip_skin, has_skin, get_skin_bonus,
     get_active_boss, spawn_boss, attack_boss, get_boss_participants, get_user_boss_stats,
     get_active_events, get_all_events, get_user_event_progress, update_event_progress, claim_event_reward,
@@ -1607,7 +1607,7 @@ def team2_create_callback(call):
     try:
         hryak = get_hryak(user_id, chat_id)
         if not hryak:
-            bot.answer_callback_query(call.id, "❌ У тебе немає хряка!", show_alert=True)
+            bot.answer_callback_query(call.id, "❌ У тебе н��має хряка!", show_alert=True)
             return
         
         msg_id = call.data.split('_')[-1]
@@ -4654,7 +4654,7 @@ def delete_guild_cmd(message):
             return
         
         if user_guild['owner_user_id'] != user_id:
-            bot.reply_to(message, "❌ Тільки власник може видалити г����������������льдію!")
+            bot.reply_to(message, "❌ Тільки власник може видалити г������������������льдію!")
             return
         
         # Видаляємо гільдію
@@ -5462,8 +5462,8 @@ def api_get_inventory():
         if not user_id:
             return jsonify({'success': False, 'message': 'User ID required'}), 400
         
-        # Get inventory from DB (need to add function)
-        return jsonify({'success': True, 'data': []}), 200
+        inventory = get_user_inventory(user_id, chat_id or -1)
+        return jsonify({'success': True, 'data': inventory}), 200
     except Exception as e:
         logger.error(f"API /inventory error: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
