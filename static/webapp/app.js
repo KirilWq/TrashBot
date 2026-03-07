@@ -168,6 +168,7 @@ function loadTabData(tabId) {
             break;
         case 'leaderboard':
             loadLeaderboard();
+            loadGlobalLeaderboard();
             break;
     }
 }
@@ -295,10 +296,10 @@ async function loadLeaderboard() {
         // Load chat top
         const chatResponse = await fetch(`${API_BASE}/leaderboard/chat`);
         const chatData = await chatResponse.json();
-        
+
         const chatContainer = document.getElementById('chatTop');
         chatContainer.innerHTML = '';
-        
+
         if (chatData.success && chatData.data.length > 0) {
             chatData.data.slice(0, 10).forEach((player, index) => {
                 const playerEl = document.createElement('div');
@@ -320,6 +321,39 @@ async function loadLeaderboard() {
         }
     } catch (error) {
         console.error('Error loading leaderboard:', error);
+    }
+}
+
+async function loadGlobalLeaderboard() {
+    try {
+        // Load global top
+        const globalResponse = await fetch(`${API_BASE}/leaderboard/global`);
+        const globalData = await globalResponse.json();
+
+        const globalContainer = document.getElementById('globalTop');
+        globalContainer.innerHTML = '';
+
+        if (globalData.success && globalData.data.length > 0) {
+            globalData.data.slice(0, 10).forEach((player, index) => {
+                const playerEl = document.createElement('div');
+                playerEl.className = 'leaderboard-item';
+                playerEl.innerHTML = `
+                    <span class="rank ${index < 3 ? 'rank-' + (index + 1) : ''}">${index + 1}</span>
+                    <div class="leaderboard-info">
+                        <span class="leaderboard-avatar">🐷</span>
+                        <div class="leaderboard-details">
+                            <span class="leaderboard-name">${player.name || 'Невідомо'}</span>
+                            <span class="leaderboard-value">${player.weight} кг</span>
+                        </div>
+                    </div>
+                `;
+                globalContainer.appendChild(playerEl);
+            });
+        } else {
+            globalContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--tg-theme-hint-color);">Немає гравців</div>';
+        }
+    } catch (error) {
+        console.error('Error loading global leaderboard:', error);
     }
 }
 
@@ -469,9 +503,10 @@ function loadGlobalLeaderboard() {
 }
 
 function openCommand(command) {
-    // Open command in Telegram
-    const url = `https://t.me/${tg.initDataUnsafe?.user?.username || 'bot'}?start=${command.substring(1)}`;
-    tg.openTelegramLink(url);
+    // Open command using Telegram WebApp API
+    // Use tg.openTelegramLink instead of direct URL
+    const commandPath = command.substring(1); // Remove '/'
+    tg.openTelegramLink(`?start=${commandPath}`);
 }
 
 // Bottom nav buttons handlers

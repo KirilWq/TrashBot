@@ -5777,19 +5777,35 @@ def api_get_chat_leaderboard():
     """Топ хряків чату"""
     try:
         chat_id = int(request.args.get('chat_id', 0))
-        
+
         # Get from hryaky_data cache
         chat_hryaky = []
         for key, h in hryaky_data.items():
             if chat_id and h.get('chat_id') != chat_id:
                 continue
             chat_hryaky.append(h)
-        
+
         chat_hryaky = sorted(chat_hryaky, key=lambda x: x['weight'], reverse=True)[:10]
-        
+
         return jsonify({'success': True, 'data': chat_hryaky}), 200
     except Exception as e:
         logger.error(f"API /leaderboard/chat error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@flask_app.route('/api/webapp/leaderboard/global', methods=['GET'])
+def api_get_global_leaderboard():
+    """Глобальний топ хряків"""
+    try:
+        # Get all hryaks from cache
+        all_hryaky = []
+        for key, h in hryaky_data.items():
+            all_hryaky.append(h)
+
+        all_hryaky = sorted(all_hryaky, key=lambda x: x['weight'], reverse=True)[:10]
+
+        return jsonify({'success': True, 'data': all_hryaky}), 200
+    except Exception as e:
+        logger.error(f"API /leaderboard/global error: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @flask_app.route('/api/webapp/feed', methods=['POST'])
