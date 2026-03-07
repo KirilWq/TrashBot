@@ -30,7 +30,7 @@ from db import (
     get_all_guilds, get_user_guild_stats, transfer_guild_owner, delete_guild,
     get_all_skins, get_skin, get_skin_by_name, get_user_skins, get_user_equipped_skin, get_user_inventory,
     buy_skin, equip_skin, has_skin, get_skin_bonus,
-    get_active_boss, spawn_boss, attack_boss, get_boss_participants, get_user_boss_stats,
+    get_active_boss, spawn_boss, attack_boss, get_boss_participants, get_user_boss_stats, get_last_boss_attack_time, save_boss_attack_time,
     get_active_events, get_all_events, get_user_event_progress, update_event_progress, claim_event_reward,
     get_user_language, set_user_language,
     rename_child, get_child, get_top_children, sacrifice_child, marry_children
@@ -1605,7 +1605,7 @@ def team1_join_callback(call):
             bot.answer_callback_query(call.id, "❌ Команда 1 повна!", show_alert=True)
             return
         
-        # Додаємо до команди
+        # Додаємо до ко����анди
         duel['team1'].append({'user_id': user_id, 'hryak': hryak})
         
         text = f"""⚔️ **КОМАНДНА ДУЕЛЬ**
@@ -3073,8 +3073,8 @@ def on_chat_member_update(message):
 
 🐷 **Гра "Вирости Хряка":**
 /grow — отримати хряка
-/feed — нагодувати (раз на 12 год)
-/my — показат�������� хряка
+/feed — нагодув��т�� (раз на 12 год)
+/my — показат������������ хряка
 /name — змінити ім'я
 /hryaketop — топ хряків
 /achievements — досягнення
@@ -5145,7 +5145,7 @@ def boss_cmd(message):
 **Нагороди розподілено:**
 Кожен учасник отримав монети та XP пропорційно до шкоди!
 
-Новий бос з'явиться найближчим часом...""")
+Новий бос з'явиться через 24 години...""")
                 elif result and not result.get('defeated'):
                     # Бос ще жив - використовуємо дані з result
                     remaining = result.get('remaining_health', boss['health'])
@@ -5839,29 +5839,35 @@ def api_buy_skin():
         user_id = data.get('user_id')
         skin_name = data.get('skin_name')
         chat_id = data.get('chat_id', 0)
-        
+
+        logger.info(f"Buy skin: user_id={user_id}, chat_id={chat_id}, skin_name={skin_name}")
+
         if not user_id or not skin_name:
             return jsonify({'success': False, 'message': 'Missing parameters'}), 400
-        
+
         # Get skin
         skin = get_skin_by_name(skin_name)
-        
+
         if not skin:
             return jsonify({'success': False, 'message': 'Skin not found'}), 404
-        
+
         # Check balance
         currency = get_user_currency(user_id, chat_id)
+        logger.info(f"User coins: {currency['coins']}, skin price: {skin['price']}")
+        
         if currency['coins'] < skin['price']:
             return jsonify({'success': False, 'message': 'Not enough coins'}), 400
-        
+
         # Check if already has
         if has_skin(user_id, chat_id, skin['id']):
             return jsonify({'success': False, 'message': 'Already owned'}), 400
-        
+
         # Buy skin
         update_user_currency(user_id, chat_id, coins=currency['coins'] - skin['price'])
         buy_skin(user_id, chat_id, skin['id'])
         
+        logger.info(f"Skin purchased: {skin_name}")
+
         return jsonify({'success': True}), 200
     except Exception as e:
         logger.error(f"API /buy-skin error: {e}")

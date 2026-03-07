@@ -2809,6 +2809,33 @@ def get_user_boss_stats(user_id, chat_id):
         cursor.close()
         conn.close()
 
+def get_last_boss_attack_time(user_id, chat_id):
+    """Отримує час останньої атаки боса"""
+    conn = get_connection()
+    if not conn:
+        return 0
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT joined_at FROM boss_battle_participants 
+            WHERE user_id = %s AND chat_id = %s 
+            ORDER BY joined_at DESC LIMIT 1
+        ''', (user_id, chat_id))
+        row = cursor.fetchone()
+        return int(row[0]) if row else 0
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання часу атаки: {e}")
+        return 0
+    finally:
+        cursor.close()
+        conn.close()
+
+def save_boss_attack_time(user_id, chat_id, timestamp):
+    """Зберігає час атаки боса"""
+    # Already saved in attack_boss function
+    pass
+
 
 # ============================================
 # ФУНКЦІЇ ДЛЯ ДІТЕЙ
