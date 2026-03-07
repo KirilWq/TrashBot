@@ -3309,35 +3309,35 @@ def inventory_cmd(message):
             bot.reply_to(message, "🎒 ІНВЕНТАР\n\nПорожньо!")
             return
 
-        text = "🎒 **ІНВЕНТАР**\n\n"
+        text = "🎒 ІНВЕНТАР\n\n"
         
         # Show items
         if inventory:
-            text += "**Предмети:**\n"
+            text += "Предмети:\n"
             for inv_item in inventory:
                 item = items_dict.get(inv_item['item_id'])
                 if item:
-                    text += f"`{inv_item['item_id']}` - {item['name']} x{inv_item['quantity']}\n"
+                    text += f"{inv_item['item_id']} - {item['name']} x{inv_item['quantity']}\n"
                     if inv_item['expires_at']:
                         expires = inv_item['expires_at'] - int(time.time())
                         hours = expires // 3600
-                        text += f"  _⏰ Ще {hours} год_\n"
+                        text += f"  (Ще {hours} год)\n"
                     text += "\n"
         
         # Show skins
         if skins:
-            text += "**Скіни:**\n"
+            text += "Скіни:\n"
             for skin in skins:
-                equipped = "✅ Одягнуто" if skin['equipped'] else ""
+                equipped = "(Одягнуто)" if skin['equipped'] else ""
                 text += f"{skin['icon']} {skin['display_name']} {equipped}\n"
             text += "\n"
 
-        text += "**Команди:**\n"
+        text += "Команди:\n"
         text += "/use <item_id> - використати предмет\n"
         text += "/equipskin <назва> - одягнути скін\n\n"
-        text += "**Приклад:** `/use vitamins`"
+        text += "Приклад: /use vitamins"
 
-        bot.reply_to(message, text, parse_mode="Markdown")
+        bot.reply_to(message, text)
     except Exception as e:
         logger.error(f"❌ Помилка /inventory: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
@@ -3416,56 +3416,89 @@ def mystats_cmd(message):
         guild_stats = get_user_guild_stats(user_id, chat_id)
         user_guild = get_user_guild(user_id, chat_id)
         boss_stats = get_user_boss_stats(user_id, chat_id)
+        
+        # Get equipped skin
+        equipped_skin = get_user_equipped_skin(user_id, chat_id)
+        skin_text = equipped_skin['display_name'] if equipped_skin else "Немає"
 
-        text = f"""📊 **ТВОЯ СТАТИСТИКА**
+        text = """📊 ТВОЯ СТАТИСТИКА
 
-💰 **Економіка:**
-  Монети: {currency['coins'] if currency else 0}
-  XP: {currency['xp'] if currency else 0}/{100}
-  Рівень: {currency['level'] if currency else 1}
+💰 Економіка:
+  Монети: {}
+  XP: {}/{}
+  Рівень: {}
 
-⚔️ **Дуелі:**
-  Перемог: {stats['duels_won']}
-  Поразок: {stats['duels_lost']}
-  Всього ігор: {stats['duels_won'] + stats['duels_lost']}
+⚔️ Дуелі:
+  Перемог: {}
+  Поразок: {}
+  Всього ігор: {}
 
-📋 **Квести:**
-  Виконано: {stats['quests_completed']}
+📋 Квести:
+  Виконано: {}
 
-🎰 **Казино:**
-  Виграшів: {stats['casino_wins']}
-  Програшів: {stats['casino_losses']}
+🎰 Казино:
+  Виграшів: {}
+  Програшів: {}
 
-💕 **Трахензебітен:**
-  Разів: {trachen_stats['total_times'] if trachen_stats else 0}
-  Унікальних партнерів: {trachen_stats['unique_partners'] if trachen_stats else 0}
-  Зміна ваги: {trachen_stats['total_weight_change'] if trachen_stats else 0:+d} кг
+💕 Трахензебітен:
+  Разів: {}
+  Унікальних партнерів: {}
+  Зміна ваги: {} кг
 
-🏆 **Турніри:**
-  Участь: {tournament_stats['tournaments_joined'] if tournament_stats else 0}
-  Перемоги: {tournament_stats['tournaments_won'] if tournament_stats else 0}
+🏆 Турніри:
+  Участь: {}
+  Перемоги: {}
 
-🏰 **Гільдії:**
-  Внесок: {guild_stats['total_contribution'] if guild_stats else 0}
-  Гільдія: {user_guild['name'] if user_guild else "Немає"}
+🏰 Гільдії:
+  Внесок: {}
+  Гільдія: {}
 
-🐲 **Бос-дуелі:**
-  Битв: {boss_stats['bosses_fought'] if boss_stats else 0}
-  Всього шкоди: {boss_stats['total_damage'] if boss_stats else 0}
-  Вбито босів: {boss_stats['bosses_defeated'] if boss_stats else 0}
+🐲 Бос-дуелі:
+  Битв: {}
+  Всього шкоди: {}
+  Вбито босів: {}
 
-🐷 **Хряк:**"""
+🎨 Скін: {}
+
+🐷 Хряк:""".format(
+            currency['coins'] if currency else 0,
+            currency['xp'] if currency else 0,
+            100,
+            currency['level'] if currency else 1,
+            stats['duels_won'],
+            stats['duels_lost'],
+            stats['duels_won'] + stats['duels_lost'],
+            stats['quests_completed'],
+            stats['casino_wins'],
+            stats['casino_losses'],
+            trachen_stats['total_times'] if trachen_stats else 0,
+            trachen_stats['unique_partners'] if trachen_stats else 0,
+            trachen_stats['total_weight_change'] if trachen_stats else 0,
+            tournament_stats['tournaments_joined'] if tournament_stats else 0,
+            tournament_stats['tournaments_won'] if tournament_stats else 0,
+            guild_stats['total_contribution'] if guild_stats else 0,
+            user_guild['name'] if user_guild else "Немає",
+            boss_stats['bosses_fought'] if boss_stats else 0,
+            boss_stats['total_damage'] if boss_stats else 0,
+            boss_stats['bosses_defeated'] if boss_stats else 0,
+            skin_text
+        )
 
         if hryak:
-            text += f"""
-  Ім'я: {hryak['name']}
-  Вага: {hryak['weight']} кг
-  Нагодовано: {hryak['feed_count']} разів
-  Набрано всього: {stats['total_weight_gained']} кг"""
+            text += """
+  Ім'я: {}
+  Вага: {} кг
+  Нагодовано: {} разів
+  Набрано всього: {} кг""".format(
+                hryak['name'],
+                hryak['weight'],
+                hryak['feed_count'],
+                stats['total_weight_gained']
+            )
         else:
             text += "\n  Немає хряка! Введи /grow"
 
-        bot.reply_to(message, text, parse_mode="Markdown")
+        bot.reply_to(message, text)
     except Exception as e:
         logger.error(f"❌ Помилка /mystats: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
