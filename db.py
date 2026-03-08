@@ -135,6 +135,23 @@ def init_db():
         ''')
         logger.info("✅ Таблиця user_currencies створена")
 
+        # Таблиця крипто-транзакцій
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS crypto_transactions (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT,
+                chat_id BIGINT,
+                transaction_type TEXT,
+                amount BIGINT,
+                wallet_address TEXT,
+                status TEXT DEFAULT 'pending',
+                tx_hash TEXT,
+                created_at BIGINT,
+                completed_at BIGINT
+            )
+        ''')
+        logger.info("✅ Таблиця crypto_transactions створена")
+
         # Таблиця щоденних квестів
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS daily_quests (
@@ -995,6 +1012,103 @@ def get_conversion_info(user_id, chat_id):
     except Exception as e:
         logger.error(f"❌ Помилка отримання інформації: {e}")
         return None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ============================================
+# ФУНКЦІЇ ДЛЯ КРИПТО-ТРАНЗАКЦІЙ
+# ============================================
+
+def record_crypto_transaction(user_id, chat_id, tx_type, amount, wallet_address='', tx_hash=''):
+    """Записує крипто-транзакцію в БД"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        now = int(time.time())
+        cursor.execute('''
+            INSERT INTO crypto_transactions 
+            (user_id, chat_id, transaction_type, amount, wallet_address, status, tx_hash, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        ''', (user_id, chat_id, tx_type, amount, wallet_address, 'pending', tx_hash, now))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка запису транзакції: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+def update_transaction_status(tx_id, status, tx_hash=''):
+    """Оновлює статус транзакції"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        if tx_hash:
+            cursor.execute('''
+                UPDATE crypto_transactions 
+                SET status = %s, tx_hash = %s, completed_at = %s
+                WHERE id = %s
+            ''', (status, tx_hash, int(time.time()), tx_id))
+        else:
+            cursor.execute('''
+                UPDATE crypto_transactions 
+                SET status = %s, completed_at = %s
+                WHERE id = %s
+            ''', (status, int(time.time()), tx_id))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка оновлення транзакції: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+def get_user_transactions(user_id, chat_id, limit=20):
+    """Отримує історію транзакцій користувача"""
+    conn = get_connection()
+    if not conn:
+        return []
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT * FROM crypto_transactions 
+            WHERE user_id = %s AND chat_id = %s
+            ORDER BY created_at DESC
+            LIMIT %s
+        ''', (user_id, chat_id, limit))
+        rows = cursor.fetchall()
+        
+        transactions = []
+        for row in rows:
+            transactions.append({
+                'id': int(row[0]),
+                'user_id': int(row[1]),
+                'chat_id': int(row[2]),
+                'transaction_type': row[3],
+                'amount': int(row[4]) if row[4] else 0,
+                'wallet_address': row[5],
+                'status': row[6],
+                'tx_hash': row[7],
+                'created_at': int(row[8]) if row[8] else 0,
+                'completed_at': int(row[9]) if row[9] else 0
+            })
+        return transactions
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання транзакцій: {e}")
+        return []
     finally:
         cursor.close()
         conn.close()

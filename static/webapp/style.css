@@ -1031,6 +1031,101 @@ body {
     background: rgba(255,255,255,0.15);
 }
 
+.transaction-history {
+    background: var(--card-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    border: var(--card-border);
+    box-shadow: var(--shadow);
+    margin-top: 16px;
+}
+
+.transaction-history h4 {
+    margin: 0 0 16px 0;
+    font-size: 16px;
+    background: var(--primary-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.transaction-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    border: 1px solid rgba(255,255,255,0.05);
+}
+
+.transaction-item:last-child {
+    margin-bottom: 0;
+}
+
+.transaction-info {
+    flex: 1;
+}
+
+.transaction-type {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 4px;
+}
+
+.transaction-type.convert {
+    color: #4caf50;
+}
+
+.transaction-type.withdraw {
+    color: #f57c00;
+}
+
+.transaction-details {
+    font-size: 12px;
+    color: var(--tg-theme-hint-color);
+}
+
+.transaction-amount {
+    font-weight: 700;
+    font-size: 14px;
+    text-align: right;
+}
+
+.transaction-amount.positive {
+    color: #4caf50;
+}
+
+.transaction-amount.negative {
+    color: #f44336;
+}
+
+.transaction-status {
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    margin-top: 4px;
+    display: inline-block;
+}
+
+.transaction-status.pending {
+    background: rgba(245, 124, 0, 0.2);
+    color: #f57c00;
+}
+
+.transaction-status.completed {
+    background: rgba(76, 175, 80, 0.2);
+    color: #4caf50;
+}
+
+.transaction-status.failed {
+    background: rgba(244, 67, 54, 0.2);
+    color: #f44336;
+}
+
 /* Responsive */
 @media (max-width: 360px) {
     .stats-grid {

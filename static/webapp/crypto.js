@@ -63,8 +63,53 @@ async function loadCryptoData() {
                 convertInput.addEventListener('input', updateCryptoPreview);
             }
         }
+        
+        // Load transaction history
+        loadTransactionHistory();
     } catch (error) {
         console.error('Error loading crypto data:', error);
+    }
+}
+
+async function loadTransactionHistory() {
+    try {
+        const response = await fetch(`${API_BASE}/transactions?user_id=${userData.id}&chat_id=${userData.chat_id || -1}&limit=10`);
+        const data = await response.json();
+        
+        const transactionList = document.getElementById('transactionList');
+        
+        if (!data.success || !data.data || data.data.length === 0) {
+            if (transactionList) {
+                transactionList.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--tg-theme-hint-color);">Немає транзакцій</div>';
+            }
+            return;
+        }
+        
+        if (transactionList) {
+            transactionList.innerHTML = data.data.map(tx => {
+                const isConvert = tx.transaction_type === 'convert';
+                const amountClass = isConvert ? 'positive' : 'negative';
+                const typeText = isConvert ? '🔄 Конвертація' : '💸 Виведення';
+                const statusClass = tx.status;
+                const statusText = tx.status === 'pending' ? 'Очікує' : (tx.status === 'completed' ? 'Виконано' : 'Скасовано');
+                const date = new Date(tx.created_at * 1000).toLocaleDateString();
+                
+                return `
+                    <div class="transaction-item">
+                        <div class="transaction-info">
+                            <div class="transaction-type ${tx.transaction_type}">${typeText}</div>
+                            <div class="transaction-details">${date}</div>
+                            <span class="transaction-status ${statusClass}">${statusText}</span>
+                        </div>
+                        <div class="transaction-amount ${amountClass}">
+                            ${isConvert ? '+' : '-'}{(tx.amount / 1000).toFixed(2)} CRYPTO
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+    } catch (error) {
+        console.error('Error loading transactions:', error);
     }
 }
 

@@ -33,7 +33,8 @@ from db import (
     get_active_boss, spawn_boss, attack_boss, get_boss_participants, get_user_boss_stats, get_last_boss_attack_time, save_boss_attack_time, get_last_boss, get_boss_defeat_time,
     get_active_events, get_all_events, get_user_event_progress, update_event_progress, claim_event_reward,
     rename_child, get_child, get_top_children, sacrifice_child, marry_children,
-    get_crypto_balance, convert_game_to_crypto, get_conversion_info, CONVERSION_RATE, MIN_CONVERT, MAX_DAILY_WITHDRAW
+    get_crypto_balance, convert_game_to_crypto, get_conversion_info, CONVERSION_RATE, MIN_CONVERT, MAX_DAILY_WITHDRAW,
+    record_crypto_transaction, update_transaction_status, get_user_transactions
 )
 
 # Налаштування логгера (ПОВИННО БУТИ ПЕРШИМ!)
@@ -4689,7 +4690,7 @@ def create_guild_cmd(message):
         guild_name = parts[1]
         description = parts[2] if len(parts) > 2 else ""
         
-        # Перевіряємо довжину назви
+        # Перевіряємо довжину на����ви
         if len(guild_name) < 3 or len(guild_name) > 32:
             bot.reply_to(message, "❌ Назва ма�� бути від 3 до 32 символів!")
             return
@@ -6239,13 +6240,18 @@ def api_withdraw():
         if crypto_balance < amount:
             return jsonify({'success': False, 'message': f'Недостатньо CRYPTO. Баланс: {crypto_balance}'}), 400
         
-        # TODO: Here we'll integrate with TON blockchain
-        # For now, just record the withdrawal request
+        # Record transaction in database
+        record_crypto_transaction(
+            user_id=user_id,
+            chat_id=chat_id,
+            tx_type='withdraw',
+            amount=amount,
+            wallet_address=wallet_address
+        )
         
-        logger.info(f"Withdrawal request: user_id={user_id}, amount={amount}, wallet={wallet_address}")
+        logger.info(f"Withdrawal request recorded: user_id={user_id}, amount={amount}, wallet={wallet_address}")
         
-        # In future: integrate with TON SDK to send tokens
-        # For now: just deduct from balance
+        # Deduct from balance
         conn = get_connection()
         if conn:
             cursor = conn.cursor()
@@ -6258,17 +6264,42 @@ def api_withdraw():
             cursor.close()
             conn.close()
         
+        # TODO: In Phase 3, integrate with TON SDK to actually send tokens
+        # For now, withdrawal is recorded and will be processed manually
+        
         return jsonify({
             'success': True,
-            'message': 'Withdrawal created',
+            'message': 'Withdrawal request created',
             'data': {
                 'amount': amount,
                 'wallet': wallet_address,
-                'status': 'pending'
+                'status': 'pending',
+                'note': 'Withdrawal will be processed within 24 hours'
             }
         }), 200
     except Exception as e:
         logger.error(f"API /withdraw error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@flask_app.route('/api/webapp/transactions', methods=['GET'])
+def api_get_transactions():
+    """Get user transaction history"""
+    try:
+        user_id = int(request.args.get('user_id', 0))
+        chat_id = int(request.args.get('chat_id', 0))
+        limit = int(request.args.get('limit', 20))
+        
+        if not user_id:
+            return jsonify({'success': False, 'message': 'User ID required'}), 400
+        
+        transactions = get_user_transactions(user_id, chat_id, limit)
+        
+        return jsonify({
+            'success': True,
+            'data': transactions
+        }), 200
+    except Exception as e:
+        logger.error(f"API /transactions error: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @flask_app.route('/api/webapp/use-item', methods=['POST'])
