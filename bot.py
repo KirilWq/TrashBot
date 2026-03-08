@@ -3621,6 +3621,84 @@ Decimals: 9
         bot.reply_to(message, f"❌ Помилка: {e}")
 
 
+@bot.message_handler(commands=['resetdb'])
+def reset_db_cmd(message):
+    """Скинути базу даних (ТІЛЬКИ для адмінів!)"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    # Перевірка чи це власник бота
+    if user_id != 1044325356:  # Твій user_id
+        bot.reply_to(message, "❌ Ця команда тільки для власника бота!")
+        return
+    
+    try:
+        # Перевірка чи дійсно хоче скинути
+        parts = message.text.split()
+        if len(parts) < 2 or parts[1] != 'CONFIRM':
+            bot.reply_to(message, """⚠️ **УВАГА!**
+
+Це видалить ВСІ дані:
+- Хряків
+- Монети
+- XP
+- Гільдії
+- Турніри
+- Транзакції
+
+Для підтвердження напишіть:
+`/resetdb CONFIRM`
+
+⚠️ Цю дію неможливо скасувати!""", parse_mode="Markdown")
+            return
+        
+        # Скидання БД
+        from db import init_db
+        init_db()
+        
+        bot.reply_to(message, "✅ Базу даних скинуто! Всі дані видалено.")
+    except Exception as e:
+        logger.error(f"❌ Помилка /resetdb: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['dbstatus'])
+def db_status_cmd(message):
+    """Перевірити статус бази даних"""
+    try:
+        from db import get_connection
+        
+        conn = get_connection()
+        if not conn:
+            bot.reply_to(message, "❌ Помилка підключення до БД!")
+            return
+        
+        cursor = conn.cursor()
+        
+        # Перевірка кількості записів в таблицях
+        tables = {
+            'hryaky': 'Хряки',
+            'user_currencies': 'Баланси',
+            'guilds': 'Гільдії',
+            'crypto_transactions': 'Крипто-транзакції'
+        }
+        
+        text = "📊 **Статус бази даних:**\n\n"
+        
+        for table, name in tables.items():
+            cursor.execute(f'SELECT COUNT(*) FROM {table}')
+            count = cursor.fetchone()[0]
+            text += f"{name}: {count} записів\n"
+        
+        cursor.close()
+        conn.close()
+        
+        bot.reply_to(message, text)
+    except Exception as e:
+        logger.error(f"❌ Помилка /dbstatus: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
 @bot.message_handler(commands=['stats'])
 def stats_cmd(message):
     """Статистика чату"""

@@ -31,23 +31,12 @@ def init_db():
     cursor = conn.cursor()
 
     try:
-        # Видаляємо старі таблиці для чистої міграції (тільки якщо існують)
-        cursor.execute("DROP TABLE IF EXISTS user_inventory CASCADE")
-        cursor.execute("DROP TABLE IF EXISTS shop_items CASCADE")
-        cursor.execute("DROP TABLE IF EXISTS user_stats CASCADE")
-        cursor.execute("DROP TABLE IF EXISTS daily_bonus CASCADE")
-        cursor.execute("DROP TABLE IF EXISTS team_duels CASCADE")
-        cursor.execute("DROP TABLE IF EXISTS lottery CASCADE")
-        cursor.execute("DROP TABLE IF EXISTS daily_quests CASCADE")
-        cursor.execute("DROP TABLE IF EXISTS user_currencies CASCADE")
-        cursor.execute("DROP TABLE IF EXISTS manual_users CASCADE")
-        cursor.execute("DROP TABLE IF EXISTS spam CASCADE")
-        cursor.execute("DROP TABLE IF EXISTS warns CASCADE")
-        cursor.execute("DROP TABLE IF EXISTS stats CASCADE")
-        cursor.execute("DROP TABLE IF EXISTS hryaky CASCADE")
-        cursor.execute("DROP TABLE IF EXISTS boss_battle_participants CASCADE")
-        # Не видаляємо skins, bosses, seasonal_events, guilds, tournaments - там вже є дані
-        logger.info("🗑️ Старі таблиці видалено")
+        # НЕ видаляємо таблиці - зберігаємо дані між деплоями!
+        # Видаляємо тільки якщо потрібно змінити структуру
+        # cursor.execute("DROP TABLE IF EXISTS user_inventory CASCADE")
+        # cursor.execute("DROP TABLE IF EXISTS shop_items CASCADE")
+        # ... (інші DROP закомічені)
+        logger.info("📊 Перевірка структури таблиць...")
 
         # Таблиця хряків
         cursor.execute('''

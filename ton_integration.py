@@ -14,7 +14,7 @@ TON_TESTNET = True
 TON_RPC_URL = "https://testnet.toncenter.com/api/v2/jsonRPC" if TON_TESTNET else "https://toncenter.com/api/v2/jsonRPC"
 
 # Token contract
-TOKEN_CONTRACT_ADDRESS = "kQDlcflos1dKSPfhw17NoyUvwPrI_V-mLFG3wr3Xn2zPk0Yq"
+TOKEN_CONTRACT_ADDRESS = "0:e571f968b3574a48f7e1c35ecda3252fc0fac8fd5fa62c51b7c2bdd79f6ccf93"
 TOKEN_DECIMALS = 9  # Standard for TON tokens
 
 
