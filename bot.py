@@ -3623,22 +3623,22 @@ Decimals: 9
 
 @bot.message_handler(commands=['resetdb'])
 def reset_db_cmd(message):
-    """Скинути базу даних (ТІЛЬКИ для адмінів!)"""
+    """Скинути базу даних (ТІЛЬКИ для адмінів чату!)"""
     chat_id = message.chat.id
     user_id = message.from_user.id
-    
-    # Перевірка чи це власник бота
-    if user_id != 1044325356:  # Твій user_id
-        bot.reply_to(message, "❌ Ця команда тільки для власника бота!")
+
+    # Перевірка чи це адмін чату
+    if not is_admin(chat_id, user_id):
+        bot.reply_to(message, "❌ Ця команда тільки для адмінів чату!")
         return
-    
+
     try:
         # Перевірка чи дійсно хоче скинути
         parts = message.text.split()
         if len(parts) < 2 or parts[1] != 'CONFIRM':
             bot.reply_to(message, """⚠️ **УВАГА!**
 
-Це видалить ВСІ дані:
+Це видалить ВСІ дані в цьому чаті:
 - Хряків
 - Монети
 - XP
@@ -3651,12 +3651,12 @@ def reset_db_cmd(message):
 
 ⚠️ Цю дію неможливо скасувати!""", parse_mode="Markdown")
             return
-        
-        # Скидання БД
+
+        # Скидання БД (тільки якщо CONFIRM)
         from db import init_db
         init_db()
-        
-        bot.reply_to(message, "✅ Базу даних скинуто! Всі дані видалено.")
+
+        bot.reply_to(message, "✅ Базу даних скинуто! Всі дані видалено.\n\n⚠️ Перезапустіть бота для застосування змін.")
     except Exception as e:
         logger.error(f"❌ Помилка /resetdb: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
