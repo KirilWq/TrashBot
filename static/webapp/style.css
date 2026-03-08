@@ -860,6 +860,177 @@ body {
     border-radius: 3px;
 }
 
+/* Crypto Tab Styles */
+.crypto-card {
+    background: var(--card-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    border: var(--card-border);
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+}
+
+.crypto-balance {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin: 20px 0;
+}
+
+.balance-item {
+    background: rgba(255,255,255,0.05);
+    padding: 16px;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.balance-label {
+    font-size: 12px;
+    color: var(--tg-theme-hint-color);
+    margin-bottom: 8px;
+}
+
+.balance-value {
+    font-size: 18px;
+    font-weight: 700;
+    background: var(--primary-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.crypto-info {
+    background: rgba(255,255,255,0.03);
+    padding: 12px;
+    border-radius: 8px;
+    margin-top: 16px;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    font-size: 13px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.info-row:last-child {
+    border-bottom: none;
+}
+
+.convert-section, .withdraw-section {
+    background: var(--card-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    border: var(--card-border);
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+}
+
+.convert-section h4, .withdraw-section h4, .ton-info h4 {
+    margin: 0 0 16px 0;
+    font-size: 16px;
+    background: var(--primary-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.input-group {
+    margin-bottom: 16px;
+}
+
+.input-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--tg-theme-text-color);
+}
+
+.input-group input {
+    width: 100%;
+    padding: 12px 16px;
+    background: rgba(255,255,255,0.05);
+    border: var(--card-border);
+    border-radius: 8px;
+    color: var(--tg-theme-text-color);
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.3s;
+}
+
+.input-group input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.convert-preview {
+    margin-top: 8px;
+    padding: 12px;
+    background: rgba(102, 126, 234, 0.1);
+    border-radius: 8px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 600;
+    color: #667eea;
+}
+
+#cryptoPreview {
+    font-weight: 700;
+    font-size: 16px;
+}
+
+.ton-info {
+    background: var(--card-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    border: var(--card-border);
+    box-shadow: var(--shadow);
+}
+
+.ton-info p {
+    margin: 8px 0;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.ton-info code {
+    background: rgba(255,255,255,0.05);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    word-break: break-all;
+}
+
+.btn-secondary {
+    background: rgba(255,255,255,0.1);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    margin-top: 8px;
+    width: 100%;
+}
+
+.btn-secondary:hover {
+    background: rgba(255,255,255,0.15);
+}
+
 /* Responsive */
 @media (max-width: 360px) {
     .stats-grid {

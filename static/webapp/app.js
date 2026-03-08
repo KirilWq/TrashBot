@@ -210,6 +210,9 @@ function loadTabData(tabId) {
             loadLeaderboard();
             loadGlobalLeaderboard();
             break;
+        case 'crypto':
+            loadCryptoData();
+            break;
     }
 }
 

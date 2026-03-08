@@ -3078,7 +3078,7 @@ def on_chat_member_update(message):
 /activity — активність
 
 👥 **Чат:**
-/members — показати учасників
+/members — показати у��асників
 /adduser — додати юзернейма
 /removeuser — видалити юзернейма
 
@@ -6154,6 +6154,121 @@ def api_equip_skin():
         return jsonify({'success': True}), 200
     except Exception as e:
         logger.error(f"API /equip-skin error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ============================================
+# CRYPTO API ENDPOINTS
+# ============================================
+
+@flask_app.route('/api/webapp/crypto-info', methods=['GET'])
+def api_crypto_info():
+    """Get crypto balance and info"""
+    try:
+        user_id = int(request.args.get('user_id', 0))
+        chat_id = int(request.args.get('chat_id', 0))
+        
+        if not user_id:
+            return jsonify({'success': False, 'message': 'User ID required'}), 400
+        
+        crypto_info = get_conversion_info(user_id, chat_id)
+        
+        return jsonify({
+            'success': True,
+            'data': crypto_info or {
+                'game_coins': 0,
+                'crypto_coins': 0,
+                'total_converted': 0,
+                'last_withdrawal': 0
+            }
+        }), 200
+    except Exception as e:
+        logger.error(f"API /crypto-info error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@flask_app.route('/api/webapp/convert', methods=['POST'])
+def api_convert():
+    """Convert game coins to crypto"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        chat_id = data.get('chat_id', 0)
+        amount = int(data.get('amount', 0))
+        
+        if not user_id or not amount:
+            return jsonify({'success': False, 'message': 'Missing parameters'}), 400
+        
+        # Fix chat_id
+        if not chat_id or chat_id == 0:
+            chat_id = -1
+        
+        logger.info(f"Convert request: user_id={user_id}, amount={amount}")
+        
+        # Convert
+        result = convert_game_to_crypto(user_id, chat_id, amount)
+        
+        if result['success']:
+            logger.info(f"Conversion successful: {amount} → {result['crypto_received']} CRYPTO")
+            return jsonify({'success': True, 'data': result}), 200
+        else:
+            return jsonify({'success': False, 'message': result['message']}), 400
+    except Exception as e:
+        logger.error(f"API /convert error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@flask_app.route('/api/webapp/withdraw', methods=['POST'])
+def api_withdraw():
+    """Create withdrawal request"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        chat_id = data.get('chat_id', 0)
+        amount = int(data.get('amount', 0))
+        wallet_address = data.get('wallet_address', '')
+        
+        if not user_id or not amount or not wallet_address:
+            return jsonify({'success': False, 'message': 'Missing parameters'}), 400
+        
+        # Fix chat_id
+        if not chat_id or chat_id == 0:
+            chat_id = -1
+        
+        # Check crypto balance
+        crypto_balance = get_crypto_balance(user_id, chat_id)
+        
+        if crypto_balance < amount:
+            return jsonify({'success': False, 'message': f'Недостатньо CRYPTO. Баланс: {crypto_balance}'}), 400
+        
+        # TODO: Here we'll integrate with TON blockchain
+        # For now, just record the withdrawal request
+        
+        logger.info(f"Withdrawal request: user_id={user_id}, amount={amount}, wallet={wallet_address}")
+        
+        # In future: integrate with TON SDK to send tokens
+        # For now: just deduct from balance
+        conn = get_connection()
+        if conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE user_currencies 
+                SET crypto_coins = crypto_coins - %s, last_withdrawal = %s
+                WHERE user_id = %s AND chat_id = %s
+            ''', (amount, int(time.time()), user_id, chat_id))
+            conn.commit()
+            cursor.close()
+            conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Withdrawal created',
+            'data': {
+                'amount': amount,
+                'wallet': wallet_address,
+                'status': 'pending'
+            }
+        }), 200
+    except Exception as e:
+        logger.error(f"API /withdraw error: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @flask_app.route('/api/webapp/use-item', methods=['POST'])
