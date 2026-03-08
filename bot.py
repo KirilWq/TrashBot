@@ -32,7 +32,8 @@ from db import (
     buy_skin, equip_skin, has_skin, get_skin_bonus,
     get_active_boss, spawn_boss, attack_boss, get_boss_participants, get_user_boss_stats, get_last_boss_attack_time, save_boss_attack_time, get_last_boss, get_boss_defeat_time,
     get_active_events, get_all_events, get_user_event_progress, update_event_progress, claim_event_reward,
-    rename_child, get_child, get_top_children, sacrifice_child, marry_children
+    rename_child, get_child, get_top_children, sacrifice_child, marry_children,
+    get_crypto_balance, convert_game_to_crypto, get_conversion_info, CONVERSION_RATE, MIN_CONVERT, MAX_DAILY_WITHDRAW
 )
 
 # Налаштування логгера (ПОВИННО БУТИ ПЕРШИМ!)
@@ -2567,7 +2568,8 @@ def help_cmd(message):
         "🎰 Казино:\n"
         "/roulette /lottery\n\n"
         "💰 Економіка:\n"
-        "/balance /shop /buy /inventory /use /daily\n\n"
+        "/balance /shop /buy /inventory /use /daily\n"
+        "/convert /crypto\n\n"
         "📊 Статистика:\n"
         "/mystats /stats /leaderboard /activity\n\n"
         "👥 Чат:\n"
@@ -3486,26 +3488,135 @@ def balance_cmd(message):
 
     try:
         currency = get_user_currency(user_id, chat_id)
-        
+        crypto_info = get_conversion_info(user_id, chat_id)
+
         if not currency:
             bot.reply_to(message, "❌ Помилка отримання балансу!")
             return
-        
+
+        crypto_coins = crypto_info['crypto_coins'] if crypto_info else 0
+
         text = f"""💰 **БАЛАНС**
 
-💵 Монети: {currency['coins']}
+💵 Ігрові монети: {currency['coins']}
+🪙 Crypto (TON): {crypto_coins} CRYPTO
 ⭐ XP: {currency['xp']}/{100}
 🏆 Рівень: {currency['level']}
 
+**Конвертація:**
+Курс: {CONVERSION_RATE} монет = 1 CRYPTO
+Мінімум: {MIN_CONVERT} монет ({MIN_CONVERT // CONVERSION_RATE} CRYPTO)
+
+**Команди:**
+/convert <сума> - конвертувати монети в CRYPTO
+/crypto - інформація про крипто
+
 Як отримати:
 • /feed - +5 монет, +2 XP
-• /quests - до 100 монет, 25 XP
+• /quests - до 50 монет, 12 XP
+• /boss attack - до 500 монет, 250 XP
 • /roulette - ризикни!
 • /lottery - спробуй удачу!"""
-        
-        bot.reply_to(message, text, parse_mode="Markdown")
+
+        bot.reply_to(message, text)
     except Exception as e:
         logger.error(f"❌ Помилка /balance: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['convert'])
+def convert_cmd(message):
+    """Конвертувати ігрові монети в CRYPTO"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        parts = message.text.split()
+        
+        if len(parts) < 2:
+            bot.reply_to(message, f"""💱 **КОНВЕРТАЦІЯ**
+
+Використання: /convert <сума>
+
+Приклад: /convert 10000
+
+**Інформація:**
+Курс: {CONVERSION_RATE} монет = 1 CRYPTO
+Мінімум: {MIN_CONVERT} монет ({MIN_CONVERT // CONVERSION_RATE} CRYPTO)
+Ліміт: {MAX_DAILY_WITHDRAW} монет/день
+
+Твій баланс: /balance""")
+            return
+        
+        try:
+            amount = int(parts[1])
+        except ValueError:
+            bot.reply_to(message, "❌ Сума має бути числом!")
+            return
+        
+        if amount < MIN_CONVERT:
+            bot.reply_to(message, f"❌ Мінімум для конвертації: {MIN_CONVERT} монет ({MIN_CONVERT // CONVERSION_RATE} CRYPTO)")
+            return
+        
+        # Конвертуємо
+        result = convert_game_to_crypto(user_id, chat_id, amount)
+        
+        if result['success']:
+            bot.reply_to(message, f"""✅ **КОНВЕРТАЦІЯ УСПІШНА!**
+
+Списано: {result['game_coins_deducted']} монет
+Отримано: {result['crypto_received']} CRYPTO
+Новий баланс: {result['new_crypto_balance']} CRYPTO
+
+Contract: `kQDlcflos1dKSPfhw17NoyUvwPrI_V-mLFG3wr3Xn2zPk0Yq`
+Blockchain: TON Testnet""")
+        else:
+            bot.reply_to(message, f"❌ {result['message']}")
+    except Exception as e:
+        logger.error(f"❌ Помилка /convert: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['crypto'])
+def crypto_cmd(message):
+    """Інформація про крипто-монету"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        crypto_info = get_conversion_info(user_id, chat_id)
+        
+        if not crypto_info:
+            bot.reply_to(message, "❌ Помилка отримання інформації!")
+            return
+        
+        text = f"""🪙 **CRYPTO (TON Testnet)**
+
+**Твій прогрес:**
+💰 Ігрові монети: {crypto_info['game_coins']}
+🪙 Crypto баланс: {crypto_info['crypto_coins']} CRYPTO
+📊 Всього конвертовано: {crypto_info['total_converted']} монет
+
+**Інформація про токен:**
+Blockchain: TON Testnet
+Contract: `kQDlcflos1dKSPfhw17NoyUvwPrI_V-mLFG3wr3Xn2zPk0Yq`
+Supply: 1,000,000 CRYPTO
+Decimals: 9
+
+**Конвертація:**
+Курс: {CONVERSION_RATE} монет = 1 CRYPTO
+Мінімум: {MIN_CONVERT} монет
+Ліміт: {MAX_DAILY_WITHDRAW} монет/день
+
+**Команди:**
+/convert <сума> - конвертувати монети
+/balance - показати баланс
+
+⚠️ **Увага:** Це тестова монета на TON Testnet!"""
+
+        bot.reply_to(message, text)
+    except Exception as e:
+        logger.error(f"❌ Помилка /crypto: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
 
 
@@ -4580,7 +4691,7 @@ def create_guild_cmd(message):
         
         # Перевіряємо довжину назви
         if len(guild_name) < 3 or len(guild_name) > 32:
-            bot.reply_to(message, "❌ Назва має бути від 3 до 32 символів!")
+            bot.reply_to(message, "❌ Назва ма�� бути від 3 до 32 символів!")
             return
         
         # Перевіряємо чи вже в гільдії

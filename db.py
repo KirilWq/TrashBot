@@ -126,6 +126,10 @@ def init_db():
                 coins BIGINT DEFAULT 0,
                 xp BIGINT DEFAULT 0,
                 level BIGINT DEFAULT 1,
+                crypto_coins BIGINT DEFAULT 0,
+                pending_withdrawal BIGINT DEFAULT 0,
+                last_withdrawal BIGINT DEFAULT 0,
+                total_converted BIGINT DEFAULT 0,
                 PRIMARY KEY (user_id, chat_id)
             )
         ''')
@@ -886,6 +890,114 @@ def add_xp(user_id, chat_id, amount):
         new_level = current['level'] + (new_xp // 100)
         new_xp = new_xp % 100
         update_user_currency(user_id, chat_id, xp=new_xp, level=new_level)
+
+
+# ============================================
+# ФУНКЦІЇ ДЛЯ КРИПТО-МОНЕТ (TON)
+# ============================================
+
+CONVERSION_RATE = 1000  # 1000 game coins = 1 CRYPTO
+MIN_CONVERT = 10000  # 10,000 game coins (10 CRYPTO)
+MAX_DAILY_WITHDRAW = 100000  # 100,000 game coins (100 CRYPTO)
+
+def get_crypto_balance(user_id, chat_id):
+    """Отримує крипто-баланс користувача"""
+    conn = get_connection()
+    if not conn:
+        return 0
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('SELECT crypto_coins FROM user_currencies WHERE user_id = %s AND chat_id = %s', (user_id, chat_id))
+        row = cursor.fetchone()
+        return int(row[0]) if row else 0
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання crypto балансу: {e}")
+        return 0
+    finally:
+        cursor.close()
+        conn.close()
+
+def convert_game_to_crypto(user_id, chat_id, game_coins):
+    """Конвертує ігрові монети в крипто"""
+    if game_coins < MIN_CONVERT:
+        return {'success': False, 'message': f'Мінімум для конвертації: {MIN_CONVERT} монет'}
+    
+    crypto_amount = game_coins // CONVERSION_RATE
+    
+    conn = get_connection()
+    if not conn:
+        return {'success': False, 'message': 'Помилка БД'}
+
+    cursor = conn.cursor()
+    try:
+        # Перевіряємо баланс
+        cursor.execute('SELECT coins, crypto_coins FROM user_currencies WHERE user_id = %s AND chat_id = %s', (user_id, chat_id))
+        row = cursor.fetchone()
+        
+        if not row or row[0] < game_coins:
+            return {'success': False, 'message': 'Недостатньо монет'}
+        
+        # Конвертуємо
+        new_game_coins = row[0] - game_coins
+        new_crypto = (row[1] if row[1] else 0) + crypto_amount
+        
+        cursor.execute('''
+            UPDATE user_currencies 
+            SET coins = %s, crypto_coins = %s, total_converted = COALESCE(total_converted, 0) + %s
+            WHERE user_id = %s AND chat_id = %s
+        ''', (new_game_coins, new_crypto, game_coins, user_id, chat_id))
+        
+        conn.commit()
+        return {
+            'success': True,
+            'game_coins_deducted': game_coins,
+            'crypto_received': crypto_amount,
+            'new_crypto_balance': new_crypto
+        }
+    except Exception as e:
+        logger.error(f"❌ Помилка конвертації: {e}")
+        conn.rollback()
+        return {'success': False, 'message': f'Помилка: {str(e)}'}
+    finally:
+        cursor.close()
+        conn.close()
+
+def get_conversion_info(user_id, chat_id):
+    """Отримує інформацію про конвертацію"""
+    conn = get_connection()
+    if not conn:
+        return None
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT coins, crypto_coins, total_converted, last_withdrawal 
+            FROM user_currencies 
+            WHERE user_id = %s AND chat_id = %s
+        ''', (user_id, chat_id))
+        row = cursor.fetchone()
+        
+        if not row:
+            return {
+                'game_coins': 0,
+                'crypto_coins': 0,
+                'total_converted': 0,
+                'last_withdrawal': 0
+            }
+        
+        return {
+            'game_coins': row[0] if row[0] else 0,
+            'crypto_coins': row[1] if row[1] else 0,
+            'total_converted': row[2] if row[2] else 0,
+            'last_withdrawal': row[3] if row[3] else 0
+        }
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання інформації: {e}")
+        return None
+    finally:
+        cursor.close()
+        conn.close()
 
 
 # ============================================
