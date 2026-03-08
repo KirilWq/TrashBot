@@ -41,3 +41,9 @@ Thumbs.db
 # Bot token (ніколи не зберігай токен в Git!)
 token.txt
 config.py
+
+# Crypto/TON (disabled for now)
+crypto_disabled.py
+ton_integration.py
+static/webapp/crypto.js
+static/webapp/tonconnect-manifest.json
