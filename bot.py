@@ -5342,12 +5342,17 @@ def boss_cmd(message):
             if action == 'info':
                 hp_percent = int((boss['health'] / boss['max_health']) * 100)
                 hp_bar = "🟩" * (hp_percent // 10) + "🟥" * (10 - hp_percent // 10)
-                
+
                 participants = get_boss_participants(boss['id'])
                 
+                # Кулдаун збільшується з кожною перемогою
+                base_cooldown = 2
+                current_cooldown = base_cooldown + (boss.get('defeat_count', 0) * 2)
+
                 text = f"""🐲 {boss['name']}
 
 ⭐ Рівень: {boss['level']}
+🏆 Перемог гравців: {boss.get('defeat_count', 0)}
 ❤️ Здоров'я: {boss['health']}/{boss['max_health']}
 {hp_bar} {hp_percent}%
 ⚔️ Шкода: {boss['damage']}
@@ -5358,17 +5363,18 @@ def boss_cmd(message):
                 for i, p in enumerate(participants[:5], 1):
                     text += f"{i}. ID {p['user_id']} - {p['damage_dealt']} шкоди\n"
 
-                text += """
+                text += f"""
 **Команди:**
-/boss attack - атакувати боса (кулдаун 2 год)
+/boss attack - атакувати боса (кулдаун {current_cooldown} год)
 /boss info - детальна інформація
 
 **Як це працює:**
 1. Кожен гравець може атакувати боса
 2. Шкода = вага хряка × 2 + рандом
-3. Кулдаун між атаками: 2 години
+3. Кулдаун між атаками: {current_cooldown} годин (зростає з перемогами)
 4. Нагороди: 500 монет + 250 XP (розподіл за % урону)
-5. Після перемоги бос не з'являється 24 години"""
+5. Після перемоги бос не з'являється 24 години
+6. Бос стає сильнішим з кожною перемогою!"""
 
                 bot.reply_to(message, text)
             
@@ -5378,13 +5384,16 @@ def boss_cmd(message):
                     bot.reply_to(message, "🐲 Бос вже переможений!\n\nНаступний з'явиться через 24 години.")
                     return
 
-                # Перевіряємо кулдаун атаки (2 години)
+                # Перевіряємо кулдаун атаки (2 години + 2 години за кожну перемогу боса)
+                base_cooldown = 7200  # 2 години
+                boss_cooldown = base_cooldown + (boss.get('defeat_count', 0) * 7200)  # +2 години за перемогу
+                
                 last_attack = get_last_boss_attack_time(user_id, chat_id)
                 now = int(time.time())
-                if last_attack and (now - last_attack) < 7200:  # 2 години = 7200 секунд
-                    hours_left = int((7200 - (now - last_attack)) / 3600)
-                    minutes_left = int(((7200 - (now - last_attack)) % 3600) / 60)
-                    bot.reply_to(message, f"⏳ Ще рано! Атакувати боса можна раз на 2 години.\n\nЗалишилось: {hours_left} год {minutes_left} хв.")
+                if last_attack and (now - last_attack) < boss_cooldown:
+                    hours_left = int((boss_cooldown - (now - last_attack)) / 3600)
+                    minutes_left = int(((boss_cooldown - (now - last_attack)) % 3600) / 60)
+                    bot.reply_to(message, f"⏳ Ще рано! Атакувати боса можна раз на {boss_cooldown // 3600} годин.\n\nЗалишилось: {hours_left} год {minutes_left} хв.")
                     return
 
                 # Перевіряємо чи нещодавно бос був переможений (24 години блок)

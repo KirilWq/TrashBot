@@ -406,7 +406,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS bosses (
                 id SERIAL PRIMARY KEY,
                 name TEXT,
-                level INTEGER,
+                level INTEGER DEFAULT 1,
                 health BIGINT,
                 max_health BIGINT,
                 damage BIGINT,
@@ -415,7 +415,8 @@ def init_db():
                 is_active BOOLEAN DEFAULT TRUE,
                 spawn_date BIGINT,
                 defeat_date BIGINT,
-                defeated_by_user_id BIGINT
+                defeated_by_user_id BIGINT,
+                defeat_count INTEGER DEFAULT 0
             )
         ''')
         logger.info("✅ Таблиця bosses створена")
@@ -2969,9 +2970,14 @@ def attack_boss(boss_id, user_id, chat_id, damage):
 
         # Перевіряємо чи переможено
         if new_health <= 0:
-            # Бос переможений
+            # Бос переможений - збільшуємо рівень та силу
             cursor.execute('''
-                UPDATE bosses SET is_active = FALSE, defeat_date = %s, defeated_by_user_id = %s
+                UPDATE bosses 
+                SET is_active = FALSE, 
+                    defeat_date = %s, 
+                    defeated_by_user_id = %s,
+                    defeat_count = COALESCE(defeat_count, 0) + 1,
+                    level = COALESCE(level, 1) + 1
                 WHERE id = %s
             ''', (now, user_id, boss_id))
             conn.commit()
