@@ -156,6 +156,19 @@ def init_db():
         ''')
         logger.info("✅ Таблиця trades створена")
 
+        # Таблиця квіз-прогресу
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS quiz_progress (
+                user_id BIGINT,
+                chat_id BIGINT,
+                question_id INTEGER,
+                answered_at BIGINT,
+                correct BOOLEAN,
+                PRIMARY KEY (user_id, chat_id, question_id)
+            )
+        ''')
+        logger.info("✅ Таблиця quiz_progress створена")
+
         # Таблиця щоденних квестів
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS daily_quests (
@@ -1247,6 +1260,102 @@ def get_pending_trades(user_id, chat_id):
     except Exception as e:
         logger.error(f"❌ Помилка отримання трейдів: {e}")
         return []
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ============================================
+# ФУНКЦІЇ ДЛЯ КВІЗУ
+# ============================================
+
+def get_user_quiz_progress(user_id, chat_id):
+    """Отримує прогрес квізу користувача"""
+    conn = get_connection()
+    if not conn:
+        return []
+
+    cursor = conn.cursor()
+    try:
+        # Отримуємо питання за сьогодні
+        today_start = int(time.time()) - (int(time.time()) % 86400)
+        
+        cursor.execute('''
+            SELECT question_id, correct FROM quiz_progress 
+            WHERE user_id = %s AND chat_id = %s AND answered_at >= %s
+        ''', (user_id, chat_id, today_start))
+        rows = cursor.fetchall()
+        
+        progress = []
+        for row in rows:
+            progress.append({
+                'question_id': int(row[0]),
+                'correct': bool(row[1])
+            })
+        return progress
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання прогресу квізу: {e}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+
+def record_quiz_answer(user_id, chat_id, question_id, correct):
+    """Записує відповідь на питання квізу"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        now = int(time.time())
+        cursor.execute('''
+            INSERT INTO quiz_progress (user_id, chat_id, question_id, answered_at, correct)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (user_id, chat_id, question_id) DO UPDATE SET
+                answered_at = EXCLUDED.answered_at,
+                correct = EXCLUDED.correct
+        ''', (user_id, chat_id, question_id, now, correct))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка запису відповіді квізу: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+def get_quiz_stats(user_id, chat_id):
+    """Отримує статистику квізу користувача"""
+    conn = get_connection()
+    if not conn:
+        return {'total': 0, 'correct': 0, 'today': 0}
+
+    cursor = conn.cursor()
+    try:
+        # Всього відповідей
+        cursor.execute('''
+            SELECT COUNT(*), SUM(CASE WHEN correct THEN 1 ELSE 0 END)
+            FROM quiz_progress WHERE user_id = %s AND chat_id = %s
+        ''', (user_id, chat_id))
+        row = cursor.fetchone()
+        
+        total = int(row[0]) if row[0] else 0
+        correct = int(row[1]) if row[1] else 0
+        
+        # Сьогодні
+        today_start = int(time.time()) - (int(time.time()) % 86400)
+        cursor.execute('''
+            SELECT COUNT(*) FROM quiz_progress 
+            WHERE user_id = %s AND chat_id = %s AND answered_at >= %s
+        ''', (user_id, chat_id, today_start))
+        today = cursor.fetchone()[0]
+        
+        return {'total': total, 'correct': correct, 'today': today}
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання статистики квізу: {e}")
+        return {'total': 0, 'correct': 0, 'today': 0}
     finally:
         cursor.close()
         conn.close()

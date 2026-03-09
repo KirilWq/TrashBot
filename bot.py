@@ -9,6 +9,7 @@ from threading import Thread
 from telebot import types
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
+from quiz_questions import QUIZ_QUESTIONS
 from db import (
     init_db, load_from_db, save_hryak_to_db, save_stats_to_db, save_warns_to_db,
     save_spam_to_db, save_manual_users_to_db, get_hryak_from_db,
@@ -35,7 +36,8 @@ from db import (
     rename_child, get_child, get_top_children, sacrifice_child, marry_children,
     get_crypto_balance, convert_game_to_crypto, get_conversion_info, CONVERSION_RATE, MIN_CONVERT, MAX_DAILY_WITHDRAW,
     record_crypto_transaction, update_transaction_status, get_user_transactions,
-    create_trade, accept_trade, cancel_trade, get_pending_trades
+    create_trade, accept_trade, cancel_trade, get_pending_trades,
+    get_user_quiz_progress, record_quiz_answer, get_quiz_stats
 )
 
 # Налаштування логгера (ПОВИННО БУТИ ПЕРШИМ!)
@@ -3861,6 +3863,148 @@ def cancel_trade_cmd(message):
             bot.reply_to(message, "❌ Помилка скасування трейду!")
     except Exception as e:
         logger.error(f"❌ Помилка /cancel: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+# ============================================
+# КВІЗ - УКРАЇНСЬКА ВІКТОРИНА
+# ============================================
+
+@bot.message_handler(commands=['quiz'])
+def quiz_cmd(message):
+    """Почати квіз"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        # Перевіряємо скільки вже відповів сьогодні
+        progress = get_user_quiz_progress(user_id, chat_id)
+        today_count = len(progress)
+        
+        if today_count >= 10:
+            bot.reply_to(message, """🎯 **КВІЗ**
+
+Ти вже відповів на 10 питань сьогодні!
+Повертайся завтра за новими питаннями.
+
+📊 Статистика: /quizstats""")
+            return
+        
+        # Знаходимо питання на які ще не відповідав
+        answered_ids = [p['question_id'] for p in progress]
+        available_questions = [q for i, q in enumerate(QUIZ_QUESTIONS) if i not in answered_ids]
+        
+        if not available_questions:
+            bot.reply_to(message, """🎯 **КВІЗ**
+
+Ти відповів на всі питання!
+Чекай на оновлення бази питань.
+
+📊 Статистика: /quizstats""")
+            return
+        
+        # Обираємо випадкове питання
+        import random
+        question = random.choice(available_questions)
+        question_id = QUIZ_QUESTIONS.index(question)
+        
+        # Створюємо клавіатуру
+        markup = types.InlineKeyboardMarkup(row_width=2)
+        for i, option in enumerate(question['options']):
+            markup.add(types.InlineKeyboardButton(
+                f"{i+1}. {option}",
+                callback_data=f"quiz_{question_id}_{i}"
+            ))
+        
+        text = f"""🎯 **КВІЗ - Питання #{today_count + 1}/10**
+
+{question['question']}
+
+Обери правильну відповідь:"""
+        
+        # Зберігаємо питання в message для callback
+        bot.send_message(chat_id, text, reply_markup=markup, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка /quiz: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('quiz_'))
+def quiz_callback(call):
+    """Обробка відповіді на квіз"""
+    chat_id = call.message.chat.id
+    user_id = call.from_user.id
+    
+    try:
+        # Парсимо дані
+        parts = call.data.split('_')
+        question_id = int(parts[1])
+        answer_id = int(parts[2])
+        
+        question = QUIZ_QUESTIONS[question_id]
+        is_correct = (answer_id == question['correct'])
+        
+        # Записуємо відповідь
+        record_quiz_answer(user_id, chat_id, question_id, is_correct)
+        
+        # Нагорода за правильну відповідь
+        if is_correct:
+            add_coins(user_id, chat_id, 5)
+            text = f"""✅ **ПРАВИЛЬНО!**
+
++5 монет
+
+Правильна відповідь: {question['options'][question['correct']]}
+
+Натисни /quiz для наступного питання"""
+        else:
+            text = f"""❌ **НЕПРАВИЛЬНО!**
+
+Правильна відповідь: {question['options'][question['correct']]}
+
+Натисни /quiz для наступного питання"""
+        
+        bot.answer_callback_query(call.id)
+        bot.edit_message_text(text, chat_id, call.message.message_id, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка quiz_callback: {e}", exc_info=True)
+        bot.answer_callback_query(call.id, "Помилка!")
+
+
+@bot.message_handler(commands=['quizstats'])
+def quiz_stats_cmd(message):
+    """Статистика квізу"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        stats = get_quiz_stats(user_id, chat_id)
+        
+        total = stats['total']
+        correct = stats['correct']
+        today = stats['today']
+        
+        accuracy = (correct / total * 100) if total > 0 else 0
+        
+        text = f"""📊 **СТАТИСТИКА КВІЗУ**
+
+📅 Сьогодні: {today}/10 питань
+
+📈 Загалом:
+• Всього відповідей: {total}
+• Правильних: {correct}
+• Неправильних: {total - correct}
+• Точність: {accuracy:.1f}%
+
+💰 Нагорода: 5 монет за правильну відповідь
+
+Натисни /quiz щоб продовжити!"""
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+    except Exception as e:
+        logger.error(f"❌ Помилка /quizstats: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
 
 
