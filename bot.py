@@ -1820,6 +1820,9 @@ def menu_cmd(message):
         types.InlineKeyboardButton("👶 Діти", callback_data="menu_children"),
         types.InlineKeyboardButton("🤰 Вагітні", callback_data="menu_pregnancies"),
         types.InlineKeyboardButton("🏆 Турнір", callback_data="menu_tournament"),
+        types.InlineKeyboardButton("💱 Трейд", callback_data="menu_trade"),
+        types.InlineKeyboardButton("🎯 Квіз", callback_data="menu_quiz"),
+        types.InlineKeyboardButton("🐲 Бос", callback_data="menu_boss"),
         types.InlineKeyboardButton("🎯 Підор", callback_data="menu_pidor"),
         types.InlineKeyboardButton("🔥 Roast", callback_data="menu_roast"),
         types.InlineKeyboardButton("🔮 Fortune", callback_data="menu_fortune"),
@@ -2086,6 +2089,15 @@ def menu_callback(call):
 
     elif command == 'tournament':
         text = "🏆 **Турніри**\n\nНапиши /tournament щоб створити або приєднатися!"
+
+    elif command == 'trade':
+        text = "💱 **Трейд**\n\nНапиши /trade щоб створити трейд!"
+
+    elif command == 'quiz':
+        text = "🎯 **Квіз**\n\nНапиши /quiz щоб почати вікторину!"
+
+    elif command == 'boss':
+        text = "🐲 **Бос**\n\nНапиши /boss щоб побачити боса!"
 
     elif command == 'teambattle':
         text = "👥 **Командна дуель**\n\nНапиши /duelteambattle щоб створити командну битву!"
