@@ -141,6 +141,21 @@ def init_db():
         ''')
         logger.info("✅ Таблиця crypto_transactions створена")
 
+        # Таблиця трейдів
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS trades (
+                id SERIAL PRIMARY KEY,
+                sender_id BIGINT,
+                receiver_id BIGINT,
+                chat_id BIGINT,
+                coins_offered BIGINT DEFAULT 0,
+                status TEXT DEFAULT 'pending',
+                created_at BIGINT,
+                completed_at BIGINT
+            )
+        ''')
+        logger.info("✅ Таблиця trades створена")
+
         # Таблиця щоденних квестів
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS daily_quests (
@@ -1098,6 +1113,139 @@ def get_user_transactions(user_id, chat_id, limit=20):
         return transactions
     except Exception as e:
         logger.error(f"❌ Помилка отримання транзакцій: {e}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ============================================
+# ФУНКЦІЇ ДЛЯ ТРЕЙДІВ
+# ============================================
+
+def create_trade(sender_id, receiver_id, chat_id, coins_offered):
+    """Створює трейд"""
+    conn = get_connection()
+    if not conn:
+        return None
+
+    cursor = conn.cursor()
+    try:
+        now = int(time.time())
+        cursor.execute('''
+            INSERT INTO trades (sender_id, receiver_id, chat_id, coins_offered, status, created_at)
+            VALUES (%s, %s, %s, %s, 'pending', %s)
+            RETURNING id
+        ''', (sender_id, receiver_id, chat_id, coins_offered, now))
+        trade_id = cursor.fetchone()[0]
+        conn.commit()
+        return trade_id
+    except Exception as e:
+        logger.error(f"❌ Помилка створення трейду: {e}")
+        conn.rollback()
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+def accept_trade(trade_id, sender_id, receiver_id, chat_id):
+    """Приймає трейд"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        # Отримуємо трейд
+        cursor.execute('SELECT * FROM trades WHERE id = %s', (trade_id,))
+        trade = cursor.fetchone()
+        
+        if not trade:
+            return False
+        
+        coins = int(trade[4]) if trade[4] else 0
+        
+        # Перевіряємо баланс отримувача
+        cursor.execute('SELECT coins FROM user_currencies WHERE user_id = %s AND chat_id = %s', (receiver_id, chat_id))
+        receiver_row = cursor.fetchone()
+        
+        if not receiver_row or receiver_row[0] < coins:
+            return False
+        
+        # Переказ монет
+        cursor.execute('UPDATE user_currencies SET coins = coins - %s WHERE user_id = %s AND chat_id = %s', 
+                      (coins, receiver_id, chat_id))
+        cursor.execute('UPDATE user_currencies SET coins = coins + %s WHERE user_id = %s AND chat_id = %s', 
+                      (coins, sender_id, chat_id))
+        
+        # Оновлюємо статус трейду
+        cursor.execute('''
+            UPDATE trades 
+            SET status = 'completed', completed_at = %s 
+            WHERE id = %s
+        ''', (int(time.time()), trade_id))
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка прийняття трейду: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+def cancel_trade(trade_id):
+    """Скасовує трейд"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            UPDATE trades SET status = 'cancelled' WHERE id = %s
+        ''', (trade_id,))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка скасування трейду: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+def get_pending_trades(user_id, chat_id):
+    """Отримує активні трейди для користувача"""
+    conn = get_connection()
+    if not conn:
+        return []
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT * FROM trades 
+            WHERE receiver_id = %s AND chat_id = %s AND status = 'pending'
+            ORDER BY created_at DESC
+        ''', (user_id, chat_id))
+        rows = cursor.fetchall()
+        
+        trades = []
+        for row in rows:
+            trades.append({
+                'id': int(row[0]),
+                'sender_id': int(row[1]),
+                'receiver_id': int(row[2]),
+                'chat_id': int(row[3]),
+                'coins_offered': int(row[4]) if row[4] else 0,
+                'status': row[5],
+                'created_at': int(row[6]) if row[6] else 0,
+                'completed_at': int(row[7]) if row[7] else 0
+            })
+        return trades
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання трейдів: {e}")
         return []
     finally:
         cursor.close()

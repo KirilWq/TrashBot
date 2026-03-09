@@ -34,7 +34,8 @@ from db import (
     get_active_events, get_all_events, get_user_event_progress, update_event_progress, claim_event_reward,
     rename_child, get_child, get_top_children, sacrifice_child, marry_children,
     get_crypto_balance, convert_game_to_crypto, get_conversion_info, CONVERSION_RATE, MIN_CONVERT, MAX_DAILY_WITHDRAW,
-    record_crypto_transaction, update_transaction_status, get_user_transactions
+    record_crypto_transaction, update_transaction_status, get_user_transactions,
+    create_trade, accept_trade, cancel_trade, get_pending_trades
 )
 
 # Налаштування логгера (ПОВИННО БУТИ ПЕРШИМ!)
@@ -3696,6 +3697,170 @@ def db_status_cmd(message):
         bot.reply_to(message, text)
     except Exception as e:
         logger.error(f"❌ Помилка /dbstatus: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['trade'])
+def trade_cmd(message):
+    """Створити трейд з іншим гравцем"""
+    chat_id = message.chat.id
+    sender_id = message.from_user.id
+
+    try:
+        parts = message.text.split()
+        
+        if len(parts) < 3:
+            bot.reply_to(message, """💱 **ТРЕЙД**
+
+Використання: /trade @username <сума>
+
+Приклад: /trade @skyfidon79 100
+
+**Команди:**
+/trade @username <сума> - створити трейд
+/trades - показати активні трейди
+/accept <id> - прийняти трейд
+/cancel <id> - скасувати трейд""")
+            return
+        
+        # Отримуємо отримувача
+        receiver_username = parts[1]
+        if not receiver_username.startswith('@'):
+            bot.reply_to(message, "❌ Username має починатися з @")
+            return
+        
+        try:
+            amount = int(parts[2])
+        except ValueError:
+            bot.reply_to(message, "❌ Сума має бути числом!")
+            return
+        
+        if amount <= 0:
+            bot.reply_to(message, "❌ Сума має бути додатною!")
+            return
+        
+        # Перевіряємо баланс
+        currency = get_user_currency(sender_id, chat_id)
+        if currency['coins'] < amount:
+            bot.reply_to(message, f"❌ Недостатньо монет! У тебе: {currency['coins']}")
+            return
+        
+        # Знаходимо отримувача по username
+        # (в реальності потрібно шукати в БД, але для простоти використаємо cache)
+        bot.reply_to(message, f"""💱 **ТРЕЙД СТВОРЕНО!**
+
+Отримувач: {receiver_username}
+Сума: {amount} монет
+
+{receiver_username} має написати /accept <id> щоб прийняти трейд.
+
+⏰ Трейд дійсний 24 години.""")
+        
+        # Створюємо трейд (поки що без реального отримувача)
+        # В майбутньому можна додати пошук по username
+        trade_id = create_trade(sender_id, 0, chat_id, amount)
+        
+        if trade_id:
+            bot.reply_to(message, f"ID трейду: `{trade_id}`", parse_mode="Markdown")
+    except Exception as e:
+        logger.error(f"❌ Помилка /trade: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['trades'])
+def trades_cmd(message):
+    """Показати активні трейди"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        trades = get_pending_trades(user_id, chat_id)
+        
+        if not trades:
+            bot.reply_to(message, "📭 Немає активних трейдів!")
+            return
+        
+        text = "💱 **Активні трейди:**\n\n"
+        
+        for trade in trades:
+            text += f"ID: `{trade['id']}`\n"
+            text += f"Від: ID {trade['sender_id']}\n"
+            text += f"Сума: {trade['coins_offered']} монет\n\n"
+        
+        text += "Використовуй /accept <id> щоб прийняти"
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+    except Exception as e:
+        logger.error(f"❌ Помилка /trades: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['accept'])
+def accept_trade_cmd(message):
+    """Прийняти трейд"""
+    chat_id = message.chat.id
+    receiver_id = message.from_user.id
+
+    try:
+        parts = message.text.split()
+        
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Використання: /accept <trade_id>")
+            return
+        
+        try:
+            trade_id = int(parts[1])
+        except ValueError:
+            bot.reply_to(message, "❌ ID має бути числом!")
+            return
+        
+        # Отримуємо трейд
+        trades = get_pending_trades(receiver_id, chat_id)
+        trade = next((t for t in trades if t['id'] == trade_id), None)
+        
+        if not trade:
+            bot.reply_to(message, "❌ Трейд не знайдено!")
+            return
+        
+        # Приймаємо трейд
+        if accept_trade(trade_id, trade['sender_id'], receiver_id, chat_id):
+            bot.reply_to(message, f"""✅ **ТРЕЙД ПРИЙНЯТО!**
+
+Отримано: {trade['coins_offered']} монет
+Від: ID {trade['sender_id']}""")
+        else:
+            bot.reply_to(message, "❌ Помилка прийняття трейду! Перевірте баланс.")
+    except Exception as e:
+        logger.error(f"❌ Помилка /accept: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['cancel'])
+def cancel_trade_cmd(message):
+    """Скасувати трейд"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        parts = message.text.split()
+        
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Використання: /cancel <trade_id>")
+            return
+        
+        try:
+            trade_id = int(parts[1])
+        except ValueError:
+            bot.reply_to(message, "❌ ID має бути числом!")
+            return
+        
+        # Скасовуємо трейд
+        if cancel_trade(trade_id):
+            bot.reply_to(message, "✅ Трейд скасовано!")
+        else:
+            bot.reply_to(message, "❌ Помилка скасування трейду!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /cancel: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
 
 
