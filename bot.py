@@ -6201,14 +6201,17 @@ def spam_handler(message):
     # Додаємо повідомлення до статистики
     username = f"@{message.from_user.username}" if message.from_user.username else message.from_user.first_name
     add_message(chat_id, user_id, username)
-    
+
     # Оновлюємо квест chat_active (напиши 50 повідомлень)
     quests = get_daily_quests(user_id, chat_id)
     quest_progress = {q['quest_id']: q for q in quests}
-    chat_quest = quest_progress.get('chat_active', {'progress': 0, 'target': 50})
-    new_chat_progress = min(chat_quest['progress'] + 1, 50)
-    chat_completed = new_chat_progress >= 50
-    update_daily_quest(user_id, chat_id, 'chat_active', new_chat_progress, 50, completed=chat_completed)
+    chat_quest = quest_progress.get('chat_active', {'progress': 0, 'target': 50, 'completed': False, 'claimed': False})
+    
+    # Не оновлюємо якщо вже завершено і забрано
+    if not chat_quest.get('claimed', False):
+        new_chat_progress = min(chat_quest['progress'] + 1, 50)
+        chat_completed = new_chat_progress >= 50
+        update_daily_quest(user_id, chat_id, 'chat_active', new_chat_progress, 50, completed=chat_completed)
 
 
 logger.info("=" * 50)
