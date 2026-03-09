@@ -4534,18 +4534,18 @@ def tournament_cmd(message):
     """Турніри - створити або приєднатися"""
     chat_id = message.chat.id
     user_id = message.from_user.id
-    
+
     try:
         parts = message.text.split()
-        
+
         # Якщо немає аргументів - показуємо інфо
         if len(parts) < 2:
             active_tournament = get_active_tournament(chat_id)
-            
+
             if not active_tournament:
                 text = """🏆 **ТУРНІРИ**
 
-Вхідний внесок: 10 кг
+Вхідний внесок: 10 монет
 Призовий фонд: 70% від збору
 Друге місце: 20% від збору
 Організатор: 10%
@@ -4562,8 +4562,8 @@ def tournament_cmd(message):
                 participants = get_tournament_participants(active_tournament['id'])
                 text = f"""🏆 **ТУРНІР: {active_tournament['name']}**
 
-Вхідний внесок: {active_tournament['entry_fee']} кг
-Призовий фонд: {active_tournament['prize_pool']} кг
+Вхідний внесок: {active_tournament['entry_fee']} монет
+Призовий фонд: {active_tournament['prize_pool']} монет
 Учасників: {len(participants)}
 Статус: {active_tournament['status']}
 
@@ -4573,14 +4573,14 @@ def tournament_cmd(message):
                     hryak = get_hryak(p['user_id'], chat_id)
                     name = hryak['name'] if hryak else "Невідомо"
                     text += f"{i}. {name} - {p['hryak_weight']} кг\n"
-                
+
                 text += "\n**Команди:**\n/tournament join - приєднатися\n/tournament start - почати (адмін)"
-            
+
             bot.reply_to(message, text, parse_mode="Markdown")
             return
-        
+
         action = parts[1].lower()
-        
+
         # Створення турніру
         if action == 'create':
             # Перевіряємо чи вже є активний турнір
@@ -4588,18 +4588,18 @@ def tournament_cmd(message):
             if active_tournament:
                 bot.reply_to(message, "❌ Вже є активний турнір! Зачекайте завершення.")
                 return
-            
+
             # Отримуємо назву турніру
             tournament_name = ' '.join(parts[2:]) if len(parts) > 2 else f"Турнір #{int(time.time()) % 10000}"
-            
+
             # Створюємо турнір
             tournament_id = create_tournament(chat_id, tournament_name, entry_fee=10)
-            
+
             if tournament_id:
                 text = f"""🏆 **ТУРНІР СТВОРЕНО!**
 
 Назва: {tournament_name}
-Вхідний внесок: 10 кг
+Вхідний внесок: 10 монет
 ID турніру: {tournament_id}
 
 Напиши /tournament join щоб приєднатися!
@@ -4607,44 +4607,44 @@ ID турніру: {tournament_id}
                 bot.reply_to(message, text, parse_mode="Markdown")
             else:
                 bot.reply_to(message, "❌ Помилка створення турніру!")
-        
+
         # Приєднання до турніру
         elif action == 'join':
             active_tournament = get_active_tournament(chat_id)
-            
+
             if not active_tournament:
                 bot.reply_to(message, "❌ Немає активного турніру!")
                 return
-            
+
             if active_tournament['status'] != 'waiting':
                 bot.reply_to(message, "❌ Турнір вже почався!")
                 return
-            
+
             # Перевіряємо чи вже в турнірі
             participants = get_tournament_participants(active_tournament['id'])
             for p in participants:
                 if p['user_id'] == user_id:
                     bot.reply_to(message, "✅ Ти вже в турнірі!")
                     return
-            
+
             # Перевіряємо чи є хряк
             hryak = get_hryak(user_id, chat_id)
             if not hryak:
                 bot.reply_to(message, "❌ У тебе немає хряка! Введи /grow")
                 return
-            
+
             # Перевіряємо баланс
             currency = get_user_currency(user_id, chat_id)
             if currency['coins'] < active_tournament['entry_fee']:
-                bot.reply_to(message, f"❌ Недостатньо монет! Потрібно {active_tournament['entry_fee']} кг")
+                bot.reply_to(message, f"❌ Недостатньо монет! Потрібно {active_tournament['entry_fee']} монет")
                 return
-            
+
             # Знімаємо вхідний внесок
             update_user_currency(user_id, chat_id, coins=currency['coins'] - active_tournament['entry_fee'])
-            
+
             # Приєднуємо до турніру
             if join_tournament(active_tournament['id'], user_id, chat_id, hryak['weight']):
-                bot.reply_to(message, f"✅ Ти приєднався до турніру!\nХряк: {hryak['name']} ({hryak['weight']} кг)")
+                bot.reply_to(message, f"✅ Ти приєднався до турніру!\nХряк: {hryak['name']} ({hryak['weight']} кг)\nВнесок: {active_tournament['entry_fee']} монет")
             else:
                 bot.reply_to(message, "❌ Помилка приєднання!")
         
