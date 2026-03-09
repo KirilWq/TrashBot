@@ -3890,23 +3890,27 @@ def quiz_cmd(message):
 📊 Статистика: /quizstats""")
             return
         
-        # Знаходимо питання на які ще не відповідав
+        # Знаходимо питання на які ще не відповідав ВЗАГАЛІ
         answered_ids = [p['question_id'] for p in progress]
-        available_questions = [q for i, q in enumerate(QUIZ_QUESTIONS) if i not in answered_ids]
+        
+        # Фільтруємо питання - беремо тільки ті на які не відповідав
+        available_questions = []
+        for i, q in enumerate(QUIZ_QUESTIONS):
+            if i not in answered_ids:
+                available_questions.append((i, q))
         
         if not available_questions:
             bot.reply_to(message, """🎯 **КВІЗ**
 
-Ти відповів на всі питання!
+Ти відповів на ВСІ питання!
 Чекай на оновлення бази питань.
 
 📊 Статистика: /quizstats""")
             return
         
-        # Обираємо випадкове питання
+        # Обираємо випадкове питання з тих на які не відповідав
         import random
-        question = random.choice(available_questions)
-        question_id = QUIZ_QUESTIONS.index(question)
+        question_id, question = random.choice(available_questions)
         
         # Створюємо клавіатуру
         markup = types.InlineKeyboardMarkup(row_width=2)
@@ -3922,7 +3926,6 @@ def quiz_cmd(message):
 
 Обери правильну відповідь:"""
         
-        # Зберігаємо питання в message для callback
         bot.send_message(chat_id, text, reply_markup=markup, parse_mode="Markdown")
         
     except Exception as e:
