@@ -4328,6 +4328,139 @@ def trachen_cmd(message):
         bot.reply_to(message, f"❌ Помилка: {e}")
 
 
+@bot.message_handler(commands=['childmarry'])
+def child_marry_cmd(message):
+    """Одружити дітей (створити онуків)"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        parts = message.text.split()
+        
+        if len(parts) < 3:
+            bot.reply_to(message, """💕 **ОДРУЖЕННЯ ДІТЕЙ**
+
+Використання: /childmarry <child1_id> <child2_id>
+
+Приклад: /childmarry 1 2
+
+**Вимоги:**
+• Обидві дитини мають належати тобі
+• Мінімум 100 монет за весілля
+• Створюється онук зі змішаними характеристиками""")
+            return
+        
+        try:
+            child1_id = int(parts[1])
+            child2_id = int(parts[2])
+        except ValueError:
+            bot.reply_to(message, "❌ ID мають бути числами!")
+            return
+        
+        if child1_id == child2_id:
+            bot.reply_to(message, "❌ Не можна одружити з самим собою!")
+            return
+        
+        # Перевіряємо чи є діти
+        children = get_children(user_id, chat_id)
+        child1 = next((c for c in children if c['id'] == child1_id), None)
+        child2 = next((c for c in children if c['id'] == child2_id), None)
+        
+        if not child1 or not child2:
+            bot.reply_to(message, "❌ Діти не знайдені!")
+            return
+        
+        # Перевіряємо баланс
+        currency = get_user_currency(user_id, chat_id)
+        if currency['coins'] < 100:
+            bot.reply_to(message, f"❌ Недостатньо монет! Потрібно 100")
+            return
+        
+        # Знімаємо монети
+        update_user_currency(user_id, chat_id, coins=currency['coins'] - 100)
+        
+        # Створюємо онука
+        grandchild_weight = max(1, int((child1['weight'] + child2['weight']) / 2) + random.randint(-5, 5))
+        grandchild_name = f"{child1['name'][:2]}-{child2['name'][:2]}-G1"
+        
+        # Визначаємо спадкову ознаку
+        traits = ['Швидкий', 'Сильний', 'Розумний', 'Хитрий', 'Великий', 'Малий']
+        inherited_trait = random.choice(traits)
+        
+        add_child(user_id, chat_id, user_id, user_id, grandchild_name, grandchild_weight, inherited_trait)
+        
+        bot.reply_to(message, f"""💕 **ВЕСІЛЛЯ ВІДБУЛОСЯ!**
+
+{child1['name']} + {child2['name']}
+
+👶 Народився онук: {grandchild_name}
+⚖️ Вага: {grandchild_weight} кг
+🧬 Особливість: {inherited_trait}
+
+💰 Витрачено: 100 монет""")
+    except Exception as e:
+        logger.error(f"❌ Помилка /childmarry: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['childtrain'])
+def child_train_cmd(message):
+    """Тренувати дитину"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        parts = message.text.split()
+        
+        if len(parts) < 2:
+            bot.reply_to(message, """💪 **ТРЕНУВАННЯ ДИТИНИ**
+
+Використання: /childtrain <child_id>
+
+Вартість: 50 монет
+Ефект: +5 до ваги дитини""")
+            return
+        
+        try:
+            child_id = int(parts[1])
+        except ValueError:
+            bot.reply_to(message, "❌ ID має бути числом!")
+            return
+        
+        # Перевіряємо чи є дитина
+        children = get_children(user_id, chat_id)
+        child = next((c for c in children if c['id'] == child_id), None)
+        
+        if not child:
+            bot.reply_to(message, "❌ Дитину не знайдено!")
+            return
+        
+        # Перевіряємо баланс
+        currency = get_user_currency(user_id, chat_id)
+        if currency['coins'] < 50:
+            bot.reply_to(message, f"❌ Недостатньо монет! Потрібно 50")
+            return
+        
+        # Знімаємо монети
+        update_user_currency(user_id, chat_id, coins=currency['coins'] - 50)
+        
+        # Збільшуємо вагу
+        new_weight = child['weight'] + 5
+        
+        # Оновлюємо дитину (в майбутньому додати функцію update_child)
+        # Поки що просто повідомлення
+        
+        bot.reply_to(message, f"""💪 **ТРЕНУВАННЯ ВІДБУЛОСЯ!**
+
+Дитина: {child['name']}
+Вага: {child['weight']} → {new_weight} кг (+5)
+
+💰 Витрачено: 50 монет""")
+    except Exception as e:
+        logger.error(f"❌ Помилка /childtrain: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
 @bot.message_handler(commands=['children'])
 def children_cmd(message):
     """Показати дітей користувача"""
