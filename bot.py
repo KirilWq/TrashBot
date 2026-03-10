@@ -796,6 +796,10 @@ def feed_hryak_cmd(message):
             lose_completed = True
             update_daily_quest(user_id, chat_id, 'lose_10kg', 1, 1, completed=lose_completed)
 
+        # 🐰 ІВЕНТ: Великдень - годування = пошук яєць
+        add_event_progress(user_id, chat_id, 'easter', 1)
+        check_event_random_drop(user_id, chat_id, 'easter', 'годування хряка')
+
         bot.reply_to(message, text, parse_mode="Markdown")
         logger.info(f"✅ /feed успішно для {user_id}")
     except Exception as e:
@@ -1226,6 +1230,10 @@ def duel_accept_callback(call):
         new_progress = min(duel_quest['progress'] + 1, 2)
         completed = new_progress >= 2
         update_daily_quest(winner_user_id, chat_id, 'win_2_duels', new_progress, 2, completed=completed)
+
+        # 🐰 ІВЕНТ: Великдень - перемога в дуелі = прогрес
+        add_event_progress(winner_user_id, chat_id, 'easter', 1)
+        check_event_random_drop(winner_user_id, chat_id, 'easter', 'дуелі хряків')
 
     # Редагуємо повідомлення з дуеллю
     bot.edit_message_text(
@@ -3891,6 +3899,10 @@ def accept_trade_cmd(message):
 
 Отримано: {trade['coins_offered']} монет
 Від: ID {trade['sender_id']}""")
+            
+            # 🐰 ІВЕНТ: Великдень - прийняття трейду = прогрес
+            add_event_progress(receiver_id, chat_id, 'easter', 2)
+            check_event_random_drop(receiver_id, chat_id, 'easter', 'трейду')
         else:
             bot.reply_to(message, "❌ Помилка прийняття трейду! Перевірте баланс.")
     except Exception as e:
@@ -4031,6 +4043,11 @@ def quiz_callback(call):
         if is_correct:
             add_coins(user_id, chat_id, 10)  # Збільшено з 5 до 10 монет
             add_xp(user_id, chat_id, 5)  # Додано XP
+            
+            # 🐰 ІВЕНТ: Великдень - правильна відповідь = прогрес
+            add_event_progress(user_id, chat_id, 'easter', 1)
+            check_event_random_drop(user_id, chat_id, 'easter', 'відповіді на квіз')
+            
             text = f"""✅ **ПРАВИЛЬНО!**
 
 +10 монет
@@ -6035,6 +6052,9 @@ def boss_cmd(message):
 ⏰ Наступна атака через 2 години!
 
 Продовжуй атакувати командою /boss attack!""")
+
+                    # 🎃 ІВЕНТ: Хелловін - атака боса = прогрес
+                    add_event_progress(user_id, chat_id, 'halloween', 1)
                 else:
                     bot.reply_to(message, "❌ Помилка атаки! Спробуй ще раз.")
         else:
@@ -6172,6 +6192,19 @@ def claim_events_cmd(message):
             bot.reply_to(message, "❌ Ти вже забрав нагороду!")
             return
 
+        # Перевіряємо чи завершено івент
+        target = 20  # За замовчуванням
+        if 'easter' in event['event_type']:
+            target = 20  # Знайди 20 яєць
+        elif 'christmas' in event['event_type']:
+            target = 10  # Збері 10 сніжинок
+        elif 'halloween' in event['event_type']:
+            target = 5  # Переможи 5 босів
+
+        if progress['progress'] < target:
+            bot.reply_to(message, f"❌ Івент ще не завершено! Твій прогрес: {progress['progress']}/{target}")
+            return
+
         # Забираємо нагороду
         claim_event_reward(user_id, event_id)
         add_coins(user_id, chat_id, event['special_reward_coins'])
@@ -6259,8 +6292,18 @@ def event_progress_cmd(message):
                     found = True
                     status_emoji = "✅" if progress['completed'] else "⏳"
                     claimed_emoji = "💰" if progress['reward_claimed'] else ""
+                    
+                    # Визначаємо ціль івенту
+                    target = 20  # За замовчуванням
+                    if 'easter' in event['event_type']:
+                        target = 20  # Знайди 20 яєць
+                    elif 'christmas' in event['event_type']:
+                        target = 10  # Збері 10 сніжинок
+                    elif 'halloween' in event['event_type']:
+                        target = 5  # Переможи 5 босів
+                    
                     text += f"{status_emoji} **{event['name']}**{claimed_emoji}\n"
-                    text += f"Прогрес: {progress['progress']}\n"
+                    text += f"Прогрес: {progress['progress']}/{target}\n"
                     text += f"Завершено: {'Так' if progress['completed'] else 'Ні'}\n"
                     text += f"Нагорода отримана: {'Так' if progress['reward_claimed'] else 'Ні'}\n\n"
 
@@ -6272,6 +6315,72 @@ def event_progress_cmd(message):
     except Exception as e:
         logger.error(f"❌ Помилка /eventprogress: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+def add_event_progress(user_id, chat_id, event_type, progress_amount=1):
+    """Додає прогрес до активних івентів типу"""
+    try:
+        events = get_all_events()
+        now = int(time.time())
+        
+        for event in events:
+            # Перевіряємо чи івент активний і відповідає типу
+            if event['is_active'] and event['start_date'] <= now <= event['end_date']:
+                if event['event_type'] == event_type:
+                    # Додаємо прогрес
+                    update_event_progress(user_id, event['id'], chat_id, progress_amount)
+                    logger.info(f"✅ Додано прогрес до івенту {event['name']}: +{progress_amount}")
+    except Exception as e:
+        logger.error(f"❌ Помилка додавання прогресу івенту: {e}")
+
+
+def check_event_random_drop(user_id, chat_id, event_type, action_name):
+    """Перевіряє випадковий дроп предметів івенту (10% шанс)"""
+    try:
+        events = get_all_events()
+        now = int(time.time())
+        
+        for event in events:
+            if event['is_active'] and event['start_date'] <= now <= event['end_date']:
+                if event['event_type'] == event_type:
+                    # 10% шанс знайти предмет івенту
+                    if random.random() < 0.10:
+                        # Додаємо бонусний прогрес
+                        update_event_progress(user_id, event['id'], chat_id, 1)
+                        
+                        # Повідомлення про знахідку
+                        if event_type == 'easter':
+                            items = ['🥚 Великоднє яйце', '🐰 Золоте яйце', '🌷 Квітку', '🍫 Шоколадного зайця']
+                            item = random.choice(items)
+                            bot.send_message(chat_id, f"""🎁 **ТИ ЗНАЙШОВ {item.upper()}!**
+
+Під час {action_name} ти помітив щось блискуче...
+Це виявився {item}!
+
++1 до прогресу івенту "{event['name']}"!""", parse_mode="Markdown")
+                        elif event_type == 'christmas':
+                            items = ['❄️ Сніжинку', '🎄 Ялинкову іграшку', '🎅 Різдвяну шкарпетку', '🌟 Вифлеємську зірку']
+                            item = random.choice(items)
+                            bot.send_message(chat_id, f"""🎁 **ТИ ЗНАЙШОВ {item.upper()}!**
+
+Під час {action_name} ти помітив щось святкове...
+Це виявилась {item}!
+
++1 до прогресу івенту "{event['name']}"!""", parse_mode="Markdown")
+                        elif event_type == 'halloween':
+                            items = ['🎃 Гарбуз', '👻 Привид', '🍬 Цукерку', '🦇 Казана']
+                            item = random.choice(items)
+                            bot.send_message(chat_id, f"""🎁 **ТИ ЗНАЙШОВ {item.upper()}!**
+
+Під час {action_name} ти помітив щось моторошне...
+Це виявився {item}!
+
++1 до прогресу івенту "{event['name']}"!""", parse_mode="Markdown")
+                        
+                        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка check_event_random_drop: {e}")
+    return False
 
 
 @bot.message_handler(commands=['webapp'])
