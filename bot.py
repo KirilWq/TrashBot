@@ -6050,41 +6050,62 @@ def events_cmd(message):
     """Показати сезонні івенти"""
     chat_id = message.chat.id
     user_id = message.from_user.id
-    
+
     try:
         events = get_all_events()
-        
+
         if not events:
             bot.reply_to(message, get_text(user_id, 'no_active_events'))
             return
-        
-        text = "🎉 **СЕЗОННІ ІВЕНТИ**\n\n"
+
         now = int(time.time())
         
-        for event in events:
+        # Розбиваємо на частини щоб уникнути помилки 431
+        parts_text = []
+        current_text = "🎉 **СЕЗОННІ ІВЕНТИ**\n\n"
+        
+        for i, event in enumerate(events):
             status_emoji = "✅" if event['is_active'] and event['start_date'] <= now <= event['end_date'] else "⏳" if event['start_date'] > now else "❌"
-            
+
             # Прогрес користувача
             progress = get_user_event_progress(user_id, event['id'])
             progress_text = f" (Твій прогрес: {progress['progress']})" if progress else ""
-            
+
             time_left = event['end_date'] - now if event['end_date'] > now else 0
             days_left = time_left // 86400 if time_left > 0 else 0
-            
-            text += f"""{status_emoji} **{event['name']}**
+
+            event_text = f"""{status_emoji} **{event['name']}**
 {event['description']}{progress_text}
 🎁 Нагорода: {event['special_reward_coins']} монет, {event['special_reward_xp']} XP
 ⏳ Закінчується через: {days_left} дн.
 
 """
-
-        text += """**Команди:**
+            
+            # Якщо текст занадто великий, розбиваємо
+            if len(current_text) + len(event_text) > 3000:
+                parts_text.append(current_text)
+                current_text = event_text
+            else:
+                current_text += event_text
+        
+        # Додаємо останню частину
+        if current_text:
+            parts_text.append(current_text)
+        
+        # Додаємо команди до останньої частини
+        if parts_text:
+            parts_text[-1] += """**Команди:**
 /eventjoin <event_id> - приєднатися до івенту
 /eventprogress - перевірити прогрес
 /eventsclaim <event_id> - забрати нагороду"""
 
-        bot.reply_to(message, text, parse_mode="Markdown")
-    
+        # Надсилаємо частинами
+        for i, part in enumerate(parts_text):
+            if i == 0:
+                bot.reply_to(message, part, parse_mode="Markdown")
+            else:
+                bot.send_message(chat_id, part, parse_mode="Markdown")
+
     except Exception as e:
         logger.error(f"❌ Помилка /events: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
