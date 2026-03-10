@@ -513,19 +513,26 @@ def init_db():
         ''')
         logger.info("✅ Таблиця user_languages створена")
 
-        # Додаємо тестовий івент
+        # Додаємо тестовий івент (якщо не існують)
         now = int(time.time())
         cursor.execute('''
             INSERT INTO seasonal_events (name, event_type, start_date, end_date, is_active, special_reward_coins, special_reward_xp, description)
-            VALUES 
-            ('🎄 Різдвяний Івент', 'christmas', %s, %s, FALSE, 100, 50, 'Збері 10 сніжинок та отримай нагороду!'),
-            ('🎃 Хелловін 2026', 'halloween', %s, %s, FALSE, 150, 75, 'Переможи 5 гарбузів-босів!'),
-            ('🐰 Великодній Івент', 'easter', %s, %s, TRUE, 80, 40, 'Знайди 20 великодніх яєць!')
-        ''', (
-            now - 86400*30, now - 86400*23,  # Різдво (минуле)
-            now - 86400*60, now - 86400*53,  # Хелловін (минуле)
-            now, now + 86400*14  # Великдень (активний 14 днів)
-        ))
+            SELECT '🎄 Різдвяний Івент', 'christmas', %s, %s, FALSE, 100, 50, 'Збері 10 сніжинок та отримай нагороду!'
+            WHERE NOT EXISTS (SELECT 1 FROM seasonal_events WHERE name = '🎄 Різдвяний Івент')
+        ''', (now - 86400*30, now - 86400*23))  # Різдво (минуле)
+        
+        cursor.execute('''
+            INSERT INTO seasonal_events (name, event_type, start_date, end_date, is_active, special_reward_coins, special_reward_xp, description)
+            SELECT '🎃 Хелловін 2026', 'halloween', %s, %s, FALSE, 150, 75, 'Переможи 5 гарбузів-босів!'
+            WHERE NOT EXISTS (SELECT 1 FROM seasonal_events WHERE name = '🎃 Хелловін 2026')
+        ''', (now - 86400*60, now - 86400*53))  # Хелловін (минуле)
+        
+        cursor.execute('''
+            INSERT INTO seasonal_events (name, event_type, start_date, end_date, is_active, special_reward_coins, special_reward_xp, description)
+            SELECT '🐰 Великодній Івент', 'easter', %s, %s, TRUE, 80, 40, 'Знайди 20 великодніх яєць!'
+            WHERE NOT EXISTS (SELECT 1 FROM seasonal_events WHERE name = '🐰 Великодній Івент')
+        ''', (now, now + 86400*14))  # Великдень (активний 14 днів)
+        
         logger.info("✅ Сезонні івенти додано")
 
         # Додаємо скіни в базу (якщо не існують)
@@ -3599,14 +3606,19 @@ def get_active_events():
         conn.close()
 
 def get_all_events():
-    """Отримує всі івенти"""
+    """Отримує всі івенти (тільки унікальні за назвою)"""
     conn = get_connection()
     if not conn:
         return []
 
     cursor = conn.cursor()
     try:
-        cursor.execute('SELECT * FROM seasonal_events ORDER BY start_date DESC')
+        # Отримуємо тільки унікальні івенти (останній запис для кожної назви)
+        cursor.execute('''
+            SELECT DISTINCT ON (name) *
+            FROM seasonal_events
+            ORDER BY name, start_date DESC
+        ''')
         rows = cursor.fetchall()
         events = []
         for row in rows:
@@ -3625,6 +3637,35 @@ def get_all_events():
     except Exception as e:
         logger.error(f"❌ Помилка отримання всіх івентів: {e}")
         return []
+    finally:
+        cursor.close()
+        conn.close()
+
+def cleanup_duplicate_events():
+    """Видаляє дублікати івентів з бази даних"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        # Видаляємо дублікати, залишаючи тільки останній запис для кожної назви
+        cursor.execute('''
+            DELETE FROM seasonal_events
+            WHERE id NOT IN (
+                SELECT MAX(id)
+                FROM seasonal_events
+                GROUP BY name
+            )
+        ''')
+        deleted = cursor.rowcount
+        conn.commit()
+        logger.info(f"✅ Видалено {deleted} дублікатів івентів")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка видалення дублікатів: {e}")
+        conn.rollback()
+        return False
     finally:
         cursor.close()
         conn.close()

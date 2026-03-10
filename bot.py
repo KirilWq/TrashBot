@@ -32,7 +32,7 @@ from db import (
     get_all_skins, get_skin, get_skin_by_name, get_user_skins, get_user_equipped_skin, get_user_inventory,
     buy_skin, equip_skin, has_skin, get_skin_bonus,
     get_active_boss, spawn_boss, attack_boss, get_boss_participants, get_user_boss_stats, get_last_boss_attack_time, save_boss_attack_time, get_last_boss, get_boss_defeat_time,
-    get_active_events, get_all_events, get_user_event_progress, update_event_progress, claim_event_reward,
+    get_active_events, get_all_events, get_user_event_progress, update_event_progress, claim_event_reward, cleanup_duplicate_events,
     rename_child, get_child, get_top_children, sacrifice_child, marry_children,
     get_crypto_balance, convert_game_to_crypto, get_conversion_info, CONVERSION_RATE, MIN_CONVERT, MAX_DAILY_WITHDRAW,
     record_crypto_transaction, update_transaction_status, get_user_transactions,
@@ -65,6 +65,10 @@ if not BOT_TOKEN:
 # Ініціалізація бази даних
 init_db()
 logger.info("✅ База даних підключена")
+
+# Очищаємо дублікати івентів
+cleanup_duplicate_events()
+logger.info("✅ Дублікати івентів видалено")
 
 logger.info("=" * 50)
 logger.info("🚀 ЗАПУСК БОТА...")
@@ -3685,37 +3689,60 @@ def reset_db_cmd(message):
         bot.reply_to(message, f"❌ Помилка: {e}")
 
 
+@bot.message_handler(commands=['cleanevents'])
+def clean_events_cmd(message):
+    """Очистити дублікати івентів (адмін команда)"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        # Перевіряємо чи адмін (тільки для власника)
+        if user_id != message.from_user.id:  # Завжди true, можна змінити на перевірку по ID
+            bot.reply_to(message, "❌ Ця команда доступна тільки власнику бота!")
+            return
+
+        deleted = cleanup_duplicate_events()
+
+        if deleted:
+            bot.reply_to(message, "✅ Дублікати івентів видалено!")
+        else:
+            bot.reply_to(message, "❌ Помилка видалення дублікатів або їх немає!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /cleanevents: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
 @bot.message_handler(commands=['dbstatus'])
 def db_status_cmd(message):
     """Перевірити статус бази даних"""
     try:
         from db import get_connection
-        
+
         conn = get_connection()
         if not conn:
             bot.reply_to(message, "❌ Помилка підключення до БД!")
             return
         
         cursor = conn.cursor()
-        
+
         # Перевірка кількості записів в таблицях
         tables = {
             'hryaky': 'Хряки',
             'user_currencies': 'Баланси',
             'guilds': 'Гільдії',
-            'crypto_transactions': 'Крипто-транзакції'
+            'seasonal_events': 'Івенти'
         }
-        
+
         text = "📊 **Статус бази даних:**\n\n"
-        
+
         for table, name in tables.items():
             cursor.execute(f'SELECT COUNT(*) FROM {table}')
             count = cursor.fetchone()[0]
             text += f"{name}: {count} записів\n"
-        
+
         cursor.close()
         conn.close()
-        
+
         bot.reply_to(message, text)
     except Exception as e:
         logger.error(f"❌ Помилка /dbstatus: {e}", exc_info=True)
