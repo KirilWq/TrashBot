@@ -6086,11 +6086,11 @@ def events_cmd(message):
             return
 
         now = int(time.time())
-        
+
         # Розбиваємо на частини щоб уникнути помилки 431
         parts_text = []
         current_text = "🎉 **СЕЗОННІ ІВЕНТИ**\n\n"
-        
+
         for i, event in enumerate(events):
             status_emoji = "✅" if event['is_active'] and event['start_date'] <= now <= event['end_date'] else "⏳" if event['start_date'] > now else "❌"
 
@@ -6101,24 +6101,24 @@ def events_cmd(message):
             time_left = event['end_date'] - now if event['end_date'] > now else 0
             days_left = time_left // 86400 if time_left > 0 else 0
 
-            event_text = f"""{status_emoji} **{event['name']}**
+            event_text = f"""{status_emoji} **{event['name']}** (ID: `{event['id']}`)
 {event['description']}{progress_text}
 🎁 Нагорода: {event['special_reward_coins']} монет, {event['special_reward_xp']} XP
 ⏳ Закінчується через: {days_left} дн.
 
 """
-            
+
             # Якщо текст занадто великий, розбиваємо
             if len(current_text) + len(event_text) > 3000:
                 parts_text.append(current_text)
                 current_text = event_text
             else:
                 current_text += event_text
-        
+
         # Додаємо останню частину
         if current_text:
             parts_text.append(current_text)
-        
+
         # Додаємо команди до останньої частини
         if parts_text:
             parts_text[-1] += """**Команди:**
