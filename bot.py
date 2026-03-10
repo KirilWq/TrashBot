@@ -3730,7 +3730,7 @@ def trade_cmd(message):
 
     try:
         parts = message.text.split()
-        
+
         if len(parts) < 3:
             bot.reply_to(message, """💱 **ТРЕЙД**
 
@@ -3744,31 +3744,44 @@ def trade_cmd(message):
 /accept <id> - прийняти трейд
 /cancel <id> - скасувати трейд""")
             return
-        
+
         # Отримуємо отримувача
-        receiver_username = parts[1]
+        receiver_username = parts[1].lower()  # Normalize username
         if not receiver_username.startswith('@'):
             bot.reply_to(message, "❌ Username має починатися з @")
             return
-        
+
         try:
             amount = int(parts[2])
         except ValueError:
             bot.reply_to(message, "❌ Сума має бути числом!")
             return
-        
+
         if amount <= 0:
             bot.reply_to(message, "❌ Сума має бути додатною!")
             return
-        
+
         # Перевіряємо баланс
         currency = get_user_currency(sender_id, chat_id)
         if currency['coins'] < amount:
             bot.reply_to(message, f"❌ Недостатньо монет! У тебе: {currency['coins']}")
             return
-        
-        # Знаходимо отримувача по username
-        # (в реальності потрібно шукати в БД, але для простоти використаємо cache)
+
+        # Знаходимо отримувача по username в статистиці
+        receiver_id = None
+        for key, data in stats_data.items():
+            if data.get('username', '').lower() == receiver_username and data.get('chat_id') == chat_id:
+                receiver_id = data.get('user_id')
+                break
+
+        if not receiver_id:
+            bot.reply_to(message, f"❌ Користувач {receiver_username} не знайдений в чаті!")
+            return
+
+        if receiver_id == sender_id:
+            bot.reply_to(message, "❌ Не можна торгувати з самим собою!")
+            return
+
         bot.reply_to(message, f"""💱 **ТРЕЙД СТВОРЕНО!**
 
 Отримувач: {receiver_username}
@@ -3777,13 +3790,14 @@ def trade_cmd(message):
 {receiver_username} має написати /accept <id> щоб прийняти трейд.
 
 ⏰ Трейд дійсний 24 години.""")
-        
-        # Створюємо трейд (поки що без реального отримувача)
-        # В майбутньому можна додати пошук по username
-        trade_id = create_trade(sender_id, 0, chat_id, amount)
-        
+
+        # Створюємо трейд з правильним receiver_id
+        trade_id = create_trade(sender_id, receiver_id, chat_id, amount)
+
         if trade_id:
             bot.reply_to(message, f"ID трейду: `{trade_id}`", parse_mode="Markdown")
+        else:
+            bot.reply_to(message, "❌ Помилка створення трейду!")
     except Exception as e:
         logger.error(f"❌ Помилка /trade: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
@@ -3958,25 +3972,42 @@ def quiz_callback(call):
     """Обробка відповіді на квіз"""
     chat_id = call.message.chat.id
     user_id = call.from_user.id
-    
+
     try:
+        # Перевіряємо чи це відповідь від того хто отримав питання
+        # (запобігаємо відповідям інших користувачів)
+        progress = get_user_quiz_progress(user_id, chat_id)
+        today_count = len(progress)
+        
+        if today_count >= 10:
+            bot.answer_callback_query(call.id, "❌ Ти вже відповів на 10 питань сьогодні!", show_alert=True)
+            return
+
         # Парсимо дані
         parts = call.data.split('_')
         question_id = int(parts[1])
         answer_id = int(parts[2])
-        
+
+        # Перевіряємо чи вже відповідав на це питання
+        answered_ids = [p['question_id'] for p in progress]
+        if question_id in answered_ids:
+            bot.answer_callback_query(call.id, "❌ Ти вже відповідав на це питання!", show_alert=True)
+            return
+
         question = QUIZ_QUESTIONS[question_id]
         is_correct = (answer_id == question['correct'])
-        
+
         # Записуємо відповідь
         record_quiz_answer(user_id, chat_id, question_id, is_correct)
-        
-        # Нагорода за правильну відповідь
+
+        # Нагорода за правильну відповідь (збільшена за складність)
         if is_correct:
-            add_coins(user_id, chat_id, 5)
+            add_coins(user_id, chat_id, 10)  # Збільшено з 5 до 10 монет
+            add_xp(user_id, chat_id, 5)  # Додано XP
             text = f"""✅ **ПРАВИЛЬНО!**
 
-+5 монет
++10 монет
++5 XP
 
 Правильна відповідь: {question['options'][question['correct']]}
 
@@ -3987,10 +4018,10 @@ def quiz_callback(call):
 Правильна відповідь: {question['options'][question['correct']]}
 
 Натисни /quiz для наступного питання"""
-        
+
         bot.answer_callback_query(call.id)
         bot.edit_message_text(text, chat_id, call.message.message_id, parse_mode="Markdown")
-        
+
     except Exception as e:
         logger.error(f"❌ Помилка quiz_callback: {e}", exc_info=True)
         bot.answer_callback_query(call.id, "Помилка!")
@@ -4021,7 +4052,7 @@ def quiz_stats_cmd(message):
 • Неправильних: {total - correct}
 • Точність: {accuracy:.1f}%
 
-💰 Нагорода: 5 монет за правильну відповідь
+💰 Нагорода: 10 монет + 5 XP за правильну відповідь
 
 Натисни /quiz щоб продовжити!"""
         
@@ -6046,9 +6077,12 @@ def events_cmd(message):
 ⏳ Закінчується через: {days_left} дн.
 
 """
-        
-        text += "**Команди:**\n/eventsclaim <event_id> - забрати нагороду"
-        
+
+        text += """**Команди:**
+/eventjoin <event_id> - приєднатися до івенту
+/eventprogress - перевірити прогрес
+/eventsclaim <event_id> - забрати нагороду"""
+
         bot.reply_to(message, text, parse_mode="Markdown")
     
     except Exception as e:
@@ -6061,49 +6095,134 @@ def claim_events_cmd(message):
     """Забрати нагороду за івент"""
     chat_id = message.chat.id
     user_id = message.from_user.id
-    
+
     try:
         parts = message.text.split()
-        
+
         if len(parts) < 2:
             bot.reply_to(message, "❌ Використання: /eventsclaim <event_id>")
             return
-        
+
         event_id = int(parts[1])
-        
+
         # Перевіряємо івент
         events = get_all_events()
         event = next((e for e in events if e['id'] == event_id), None)
-        
+
         if not event:
             bot.reply_to(message, "❌ Івент не знайдено!")
             return
-        
+
         # Перевіряємо прогрес
         progress = get_user_event_progress(user_id, event_id)
-        
+
         if not progress:
             bot.reply_to(message, "❌ Ти не брав участі в цьому івенті!")
             return
-        
+
         if progress['reward_claimed']:
             bot.reply_to(message, "❌ Ти вже забрав нагороду!")
             return
-        
+
         # Забираємо нагороду
         claim_event_reward(user_id, event_id)
         add_coins(user_id, chat_id, event['special_reward_coins'])
         add_xp(user_id, chat_id, event['special_reward_xp'])
-        
+
         bot.reply_to(message, f"""🎉 **Нагороду отримано!**
 
 +{event['special_reward_coins']} монет
 +{event['special_reward_xp']} XP
 
 Дякуємо за участь в {event['name']}!""")
-    
+
     except Exception as e:
         logger.error(f"❌ Помилка /eventsclaim: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['eventjoin'])
+def event_join_cmd(message):
+    """Приєднатися до івенту"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        parts = message.text.split()
+
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Використання: /eventjoin <event_id>")
+            return
+
+        event_id = int(parts[1])
+
+        # Перевіряємо івент
+        events = get_all_events()
+        event = next((e for e in events if e['id'] == event_id), None)
+
+        if not event:
+            bot.reply_to(message, "❌ Івент не знайдено!")
+            return
+
+        now = int(time.time())
+        if not event['is_active'] or not (event['start_date'] <= now <= event['end_date']):
+            bot.reply_to(message, "❌ Цей івент ще не активний або вже завершився!")
+            return
+
+        # Перевіряємо чи вже бере участь
+        progress = get_user_event_progress(user_id, event_id)
+        if progress:
+            bot.reply_to(message, f"✅ Ти вже береш участь в {event['name']}!")
+            return
+
+        # Додаємо участь
+        update_event_progress(user_id, event_id, chat_id, 0)
+
+        bot.reply_to(message, f"""🎉 **Ти приєднався до {event['name']}!**
+
+{event['description']}
+
+🎁 Нагорода: {event['special_reward_coins']} монет, {event['special_reward_xp']} XP
+
+Використовуй /events щоб перевірити прогрес.""")
+
+    except Exception as e:
+        logger.error(f"❌ Помилка /eventjoin: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['eventprogress'])
+def event_progress_cmd(message):
+    """Перевірити прогрес в івентах"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        events = get_all_events()
+        now = int(time.time())
+
+        text = "📊 **Твій прогрес в івентах:**\n\n"
+        found = False
+
+        for event in events:
+            if event['is_active'] and event['start_date'] <= now <= event['end_date']:
+                progress = get_user_event_progress(user_id, event['id'])
+                if progress:
+                    found = True
+                    status_emoji = "✅" if progress['completed'] else "⏳"
+                    claimed_emoji = "💰" if progress['reward_claimed'] else ""
+                    text += f"{status_emoji} **{event['name']}**{claimed_emoji}\n"
+                    text += f"Прогрес: {progress['progress']}\n"
+                    text += f"Завершено: {'Так' if progress['completed'] else 'Ні'}\n"
+                    text += f"Нагорода отримана: {'Так' if progress['reward_claimed'] else 'Ні'}\n\n"
+
+        if not found:
+            text = "📭 Ти ще не береш участь в активних івентах.\n\nВикористовуй /events щоб побачити доступні івенти та /eventjoin <id> щоб приєднатися."
+
+        bot.reply_to(message, text, parse_mode="Markdown")
+
+    except Exception as e:
+        logger.error(f"❌ Помилка /eventprogress: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
 
 
@@ -6111,7 +6230,7 @@ def claim_events_cmd(message):
 def webapp_cmd(message):
     """Відкрити Web App"""
     chat_id = message.chat.id
-    
+
     # Отримуємо Render URL
     render_url = os.environ.get('RENDER_EXTERNAL_URL', 'https://trashbot-n0nd.onrender.com')
     webapp_url = f"{render_url}/webapp"
