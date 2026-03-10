@@ -1169,7 +1169,7 @@ def create_trade(sender_id, receiver_id, chat_id, coins_offered):
         conn.close()
 
 def accept_trade(trade_id, sender_id, receiver_id, chat_id):
-    """Приймає трейд"""
+    """Приймає трейд (отримувач приймає трейд від відправника)"""
     conn = get_connection()
     if not conn:
         return False
@@ -1179,36 +1179,40 @@ def accept_trade(trade_id, sender_id, receiver_id, chat_id):
         # Отримуємо трейд
         cursor.execute('SELECT * FROM trades WHERE id = %s', (trade_id,))
         trade = cursor.fetchone()
-        
+
         if not trade:
+            logger.error(f"❌ Трейд {trade_id} не знайдено!")
             return False
-        
+
         coins = int(trade[4]) if trade[4] else 0
-        
-        # Перевіряємо баланс отримувача
-        cursor.execute('SELECT coins FROM user_currencies WHERE user_id = %s AND chat_id = %s', (receiver_id, chat_id))
-        receiver_row = cursor.fetchone()
-        
-        if not receiver_row or receiver_row[0] < coins:
+        trade_sender_id = int(trade[1])  # Отримуємо реальний ID відправника з трейду
+
+        # Перевіряємо баланс ВІДПРАВНИКА (той хто створив трейд)
+        cursor.execute('SELECT coins FROM user_currencies WHERE user_id = %s AND chat_id = %s', (trade_sender_id, chat_id))
+        sender_row = cursor.fetchone()
+
+        if not sender_row or sender_row[0] < coins:
+            logger.error(f"❌ У відправника (ID {trade_sender_id}) недостатньо монет! Є: {sender_row[0] if sender_row else 0}, потрібно: {coins}")
             return False
-        
-        # Переказ монет
-        cursor.execute('UPDATE user_currencies SET coins = coins - %s WHERE user_id = %s AND chat_id = %s', 
+
+        # Переказ монет: від відправника до отримувача
+        cursor.execute('UPDATE user_currencies SET coins = coins - %s WHERE user_id = %s AND chat_id = %s',
+                      (coins, trade_sender_id, chat_id))
+        cursor.execute('UPDATE user_currencies SET coins = coins + %s WHERE user_id = %s AND chat_id = %s',
                       (coins, receiver_id, chat_id))
-        cursor.execute('UPDATE user_currencies SET coins = coins + %s WHERE user_id = %s AND chat_id = %s', 
-                      (coins, sender_id, chat_id))
-        
+
         # Оновлюємо статус трейду
         cursor.execute('''
-            UPDATE trades 
-            SET status = 'completed', completed_at = %s 
+            UPDATE trades
+            SET status = 'completed', completed_at = %s
             WHERE id = %s
         ''', (int(time.time()), trade_id))
-        
+
         conn.commit()
+        logger.info(f"✅ Трейд {trade_id} виконано: {trade_sender_id} -> {receiver_id}, сума: {coins} монет")
         return True
     except Exception as e:
-        logger.error(f"❌ Помилка прийняття трейду: {e}")
+        logger.error(f"❌ Помилка прийняття трейду: {e}", exc_info=True)
         conn.rollback()
         return False
     finally:
