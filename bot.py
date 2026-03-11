@@ -2618,126 +2618,66 @@ def start(message):
 
 @bot.message_handler(commands=['help'])
 def help_cmd(message):
-    text = (
-        "📜 **ПОВНИЙ СПИСОК КОМАНД:**\n\n"
-        "🎯 **Швидкі Меню:**\n"
-        "/guild_menu - меню гільдії\n"
-        "/warriors_menu - меню воїнів\n"
-        "/items_menu - меню предметів\n"
-        "/genetics_menu - генетика\n"
-        "/trade_menu - трейди\n\n"
-        
-        "🎯 Образливі:\n"
-        "/pidor /roast /insult /hardinsult /slap\n\n"
-        "🔮 Передбачення:\n"
-        "/fortune /whosgay /rate\n\n"
-        "🤯 Розваги:\n"
-        "/fact /choose /top /такні\n\n"
-        "🐷 Гра Вирости Хряка:\n"
-        "/grow /feed /my /name /hryaketop\n"
-        "/globaltop /achievements /duel /duelteambattle\n\n"
-        "📋 Квести:\n"
-        "/quests /questclaim\n\n"
-        "🎰 Казино:\n"
-        "/roulette /lottery\n\n"
-        "💰 Економіка:\n"
-        "/balance /shop /buy /inventory /use /daily\n\n"
-        "💱 Трейди:\n"
-        "/trade @user <сума> - створити трейд\n"
-        "/trades - активні трейди\n"
-        "/accept <id> - прийняти\n"
-        "/cancel <id> - скасувати\n\n"
-        "🎯 Квіз:\n"
-        "/quiz - почати вікторину\n"
-        "/quizstats - статистика\n\n"
-        "📊 Статистика:\n"
-        "/mystats /stats /leaderboard /activity\n\n"
-        "👥 Чат:\n"
-        "/members - показати учасників\n"
-        "/userinfo <ID> - інфо про користувача\n"
-        "/adduser /removeuser /clearcache\n"
-        "/random /kickme\n\n"
-        "🔇 Мут (адміни):\n"
-        "/mute /unmute\n\n"
-        "😈 Провини (адміни):\n"
-        "/provin /unprovin /provinlist\n\n"
-        "⚠️ Попередження (адміни):\n"
-        "/warn /warnings /clearwarns\n\n"
-        "🚫 Бан (адміни):\n"
-        "/ban /unban\n\n"
-        "📌 Інше (адміни):\n"
-        "/del /pin /unpin /spam\n\n"
-        "💕 Трахензебітен та Генетика:\n"
-        "/trachen - спарювання хряків (12 год кулдаун)\n"
-        "/breed - схрещування з генетикою (24 год, 100 монет)\n"
-        "/genes - перегляд генів твого хряка\n"
-        "/children - твої діти\n"
-        "/childinfo <ID> - інформація про дитину\n"
-        "/childbonus - бонуси від дітей\n"
-        "/childraid <ID> - рейд дитини\n"
-        "/childduel <ID> - дуель дітей\n"
-        "/renamechild <ID> <ім'я> - перейменувати\n"
-        "/childtop - топ дітей за вагою\n"
-        "/sacrificechild <ID> - жертва (монети + XP)\n"
-        "/childmarry <ID1> <ID2> - одружити дітей\n"
-        "/childtrain <ID> - тренування (+5 ваги)\n"
-        "/pregnancies - активні вагітності\n"
-        "/claimchildren - отримати дітей\n\n"
-        "🏆 Турніри:\n"
-        "/tournament create /join /start /info\n\n"
-        "🏰 Гільдії:\n"
-        "/createguild /guild /guildjoin /guildleave\n"
-        "/guildtop /contribute /transferguild /deleteguild\n"
-        "/promote <ID> - підвищити\n"
-        "/demote <ID> - знизити\n\n"
-        "⚔️ Гільдійні Війни:\n"
-        "/guild_territories - карта\n"
-        "/guild_capture - захопити\n"
-        "/guild_income - дохід\n"
-        "/guild_chest - скринька\n"
-        "/guild_items - предмети\n"
-        "/guild_donate - внесок\n"
-        "/guild_withdraw - вивести\n"
-        "/guild_claim_item - вивести в інвентар\n"
-        "/guild_warriors - армія\n"
-        "/guild_buy_warrior - купити воїнів\n"
-        "/guild_defend - захист\n"
-        "/guild_defense_info - інфо захисту\n"
-        "/guild_attack - атака\n"
-        "/guild_war_declare - війна\n"
-        "/guild_war_join - приєднатися\n"
-        "/guild_war_battle - битися\n"
-        "/guild_war_status - статус\n"
-        "/guild_boss_spawn - бос\n"
-        "/guild_boss_attack - атака боса\n"
-        "/guild_boss_info - інфо боса\n\n"
-        "🎒 Предмети:\n"
-        "/inventory - інвентар\n"
-        "/item_trade <предмет> - трейд\n"
-        "/item_trades - активні трейди\n"
-        "/item_accept <id> - прийняти\n"
-        "/item_cancel <id> - скасувати\n"
-        "/guild_items - предмети гільдії\n"
-        "/guild_claim_item <ID> - вивести предмет\n"
-        "/use_item <ID> - використати предмет\n\n"
-        "🎰 Приватні казино:\n"
-        "/casino_create - створити казино\n"
-        "/casino - моє казино\n"
-        "/casino_play <сума> - грати\n"
-        "/casino_deposit - внести монети\n"
-        "/casino_withdraw - вивести монети\n"
-        "/casino_limits - налаштувати\n"
-        "/casino_stats - статистика\n\n"
-        "🎨 Скіни:\n"
-        "/skins /buyskin /equipskin\n\n"
-        "🐲 Бос-дуелі:\n"
-        "/boss /boss attack /boss info\n\n"
-        "🎉 Івенти:\n"
-        "/events /eventsclaim\n\n"
-        "⚙️ Інше:\n"
-        "/start /menu /help /dbstatus /resetdb\n\n"
-        "**Всі команди працюють з рандомом!**"
-    )
+    text = """📜 **ПОВНИЙ СПИСОК КОМАНД:**
+
+🎯 **Меню:**
+/guild_menu /warriors_menu /items_menu /genetics_menu /trade_menu
+
+🐷 Хряки:
+/grow /feed /my /name /duel /achievements
+
+💰 Економіка:
+/balance /shop /daily /inventory
+
+🎰 Казинo:
+/roulette /lottery /casino_create /casino_play
+
+🎓 Квіз:
+/quiz /quizstats
+
+👥 Чат:
+/members /userinfo <ID>
+
+💕 Генетика:
+/breed /genes /children /childbonus
+
+🏰 Гільдії:
+/createguild /guild /guildjoin /guildtop
+/contribute /promote /demote
+
+⚔️ Війни:
+/guild_territories /guild_capture /guild_income
+/guild_warriors /guild_buy_warrior /guild_defend
+/guild_attack /guild_defense_info
+/guild_war_declare /guild_war_battle /guild_war_status
+/guild_boss_spawn /guild_boss_attack
+
+🎒 Предмети:
+/inventory /use_item /guild_items /guild_claim_item
+/item_trade /item_trades /item_accept /item_cancel
+
+🏆 Турніри:
+/tournament create /join /start
+
+🎨 Скіни:
+/skins /buyskin /equipskin
+
+🐲 Боси:
+/boss /boss attack /boss info
+
+⚙️ Інше:
+/start /menu /help
+
+📁 **Повні інструкції:**
+/ALL_COMMANDS.txt - всі команди
+/GUILD_COMMANDS.txt - гільдії
+/TERRITORIES.txt - території
+/CASINO_GUIDE.txt - казино
+/GUILD_LEVEL_GUIDE.txt - рівні
+/GUILD_WARRIORS_GUIDE.txt - воїни
+
+**Всі команди з підкресленнями (_)!**"""
+    
     bot.reply_to(message, text, parse_mode="Markdown")
 
 
