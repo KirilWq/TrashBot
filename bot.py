@@ -2618,12 +2618,12 @@ def start(message):
 
 @bot.message_handler(commands=['help'])
 def help_cmd(message):
-    # Отримуємо URL з змінних середовища або використовуємо локальний
-    commands_url = os.environ.get('COMMANDS_URL', 'https://your-bot-commands.onrender.com')
+    # Отримуємо URL з змінних середовища
+    commands_url = os.environ.get('COMMANDS_URL', 'https://trashbot-commands.onrender.com')
     
     text = f"""📜 **ПОВНИЙ СПИСОК КОМАНД:**
 
-🎯 **Меню:**
+🎯 Меню:
 /guild_menu /warriors_menu /items_menu /genetics_menu /trade_menu
 
 🐷 Хряки:
@@ -2672,11 +2672,18 @@ def help_cmd(message):
 /start /menu /help
 
 📁 **Повні інструкції онлайн:**
-{commands_url} - всі команди з поясненнями
+{commands_url}
 
 **Всі команди з підкресленнями (_)!**"""
     
-    bot.reply_to(message, text, parse_mode="Markdown")
+    # Створюємо inline кнопку
+    markup = types.InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton(
+        "📋 Відкрити всі команди",
+        url=commands_url
+    ))
+    
+    bot.reply_to(message, text, parse_mode="Markdown", reply_markup=markup)
 
 
 @bot.message_handler(commands=['members'])
