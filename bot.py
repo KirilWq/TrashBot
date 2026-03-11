@@ -29,6 +29,7 @@ from db import (
     create_guild, get_guild, get_guild_by_name, get_user_guild, get_guild_members,
     join_guild, leave_guild, get_guild_rank, update_guild_xp, add_guild_contribution,
     get_all_guilds, get_user_guild_stats, transfer_guild_owner, delete_guild,
+    promote_guild_member, demote_guild_member,
     get_all_skins, get_skin, get_skin_by_name, get_user_skins, get_user_equipped_skin, get_user_inventory,
     buy_skin, equip_skin, has_skin, get_skin_bonus,
     get_active_boss, spawn_boss, attack_boss, get_boss_participants, get_user_boss_stats, get_last_boss_attack_time, save_boss_attack_time, get_last_boss, get_boss_defeat_time,
@@ -53,6 +54,9 @@ from db import (
     add_item_to_user, get_user_items, get_user_total_bonuses, remove_user_item,
     create_item_trade, get_item_trade, accept_item_trade, cancel_item_trade, get_pending_trades,
     withdraw_guild_item_to_user, use_item,
+    # Private casinos
+    create_casino, get_casino, get_user_casino, deposit_to_casino, withdraw_from_casino,
+    set_casino_limits, play_casino_game, get_casino_stats,
     ITEM_RARITIES, ITEM_TYPES,
     GENE_RARITIES, BONUS_TYPES, COLOR_TYPES, TERRITORY_TYPES
 )
@@ -2649,7 +2653,9 @@ def help_cmd(message):
         "📊 Статистика:\n"
         "/mystats /stats /leaderboard /activity\n\n"
         "👥 Чат:\n"
-        "/members /adduser /removeuser /clearcache\n"
+        "/members - показати учасників\n"
+        "/userinfo <ID> - інфо про користувача\n"
+        "/adduser /removeuser /clearcache\n"
         "/random /kickme\n\n"
         "🔇 Мут (адміни):\n"
         "/mute /unmute\n\n"
@@ -2681,7 +2687,9 @@ def help_cmd(message):
         "/tournament create /join /start /info\n\n"
         "🏰 Гільдії:\n"
         "/createguild /guild /guildjoin /guildleave\n"
-        "/guildtop /contribute /transferguild /deleteguild\n\n"
+        "/guildtop /contribute /transferguild /deleteguild\n"
+        "/promote <ID> - підвищити до офіцера\n"
+        "/demote <ID> - знизити офіцера\n\n"
         "⚔️ Гільдійні Війни:\n"
         "/guild_territories - карта територій\n"
         "/guild_capture <назва> - захопити\n"
@@ -2710,6 +2718,14 @@ def help_cmd(message):
         "/guild_items - предмети гільдії\n"
         "/guild_claim_item <ID> - вивести предмет\n"
         "/use_item <ID> - використати предмет\n\n"
+        "🎰 Приватні казино:\n"
+        "/casino_create - створити казино\n"
+        "/casino - моє казино\n"
+        "/casino_play <сума> - грати\n"
+        "/casino_deposit - внести монети\n"
+        "/casino_withdraw - вивести монети\n"
+        "/casino_limits - налаштувати\n"
+        "/casino_stats - статистика\n\n"
         "🎨 Скіни:\n"
         "/skins /buyskin /equipskin\n\n"
         "🐲 Бос-дуелі:\n"
@@ -2732,6 +2748,83 @@ def show_members(message):
     else:
         text = f"👥 Учасники чату ({len(users)} осіб):\n" + "\n".join(users[:20]) + f"\n... і ще {len(users) - 20}"
     bot.reply_to(message, text)
+
+
+@bot.message_handler(commands=['userinfo'])
+def userinfo_cmd(message):
+    """Отримати інформацію про користувача за ID"""
+    global stats_data, chat_members_cache
+    
+    try:
+        parts = message.text.split()
+
+        if len(parts) < 2:
+            bot.reply_to(message, """ℹ️ **ІНФОРМАЦІЯ ПРО КОРИСТУВАЧА**
+
+Використання: /userinfo <ID>
+
+Де знайти ID:
+1. /members - показати всіх учасників
+2. Знайти ID потрібного користувача
+3. /userinfo <ID> - отримати інформацію
+
+Приклад: /userinfo 123456789""")
+            return
+
+        user_id = int(parts[1])
+        chat_id = message.chat.id
+
+        # Шукаємо користувача в статистиці
+        user_info = None
+        for key, data in stats_data.items():
+            if data.get('user_id') == user_id and data.get('chat_id') == chat_id:
+                user_info = data
+                break
+
+        if not user_info:
+            # Шукаємо в кеші учасників
+            if chat_id in chat_members_cache:
+                for member in chat_members_cache[chat_id]:
+                    if member.get('user_id') == user_id:
+                        user_info = member
+                        break
+
+        if not user_info:
+            bot.reply_to(message, f"❌ Користувача з ID {user_id} не знайдено в цьому чаті!")
+            return
+
+        username = user_info.get('username', 'Немає')
+        first_name = user_info.get('first_name', user_info.get('username', 'Невідомо'))
+        count = user_info.get('count', 0)
+        first_message = user_info.get('first_message', 0)
+
+        # Форматуємо дату
+        if first_message > 0:
+            first_msg_date = time.strftime('%d.%m.%Y %H:%M', time.localtime(first_message))
+        else:
+            first_msg_date = 'Невідомо'
+
+        text = f"""👤 **ІНФОРМАЦІЯ ПРО КОРИСТУВАЧА**
+
+**ID:** `{user_id}`
+**Юзернейм:** {username if username != 'Немає' else 'Не вказано'}
+**Ім'я:** {first_name}
+
+**Статистика в чаті:**
+📝 Повідомлень: {count}
+📅 Перше повідомлення: {first_msg_date}
+
+**Команди:**
+/userinfo <ID> - інформація про користувача
+/members - список усіх учасників"""
+
+        bot.reply_to(message, text, parse_mode="Markdown")
+
+    except ValueError:
+        bot.reply_to(message, "❌ Невірний формат ID! ID має бути числом.")
+    except Exception as e:
+        logger.error(f"❌ Помилка /userinfo: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
 
 
 @bot.message_handler(commands=['clearcache'])
@@ -6028,6 +6121,126 @@ def guild_leave_cmd(message):
         bot.reply_to(message, f"❌ Помилка: {e}")
 
 
+@bot.message_handler(commands=['promote'])
+def promote_cmd(message):
+    """Підвищити члена гільдії до офіцера"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        parts = message.text.split()
+
+        if len(parts) < 2:
+            bot.reply_to(message, """🎖️ **ПІДВИЩЕННЯ**
+
+Використання: /promote <user_id>
+
+Приклад: /promote 123456789
+
+**Обмеження:**
+• Максимум 5 офіцерів в гільдії
+• Тільки власник або офіцер може підвищувати
+• Власник може знижувати: /demote <user_id>""")
+            return
+
+        target_user_id = int(parts[1])
+
+        user_guild = get_user_guild(user_id, chat_id)
+        if not user_guild:
+            bot.reply_to(message, "❌ Ти не в гільдії!")
+            return
+
+        # Перевіряємо права
+        members = get_guild_members(user_guild['id'])
+        user_role = None
+        for m in members:
+            if m['user_id'] == user_id:
+                user_role = m['role']
+                break
+
+        if not user_role or user_role not in ['owner', 'officer']:
+            bot.reply_to(message, "❌ Тільки власник або офіцер може підвищувати!")
+            return
+
+        # Перевіряємо чи не власник
+        if target_user_id == user_guild['owner_user_id']:
+            bot.reply_to(message, "❌ Не можна підвищити власника!")
+            return
+
+        # Підвищуємо
+        result = promote_guild_member(user_guild['id'], target_user_id, user_id)
+
+        if result.get('success'):
+            bot.reply_to(message, f"""🎉 **ПІДВИЩЕННЯ!**
+
+Користувача ID {target_user_id} підвищено до офіцера!
+
+👥 Офіцерів: {result.get('officer_count')}/5
+
+**Команди:**
+/demote <user_id> - знизити (тільки власник)""")
+        else:
+            error = result.get('error', 'Невідома помилка')
+            bot.reply_to(message, f"❌ Помилка: {error}")
+
+    except ValueError:
+        bot.reply_to(message, "❌ Невірний формат ID!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /promote: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['demote'])
+def demote_cmd(message):
+    """Знизити офіцера до члена"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        parts = message.text.split()
+
+        if len(parts) < 2:
+            bot.reply_to(message, """👎 **ЗНИЖЕННЯ**
+
+Використання: /demote <user_id>
+
+Приклад: /demote 123456789
+
+**Обмеження:**
+• Тільки власник може знижувати
+• Можна знизити тільки офіцера""")
+            return
+
+        target_user_id = int(parts[1])
+
+        user_guild = get_user_guild(user_id, chat_id)
+        if not user_guild:
+            bot.reply_to(message, "❌ Ти не в гільдії!")
+            return
+
+        # Перевіряємо чи власник
+        if user_guild['owner_user_id'] != user_id:
+            bot.reply_to(message, "❌ Тільки власник може знижувати офіцерів!")
+            return
+
+        # Знижуємо
+        result = demote_guild_member(user_guild['id'], target_user_id, user_id)
+
+        if result.get('success'):
+            bot.reply_to(message, f"""✅ **ЗНИЖЕННЯ!**
+
+Користувача ID {target_user_id} знижено до члена гільдії.""")
+        else:
+            error = result.get('error', 'Невідома помилка')
+            bot.reply_to(message, f"❌ Помилка: {error}")
+
+    except ValueError:
+        bot.reply_to(message, "❌ Невірний формат ID!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /demote: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
 @bot.message_handler(commands=['guildtop'])
 def guild_top_cmd(message):
     """Рейтинг гільдій"""
@@ -7479,6 +7692,387 @@ def item_cancel_cmd(message):
         bot.reply_to(message, "❌ Невірний ID!")
     except Exception as e:
         logger.error(f"❌ Помилка /item_cancel: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+# ============================================
+# ПРИВАТНІ КАЗИНО - КОМАНДИ
+# ============================================
+
+@bot.message_handler(commands=['casino_create'])
+def casino_create_cmd(message):
+    """Створити власне казино"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        
+        if len(parts) < 2:
+            bot.reply_to(message, """🎰 **СТВОРЕННЯ КАЗИНО**
+
+Використання: /casino_create <назва> [початкові монети]
+
+Приклад: /casino_create Моє Казино 5000
+
+**Вимоги:**
+• Початкові монети: мінімум 1000
+• Вартість створення: 500 монет""")
+            return
+        
+        casino_name = parts[1]
+        initial_coins = int(parts[2]) if len(parts) > 2 else 1000
+        
+        if initial_coins < 1000:
+            bot.reply_to(message, "❌ Мінімальна кількість монет: 1000!")
+            return
+        
+        # Перевірка балансу
+        currency = get_user_currency(user_id, chat_id)
+        if currency.get('coins', 0) < 500:
+            bot.reply_to(message, "❌ Недостатньо монет! Потрібно 500 монет.")
+            return
+        
+        # Перевірка чи вже є казино
+        existing_casino = get_user_casino(user_id, chat_id)
+        if existing_casino:
+            bot.reply_to(message, "❌ У тебе вже є казино!")
+            return
+        
+        # Списуємо монети за створення
+        update_user_currency(user_id, chat_id, coins=currency['coins'] - 500)
+        
+        # Створюємо казино
+        casino_id = create_casino(user_id, chat_id, casino_name, initial_coins)
+        
+        if casino_id:
+            bot.reply_to(message, f"""🎉 **КАЗИНО СТВОРЕНО!**
+
+🎰 Назва: {casino_name}
+💰 Початкові монети: {initial_coins}
+🎲 Вартість створення: 500 монет
+
+**Команди:**
+/casino - інформація про казино
+/casino_deposit <сума> - внести монети
+/casino_withdraw <сума> - вивести монети
+/casino_limits - налаштувати обмеження
+/casino_play <сума> - грати
+/casino_stats - статистика""")
+        else:
+            bot.reply_to(message, "❌ Помилка створення казино!")
+            
+    except ValueError:
+        bot.reply_to(message, "❌ Невірна кількість монет!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /casino_create: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['casino'])
+def casino_cmd(message):
+    """Інформація про казино"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        casino = get_user_casino(user_id, chat_id)
+        
+        if not casino:
+            bot.reply_to(message, "🎰 **КАЗИНО**\n\nУ тебе ще немає казино!\n\nСтвори: /casino_create <назва>")
+            return
+        
+        text = f"""🎰 **КАЗИНО:** {casino['name']}
+
+💰 Монети в казино: {casino['casino_coins']}
+🎲 Ставки:
+   Мін: {casino['min_bet']} монет
+   Макс: {casino['max_bet']} монет
+🎯 Шанс виграшу: {casino['win_chance'] * 100:.1f}%
+
+**Команди:**
+/casino_deposit <сума> - внести монети
+/casino_withdraw <сума> - вивести монети
+/casino_limits - налаштувати
+/casino_play <сума> - грати
+/casino_stats - статистика"""
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка /casino: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['casino_deposit'])
+def casino_deposit_cmd(message):
+    """Внести монети до казино"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Використання: /casino_deposit <сума>")
+            return
+        
+        amount = int(parts[1])
+        
+        if amount <= 0:
+            bot.reply_to(message, "❌ Сума має бути додатною!")
+            return
+        
+        casino = get_user_casino(user_id, chat_id)
+        if not casino:
+            bot.reply_to(message, "❌ У тебе немає казино!")
+            return
+        
+        # Перевірка балансу
+        currency = get_user_currency(user_id, chat_id)
+        if currency.get('coins', 0) < amount:
+            bot.reply_to(message, "❌ Недостатньо монет!")
+            return
+        
+        # Списуємо монети
+        update_user_currency(user_id, chat_id, coins=currency['coins'] - amount)
+        
+        # Вносимо до казино
+        if deposit_to_casino(casino['id'], amount):
+            bot.reply_to(message, f"""✅ **ВНЕСЕНО ДО КАЗИНО!**
+
+💰 Внесено: {amount} монет
+💵 Баланс казино: {casino['casino_coins'] + amount} монет""")
+        else:
+            bot.reply_to(message, "❌ Помилка внесення!")
+            
+    except ValueError:
+        bot.reply_to(message, "❌ Невірна сума!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /casino_deposit: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['casino_withdraw'])
+def casino_withdraw_cmd(message):
+    """Вивести монети з казино"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Використання: /casino_withdraw <сума>")
+            return
+        
+        amount = int(parts[1])
+        
+        if amount <= 0:
+            bot.reply_to(message, "❌ Сума має бути додатною!")
+            return
+        
+        casino = get_user_casino(user_id, chat_id)
+        if not casino:
+            bot.reply_to(message, "❌ У тебе немає казино!")
+            return
+        
+        if casino['casino_coins'] < amount:
+            bot.reply_to(message, "❌ Недостатньо монет в казино!")
+            return
+        
+        # Виводимо з казино
+        if withdraw_from_casino(casino['id'], amount):
+            # Додаємо монети гравцю
+            currency = get_user_currency(user_id, chat_id)
+            update_user_currency(user_id, chat_id, coins=currency['coins'] + amount)
+            
+            bot.reply_to(message, f"""✅ **ВИВЕДЕНО З КАЗИНО!**
+
+💰 Виведено: {amount} монет
+💵 Баланс казино: {casino['casino_coins'] - amount} монет""")
+        else:
+            bot.reply_to(message, "❌ Помилка виводу!")
+            
+    except ValueError:
+        bot.reply_to(message, "❌ Невірна сума!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /casino_withdraw: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['casino_limits'])
+def casino_limits_cmd(message):
+    """Налаштувати обмеження казино"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        casino = get_user_casino(user_id, chat_id)
+        
+        if not casino:
+            bot.reply_to(message, "❌ У тебе немає казино!")
+            return
+        
+        parts = message.text.split()
+        
+        if len(parts) < 2:
+            bot.reply_to(message, f"""⚙️ **ОБМЕЖЕННЯ КАЗИНО**
+
+Поточні обмеження:
+• Мін ставка: {casino['min_bet']} монет
+• Макс ставка: {casino['max_bet']} монет
+• Шанс виграшу: {casino['win_chance'] * 100:.1f}%
+
+**Використання:**
+/casino_limits min <сума> - мін ставка
+/casino_limits max <сума> - макс ставка
+/casino_limits chance <відсоток> - шанс виграшу
+
+Приклад: /casino_limits min 50""")
+            return
+        
+        setting = parts[1].lower()
+        value = int(parts[2]) if len(parts) > 2 else 0
+        
+        if setting == 'min':
+            if value < 1:
+                bot.reply_to(message, "❌ Мін ставка має бути >= 1!")
+                return
+            set_casino_limits(casino['id'], min_bet=value)
+            bot.reply_to(message, f"✅ Встановлено мін ставку: {value} монет")
+            
+        elif setting == 'max':
+            if value < 1:
+                bot.reply_to(message, "❌ Макс ставка має бути >= 1!")
+                return
+            set_casino_limits(casino['id'], max_bet=value)
+            bot.reply_to(message, f"✅ Встановлено макс ставку: {value} монет")
+            
+        elif setting == 'chance':
+            if value < 1 or value > 100:
+                bot.reply_to(message, "❌ Шанс має бути від 1 до 100!")
+                return
+            set_casino_limits(casino['id'], win_chance=value / 100)
+            bot.reply_to(message, f"✅ Встановлено шанс виграшу: {value}%")
+            
+        else:
+            bot.reply_to(message, "❌ Невірна команда! Використовуй min, max або chance")
+            
+    except ValueError:
+        bot.reply_to(message, "❌ Невірне значення!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /casino_limits: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['casino_play'])
+def casino_play_cmd(message):
+    """Грати в казино"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Використання: /casino_play <сума>")
+            return
+        
+        bet_amount = int(parts[1])
+        
+        if bet_amount <= 0:
+            bot.reply_to(message, "❌ Ставка має бути додатною!")
+            return
+        
+        casino = get_user_casino(user_id, chat_id)
+        
+        # Перевірка балансу гравця
+        currency = get_user_currency(user_id, chat_id)
+        if currency.get('coins', 0) < bet_amount:
+            bot.reply_to(message, "❌ Недостатньо монет!")
+            return
+        
+        # Граємо
+        result = play_casino_game(casino['id'], user_id, bet_amount)
+        
+        if not result:
+            bot.reply_to(message, "❌ Помилка гри!")
+            return
+        
+        if result.get('result') == 'Недостатньо монет в казино':
+            bot.reply_to(message, "❌ В казино недостатньо монет для виплати!")
+            return
+        
+        # Оновлюємо баланс гравця
+        if result.get('win'):
+            new_coins = currency['coins'] - bet_amount + result['amount']
+            update_user_currency(user_id, chat_id, coins=new_coins)
+            
+            text = f"""🎰 **ГРА В КАЗИНО**
+
+Ставка: {bet_amount} монет
+{result['result']}
+💰 Виграш: +{result['amount']} монет!"""
+        else:
+            new_coins = currency['coins'] - bet_amount
+            update_user_currency(user_id, chat_id, coins=new_coins)
+            
+            text = f"""🎰 **ГРА В КАЗИНО**
+
+Ставка: {bet_amount} монет
+{result['result']}
+💸 Програш: -{bet_amount} монет"""
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+        
+    except ValueError:
+        bot.reply_to(message, "❌ Невірна ставка!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /casino_play: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['casino_stats'])
+def casino_stats_cmd(message):
+    """Статистика казино"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        casino = get_user_casino(user_id, chat_id)
+        
+        if not casino:
+            bot.reply_to(message, "❌ У тебе немає казино!")
+            return
+        
+        stats = get_casino_stats(casino['id'])
+        
+        if not stats:
+            bot.reply_to(message, "❌ Помилка отримання статистики!")
+            return
+        
+        win_rate = (stats['wins_count'] / stats['total_games'] * 100) if stats['total_games'] > 0 else 0
+        profit = stats['total_bets'] - stats['total_wins']
+        
+        text = f"""📊 **СТАТИСТИКА КАЗИНО** {casino['name']}
+
+🎮 Всього ігор: {stats['total_games']}
+💰 Всього ставок: {stats['total_bets']} монет
+🏆 Виплачено: {stats['total_wins']} монет
+💵 Прибуток: {profit} монет
+
+**Перемоги:**
+• Всього перемог: {stats['wins_count']}
+• Відсоток перемог: {win_rate:.1f}%
+
+**Порада:**
+Чим більше грають - тим більший прибуток!"""
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка /casino_stats: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
 
 

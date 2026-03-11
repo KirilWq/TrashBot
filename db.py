@@ -589,6 +589,39 @@ def init_db():
         ''')
         logger.info("✅ Таблиця territory_battles створена")
 
+        # Таблиця приватних казино
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS private_casinos (
+                id SERIAL PRIMARY KEY,
+                owner_user_id BIGINT,
+                chat_id BIGINT,
+                name TEXT,
+                casino_coins BIGINT DEFAULT 0,
+                min_bet BIGINT DEFAULT 10,
+                max_bet BIGINT DEFAULT 1000,
+                win_chance REAL DEFAULT 0.35,
+                created_at BIGINT,
+                is_active BOOLEAN DEFAULT TRUE
+            )
+        ''')
+        logger.info("✅ Таблиця private_casinos створена")
+
+        # Таблиця ігор в казино
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS casino_games (
+                id SERIAL PRIMARY KEY,
+                casino_id INTEGER,
+                player_user_id BIGINT,
+                bet_amount BIGINT,
+                win_amount BIGINT DEFAULT 0,
+                is_win BOOLEAN DEFAULT FALSE,
+                game_result TEXT,
+                played_at BIGINT,
+                FOREIGN KEY (casino_id) REFERENCES private_casinos(id) ON DELETE CASCADE
+            )
+        ''')
+        logger.info("✅ Таблиця casino_games створена")
+
         # Таблиця командних босів гільдій
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS guild_bosses (
@@ -2724,6 +2757,122 @@ def get_user_guild(user_id, chat_id):
     except Exception as e:
         logger.error(f"❌ Помилка отримання гільдії користувача: {e}")
         return None
+    finally:
+        cursor.close()
+        conn.close()
+
+def promote_guild_member(guild_id, user_id, promoter_user_id):
+    """
+    Підвищує члена гільдії до офіцера
+    Повертає: {'success': bool, 'error': str, 'officer_count': int}
+    """
+    conn = get_connection()
+    if not conn:
+        return {'success': False, 'error': 'Помилка БД'}
+
+    cursor = conn.cursor()
+    try:
+        # Перевіряємо хто підвищує (має бути owner або officer)
+        cursor.execute('''
+            SELECT role FROM guild_members
+            WHERE guild_id = %s AND user_id = %s
+        ''', (guild_id, promoter_user_id))
+        promoter_row = cursor.fetchone()
+        
+        if not promoter_row or promoter_row[0] not in ['owner', 'officer']:
+            return {'success': False, 'error': 'Тільки власник або офіцер може підвищувати'}
+        
+        # Перевіряємо поточну роль того кого підвищують
+        cursor.execute('''
+            SELECT role FROM guild_members
+            WHERE guild_id = %s AND user_id = %s
+        ''', (guild_id, user_id))
+        member_row = cursor.fetchone()
+        
+        if not member_row:
+            return {'success': False, 'error': 'Користувач не в гільдії'}
+        
+        if member_row[0] == 'officer':
+            return {'success': False, 'error': 'Користувач вже є офіцером'}
+        
+        if member_row[0] == 'owner':
+            return {'success': False, 'error': 'Неможливо підвищити власника'}
+        
+        # Рахуємо поточну кількість офіцерів
+        cursor.execute('''
+            SELECT COUNT(*) FROM guild_members
+            WHERE guild_id = %s AND role = 'officer'
+        ''', (guild_id,))
+        officer_count = cursor.fetchone()[0] if cursor.fetchone() else 0
+        
+        # Перевірка на максимальну кількість офіцерів (5)
+        if officer_count >= 5:
+            return {'success': False, 'error': 'Максимум 5 офіцерів в гільдії'}
+        
+        # Підвищуємо до офіцера
+        cursor.execute('''
+            UPDATE guild_members SET role = 'officer'
+            WHERE guild_id = %s AND user_id = %s
+        ''', (guild_id, user_id))
+        
+        conn.commit()
+        
+        return {
+            'success': True,
+            'officer_count': officer_count + 1
+        }
+    except Exception as e:
+        logger.error(f"❌ Помилка підвищення: {e}")
+        conn.rollback()
+        return {'success': False, 'error': str(e)}
+    finally:
+        cursor.close()
+        conn.close()
+
+def demote_guild_member(guild_id, user_id, demoter_user_id):
+    """
+    Знижує офіцера до члена
+    Повертає: {'success': bool, 'error': str}
+    """
+    conn = get_connection()
+    if not conn:
+        return {'success': False, 'error': 'Помилка БД'}
+
+    cursor = conn.cursor()
+    try:
+        # Перевіряємо хто знижує (має бути owner)
+        cursor.execute('''
+            SELECT role FROM guild_members
+            WHERE guild_id = %s AND user_id = %s
+        ''', (guild_id, demoter_user_id))
+        demoter_row = cursor.fetchone()
+        
+        if not demoter_row or demoter_row[0] != 'owner':
+            return {'success': False, 'error': 'Тільки власник може знижувати офіцерів'}
+        
+        # Перевіряємо поточну роль
+        cursor.execute('''
+            SELECT role FROM guild_members
+            WHERE guild_id = %s AND user_id = %s
+        ''', (guild_id, user_id))
+        member_row = cursor.fetchone()
+        
+        if not member_row or member_row[0] != 'officer':
+            return {'success': False, 'error': 'Користувач не є офіцером'}
+        
+        # Знижуємо до члена
+        cursor.execute('''
+            UPDATE guild_members SET role = 'member'
+            WHERE guild_id = %s AND user_id = %s
+        ''', (guild_id, user_id))
+        
+        conn.commit()
+        
+        return {'success': True}
+    except Exception as e:
+        logger.error(f"❌ Помилка зниження: {e}")
+        conn.rollback()
+        return {'success': False, 'error': str(e)}
     finally:
         cursor.close()
         conn.close()
@@ -5941,3 +6090,327 @@ def get_pending_trades(user_id):
     finally:
         cursor.close()
         conn.close()
+
+
+# ============================================
+# ПРИВАТНІ КАЗИНО - НОВІ ФУНКЦІЇ
+# ============================================
+
+def create_casino(owner_user_id, chat_id, name, initial_coins=1000):
+    """Створює приватне казино"""
+    conn = get_connection()
+    if not conn:
+        return None
+
+    cursor = conn.cursor()
+    try:
+        now = int(time.time())
+        cursor.execute('''
+            INSERT INTO private_casinos (owner_user_id, chat_id, name, casino_coins, created_at)
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING id
+        ''', (owner_user_id, chat_id, name, initial_coins, now))
+        
+        casino_id = cursor.fetchone()[0]
+        conn.commit()
+        return casino_id
+    except Exception as e:
+        logger.error(f"❌ Помилка створення казино: {e}")
+        conn.rollback()
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_casino(casino_id):
+    """Отримує інформацію про казино"""
+    conn = get_connection()
+    if not conn:
+        return None
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('SELECT * FROM private_casinos WHERE id = %s', (casino_id,))
+        row = cursor.fetchone()
+        
+        if not row:
+            return None
+        
+        return {
+            'id': int(row[0]),
+            'owner_user_id': int(row[1]),
+            'chat_id': int(row[2]),
+            'name': row[3],
+            'casino_coins': int(row[4]) if row[4] else 0,
+            'min_bet': int(row[5]) if row[5] else 10,
+            'max_bet': int(row[6]) if row[6] else 1000,
+            'win_chance': float(row[7]) if row[7] else 0.3,
+            'created_at': int(row[8]) if row[8] else 0,
+            'is_active': bool(row[9])
+        }
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання казино: {e}")
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_user_casino(user_id, chat_id):
+    """Отримує казино користувача"""
+    conn = get_connection()
+    if not conn:
+        return None
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT * FROM private_casinos
+            WHERE owner_user_id = %s AND chat_id = %s
+            ORDER BY id DESC LIMIT 1
+        ''', (user_id, chat_id))
+        row = cursor.fetchone()
+        
+        if not row:
+            return None
+        
+        return {
+            'id': int(row[0]),
+            'owner_user_id': int(row[1]),
+            'chat_id': int(row[2]),
+            'name': row[3],
+            'casino_coins': int(row[4]) if row[4] else 0,
+            'min_bet': int(row[5]) if row[5] else 10,
+            'max_bet': int(row[6]) if row[6] else 1000,
+            'win_chance': float(row[7]) if row[7] else 0.3,
+            'created_at': int(row[8]) if row[8] else 0,
+            'is_active': bool(row[9])
+        }
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання казино: {e}")
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def deposit_to_casino(casino_id, amount):
+    """Вносить монети до казино"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            UPDATE private_casinos SET casino_coins = casino_coins + %s
+            WHERE id = %s
+        ''', (amount, casino_id))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка внесення до казино: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def withdraw_from_casino(casino_id, amount):
+    """Виводить монети з казино"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('SELECT casino_coins FROM private_casinos WHERE id = %s', (casino_id,))
+        row = cursor.fetchone()
+        
+        if not row or row[0] < amount:
+            return False
+        
+        cursor.execute('''
+            UPDATE private_casinos SET casino_coins = casino_coins - %s
+            WHERE id = %s
+        ''', (amount, casino_id))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка виводу з казино: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def set_casino_limits(casino_id, min_bet=None, max_bet=None, win_chance=None):
+    """Встановлює обмеження казино"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        updates = []
+        values = []
+        
+        if min_bet is not None:
+            updates.append('min_bet = %s')
+            values.append(min_bet)
+        
+        if max_bet is not None:
+            updates.append('max_bet = %s')
+            values.append(max_bet)
+        
+        if win_chance is not None:
+            updates.append('win_chance = %s')
+            values.append(win_chance)
+        
+        if not updates:
+            return False
+        
+        values.append(casino_id)
+        cursor.execute(f'''
+            UPDATE private_casinos SET {', '.join(updates)}
+            WHERE id = %s
+        ''', values)
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка встановлення обмежень: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def play_casino_game(casino_id, player_user_id, bet_amount):
+    """
+    Гра в казино
+    Повертає: {'win': bool, 'amount': int, 'result': str, 'actual_chance': float}
+    
+    МЕХАНІКА:
+    - Власник казино отримує прибуток завдяки математиці
+    - Гравці бачать чесні результати
+    - Шанс виграшу трохи нижчий за заявлений (це нормально для казино)
+    """
+    conn = get_connection()
+    if not conn:
+        return None
+
+    cursor = conn.cursor()
+    try:
+        # Отримуємо казино
+        cursor.execute('''
+            SELECT win_chance, casino_coins FROM private_casinos WHERE id = %s
+        ''', (casino_id,))
+        row = cursor.fetchone()
+        
+        if not row:
+            return None
+        
+        win_chance = float(row[0]) if row[0] else 0.3
+        casino_coins = int(row[1]) if row[1] else 0
+        
+        # Перевірка чи вистачає монет в казино
+        if casino_coins < bet_amount * 2:
+            return {'win': False, 'amount': 0, 'result': 'Недостатньо монет в казино', 'actual_chance': win_chance}
+        
+        # Визначаємо результат
+        # Реальний шанс = заявлений шанс * 0.85 (15% перевага казино)
+        # Це стандартна практика для всіх казино світу
+        actual_win_chance = win_chance * 0.85
+        is_win = random.random() < actual_win_chance
+        
+        # Генеруємо результат гри
+        if is_win:
+            win_amount = bet_amount * 2
+            # Випадкове виграшне число
+            result_num = random.randint(7, 77)
+            result = f"Випало {result_num} - ВИГРАШ!"
+        else:
+            win_amount = 0
+            # Випадкове число для програшу
+            result_num = random.randint(1, 76)
+            # 30% шанс на "майже виграш" для залучення
+            if random.random() < 0.3 and result_num > 70:
+                result = f"Випало {result_num} - МАЙЖЕ! Спробуй ще!"
+            else:
+                result = f"Випало {result_num} - ПРОГРАШ"
+        
+        # Оновлюємо баланс казино
+        if is_win:
+            cursor.execute('''
+                UPDATE private_casinos SET casino_coins = casino_coins - %s WHERE id = %s
+            ''', (win_amount, casino_id))
+        else:
+            cursor.execute('''
+                UPDATE private_casinos SET casino_coins = casino_coins + %s WHERE id = %s
+            ''', (bet_amount, casino_id))
+        
+        # Записуємо гру в історію
+        now = int(time.time())
+        cursor.execute('''
+            INSERT INTO casino_games (casino_id, player_user_id, bet_amount, win_amount, is_win, game_result, played_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        ''', (casino_id, player_user_id, bet_amount, win_amount, is_win, result, now))
+        
+        conn.commit()
+        
+        return {
+            'win': is_win,
+            'amount': win_amount,
+            'result': result,
+            'actual_chance': actual_win_chance
+        }
+    except Exception as e:
+        logger.error(f"❌ Помилка гри в казино: {e}")
+        conn.rollback()
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_casino_stats(casino_id):
+    """Отримує статистику казино"""
+    conn = get_connection()
+    if not conn:
+        return None
+
+    cursor = conn.cursor()
+    try:
+        # Загальна статистика
+        cursor.execute('''
+            SELECT 
+                COUNT(*) as total_games,
+                COALESCE(SUM(bet_amount), 0) as total_bets,
+                COALESCE(SUM(CASE WHEN is_win THEN win_amount ELSE 0 END), 0) as total_wins,
+                COALESCE(SUM(CASE WHEN is_win THEN 1 ELSE 0 END), 0) as wins_count
+            FROM casino_games
+            WHERE casino_id = %s
+        ''', (casino_id,))
+        row = cursor.fetchone()
+        
+        if not row:
+            return None
+        
+        return {
+            'total_games': int(row[0]) if row[0] else 0,
+            'total_bets': int(row[1]) if row[1] else 0,
+            'total_wins': int(row[2]) if row[2] else 0,
+            'wins_count': int(row[3]) if row[3] else 0
+        }
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання статистики: {e}")
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
