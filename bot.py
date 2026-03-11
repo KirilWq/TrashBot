@@ -2618,7 +2618,10 @@ def start(message):
 
 @bot.message_handler(commands=['help'])
 def help_cmd(message):
-    text = """📜 **ПОВНИЙ СПИСОК КОМАНД:**
+    # Отримуємо URL з змінних середовища або використовуємо локальний
+    commands_url = os.environ.get('COMMANDS_URL', 'https://your-bot-commands.onrender.com')
+    
+    text = f"""📜 **ПОВНИЙ СПИСОК КОМАНД:**
 
 🎯 **Меню:**
 /guild_menu /warriors_menu /items_menu /genetics_menu /trade_menu
@@ -2629,7 +2632,7 @@ def help_cmd(message):
 💰 Економіка:
 /balance /shop /daily /inventory
 
-🎰 Казинo:
+🎰 Казино:
 /roulette /lottery /casino_create /casino_play
 
 🎓 Квіз:
@@ -2668,13 +2671,8 @@ def help_cmd(message):
 ⚙️ Інше:
 /start /menu /help
 
-📁 **Повні інструкції:**
-/ALL_COMMANDS.txt - всі команди
-/GUILD_COMMANDS.txt - гільдії
-/TERRITORIES.txt - території
-/CASINO_GUIDE.txt - казино
-/GUILD_LEVEL_GUIDE.txt - рівні
-/GUILD_WARRIORS_GUIDE.txt - воїни
+📁 **Повні інструкції онлайн:**
+{commands_url} - всі команди з поясненнями
 
 **Всі команди з підкресленнями (_)!**"""
     
@@ -2696,7 +2694,7 @@ def show_members(message):
 def userinfo_cmd(message):
     """Отримати інформацію про користувача за ID"""
     global stats_data, chat_members_cache
-    
+
     try:
         parts = message.text.split()
 
@@ -2719,15 +2717,17 @@ def userinfo_cmd(message):
         # Шукаємо користувача в статистиці
         user_info = None
         for key, data in stats_data.items():
-            if data.get('user_id') == user_id and data.get('chat_id') == chat_id:
-                user_info = data
-                break
+            # Перевіряємо чи це словник
+            if isinstance(data, dict):
+                if data.get('user_id') == user_id and data.get('chat_id') == chat_id:
+                    user_info = data
+                    break
 
         if not user_info:
             # Шукаємо в кеші учасників
             if chat_id in chat_members_cache:
                 for member in chat_members_cache[chat_id]:
-                    if member.get('user_id') == user_id:
+                    if isinstance(member, dict) and member.get('user_id') == user_id:
                         user_info = member
                         break
 
@@ -2741,7 +2741,7 @@ def userinfo_cmd(message):
         first_message = user_info.get('first_message', 0)
 
         # Форматуємо дату
-        if first_message > 0:
+        if first_message and first_message > 0:
             first_msg_date = time.strftime('%d.%m.%Y %H:%M', time.localtime(first_message))
         else:
             first_msg_date = 'Невідомо'
