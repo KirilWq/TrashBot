@@ -6234,8 +6234,8 @@ def guild_capture_cmd(message):
             return
         
         # Перевірка рівня гільдії
-        if user_guild.get('level', 1) < 5:
-            bot.reply_to(message, "❌ Гільдія має бути 5+ рівня!")
+        if user_guild.get('level', 1) < 3:
+            bot.reply_to(message, "❌ Гільдія має бути 3+ рівня!")
             return
         
         # Знаходимо територію
