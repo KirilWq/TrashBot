@@ -2616,7 +2616,7 @@ def start(message):
 def help_cmd(message):
     text = (
         "📜 **ПОВНИЙ СПИСОК КОМАНД:**\n\n"
-        "🎯 **Швидкі Меню:*"
+        "🎯 **Швидкі Меню:**\n"
         "/guild_menu - меню гільдії\n"
         "/warriors_menu - меню воїнів\n"
         "/items_menu - меню предметів\n"
