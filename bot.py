@@ -6449,33 +6449,124 @@ def guild_income_cmd(message):
     """Зібрати дохід з територій"""
     chat_id = message.chat.id
     user_id = message.from_user.id
-    
+
     try:
         user_guild = get_user_guild(user_id, chat_id)
         if not user_guild:
             bot.reply_to(message, "❌ Ви не в гільдії!")
             return
-        
+
         income = collect_territory_income(user_guild['id'])
-        
+
+        # Додаємо до скарбниці гільдії
+        from db import get_connection
+        conn = get_connection()
+        if conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE guilds SET coins = coins + %s WHERE id = %s
+            ''', (income['coins'], user_guild['id']))
+            conn.commit()
+            cursor.close()
+            conn.close()
+
         text = f"💰 **ДОХІД ЗБРАНО!**\n\n"
-        text += f"🪙 Монети: +{income['coins']}\n"
-        text += f"⭐ XP: +{income['xp']}\n"
-        
+        text += f"🪙 Монети: +{income['coins']} (в скарбницю гільдії)\n"
+        text += f"⭐ XP: +{income['xp']} (власнику)\n"
+
         if income['coins'] > 0 or income['xp'] > 0:
-            # Додаємо до гільдії та власнику
+            # XP йде власнику хто зібрав
             from db import update_user_currency
             current_currency = get_user_currency(user_id, chat_id)
-            new_coins = current_currency.get('coins', 0) + income['coins']
             new_xp = current_currency.get('xp', 0) + income['xp']
-            update_user_currency(user_id, chat_id, coins=new_coins, xp=new_xp)
-            
-            text += f"\n💰 Твій баланс: {new_coins} монет\n⭐ Твій XP: {new_xp}"
-        
+            update_user_currency(user_id, chat_id, xp=new_xp)
+
+            text += f"\n💰 Скарбниця гільдії: +{income['coins']}\n⭐ Твій XP: +{income['xp']}"
+
         bot.reply_to(message, text, parse_mode="Markdown")
-        
+
     except Exception as e:
         logger.error(f"❌ Помилка /guild_income: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['guild_withdraw_coins'])
+def guild_withdraw_coins_cmd(message):
+    """Вивести монети зі скарбниці гільдії"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        parts = message.text.split()
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Використання: /guild_withdraw_coins <сума>")
+            return
+
+        amount = int(parts[1])
+        if amount <= 0:
+            bot.reply_to(message, "❌ Сума має бути додатною!")
+            return
+
+        user_guild = get_user_guild(user_id, chat_id)
+        if not user_guild:
+            bot.reply_to(message, "❌ Ви не в гільдії!")
+            return
+
+        # Перевірка прав (тільки owner/officer)
+        from db import get_guild_members
+        members = get_guild_members(user_guild['id'])
+        user_role = None
+        for m in members:
+            if m['user_id'] == user_id:
+                user_role = m['role']
+                break
+
+        if user_role not in ['owner', 'officer']:
+            bot.reply_to(message, "❌ Тільки owner або officer можуть виводити монети!")
+            return
+
+        # Перевірка скарбниці
+        from db import get_connection
+        conn = get_connection()
+        if not conn:
+            bot.reply_to(message, "❌ Помилка БД!")
+            return
+
+        cursor = conn.cursor()
+        cursor.execute('SELECT coins FROM guilds WHERE id = %s', (user_guild['id'],))
+        row = cursor.fetchone()
+        guild_coins = int(row[0]) if row else 0
+
+        if guild_coins < amount:
+            bot.reply_to(message, f"❌ Недостатньо монет в скарбниці! Є: {guild_coins}")
+            cursor.close()
+            conn.close()
+            return
+
+        # Виводимо монети
+        cursor.execute('''
+            UPDATE guilds SET coins = coins - %s WHERE id = %s
+        ''', (amount, user_guild['id']))
+
+        # Додаємо гравцю
+        current_currency = get_user_currency(user_id, chat_id)
+        new_coins = current_currency.get('coins', 0) + amount
+        update_user_currency(user_id, chat_id, coins=new_coins)
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        bot.reply_to(message, f"""✅ **ВИВЕДЕНО МОНЕТИ!**
+
+💰 Виведено: {amount} монет
+💵 Скарбниця гільдії: {guild_coins - amount} монет
+💰 Твій баланс: +{amount} монет""")
+
+    except ValueError:
+        bot.reply_to(message, "❌ Невірна сума!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /guild_withdraw_coins: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
 
 
@@ -8033,46 +8124,46 @@ def casino_stats_cmd(message):
 def guild_menu_cmd(message):
     """Головне меню гільдії"""
     try:
-        text = """🏰 **МЕНЮ ГІЛЬДІЇ**
+        text = """🏰 МЕНЮ ГІЛЬДІЇ
 
-**📊 Інформація:**
+📊 Інформація:
 /guild - інформація про гільдію
 /guildtop - топ гільдій
 /guild_chest - скринька гільдії
 
-**🗺️ Території:**
+🗺️ Території:
 /guild_territories - карта
 /guild_capture - захопити
 /guild_income - дохід
 /guild_defense_info - захист
 
-**🪖 Армія:**
+🪖 Армія:
 /guild_warriors - воїни
 /guild_buy_warrior - купити
 /guild_defend - захист
 /guild_attack - атака
 
-**⚔️ Війни:**
+⚔️ Війни:
 /guild_war_declare - війна
 /guild_war_battle - битва
 /guild_war_status - статус
 
-**🐲 Боси:**
+🐲 Боси:
 /guild_boss_spawn - спавн
 /guild_boss_attack - атака
 
-**🎒 Предмети:**
+🎒 Предмети:
 /guild_items - предмети гільдії
 /guild_claim_item - вивести предмет
 
-**Швидкі команди:**
+Швидкі команди:
 /warriors_menu - меню армії
 /items_menu - меню предметів
 /genetics_menu - генетика
 /trade_menu - трейди"""
-        
-        bot.reply_to(message, text, parse_mode="Markdown")
-        
+
+        bot.reply_to(message, text)
+
     except Exception as e:
         logger.error(f"❌ Помилка /guild_menu: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
@@ -8082,29 +8173,29 @@ def guild_menu_cmd(message):
 def warriors_menu_cmd(message):
     """Меню воїнів"""
     try:
-        text = """🪖 **МЕНЮ ВОЇНІВ**
+        text = """🪖 МЕНЮ ВОЇНІВ
 
-**Інформація:**
+Інформація:
 /guild_warriors - список армії
 
-**Купівля:**
+Купівля:
 /guild_buy_warrior regular 10 - 10 звичайних (100💰)
 /guild_buy_warrior matochnik 5 - 5 маточників (2500💰)
 /guild_buy_warrior elite 2 - 2 елітних (2000💰)
 /guild_buy_warrior legendary 1 - 1 легендарний (5000💰)
 
-**Управління:**
-/guild_defend <територія> <тип> <кількість> - на захист
-/guild_attack <територія> - атака
+Управління:
+/guild_defend territory type count - на захист
+/guild_attack territory - атака
 
-**Типи воїнів:**
+Типи воїнів:
 🐷 Свинар - 100💰, сила 10
 🐗 Маточник - 500💰, сила 60
 ⚔️ Елітний - 1000💰, сила 150
 👑 Легендарний - 5000💰, сила 1000"""
-        
-        bot.reply_to(message, text, parse_mode="Markdown")
-        
+
+        bot.reply_to(message, text)
+
     except Exception as e:
         logger.error(f"❌ Помилка /warriors_menu: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
@@ -8114,38 +8205,38 @@ def warriors_menu_cmd(message):
 def items_menu_cmd(message):
     """Меню предметів"""
     try:
-        text = """🎒 **МЕНЮ ПРЕДМЕТІВ**
+        text = """🎒 МЕНЮ ПРЕДМЕТІВ
 
-**Інформація:**
+Інформація:
 /inventory - твій інвентар
 /guild_items - предмети гільдії
 
-**Трейд:**
-/item_trade <предмет> - створити трейд
+Трейд:
+/item_trade предмет - створити трейд
 /item_trades - активні трейди
-/item_accept <id> - прийняти
-/item_cancel <id> - скасувати
+/item_accept id - прийняти
+/item_cancel id - скасувати
 
-**Вивід з гільдії:**
-/guild_claim_item <ID> <кількість> - вивести
+Вивід з гільдії:
+/guild_claim_item ID count - вивести
 
-**Використання:**
-/use_item <ID> - використати предмет
+Використання:
+/use_item ID - використати предмет
 
-**Рідкості:**
+Рідкості:
 ⚪ Common - 1x бонус
 🔵 Rare - 2x бонус
 🟣 Epic - 3x бонус
 🟡 Legendary - 5x бонус
 🔴 Mythic - 10x бонус
 
-**Типи:**
+Типи:
 ⚔️ Зброя - сила
 🛡️ Броня - захист
 🍀 Аксесуар - удача"""
-        
-        bot.reply_to(message, text, parse_mode="Markdown")
-        
+
+        bot.reply_to(message, text)
+
     except Exception as e:
         logger.error(f"❌ Помилка /items_menu: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
@@ -8155,28 +8246,28 @@ def items_menu_cmd(message):
 def genetics_menu_cmd(message):
     """Меню генетики"""
     try:
-        text = """🧬 **МЕНЮ ГЕНЕТИКИ**
+        text = """🧬 МЕНЮ ГЕНЕТИКИ
 
-**Основні команди:**
+Основні команди:
 /genes - гени твого хряка
 /breed - схрещування (100💰)
 /children - діти
-/childinfo <ID> - інфо дитини
+/childinfo ID - інфо дитини
 
-**Бонуси дітей:**
+Бонуси дітей:
 /childbonus - бонуси від дітей
-/childraid <ID> - рейд
-/childduel <ID> - дуель
-/childtrain <ID> - тренування (50💰)
+/childraid ID - рейд
+/childduel ID - дуель
+/childtrain ID - тренування (50💰)
 
-**Рідкості генів:**
+Рідкості генів:
 ⚪ C (Common) - 70%
 🔵 R (Rare) - 20%
 🟣 E (Epic) - 7%
 🟡 L (Legendary) - 2.5%
 🔴 S (Special) - 0.5%
 
-**Кольори:**
+Кольори:
 🐷 Звичайний - 60%
 🐗 Дикий - 20%
 ✨ Золотий - 10%
@@ -8184,9 +8275,9 @@ def genetics_menu_cmd(message):
 🤖 Кібер - 3%
 👑 Королівський - 1.5%
 🌑 Порожнеча - 0.5%"""
-        
-        bot.reply_to(message, text, parse_mode="Markdown")
-        
+
+        bot.reply_to(message, text)
+
     except Exception as e:
         logger.error(f"❌ Помилка /genetics_menu: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
@@ -8196,33 +8287,33 @@ def genetics_menu_cmd(message):
 def trade_menu_cmd(message):
     """Меню трейдів"""
     try:
-        text = """💱 **МЕНЮ ТРЕЙДІВ**
+        text = """💱 МЕНЮ ТРЕЙДІВ
 
-**Монети:**
-/trade @user <сума> - створити трейд
+Монети:
+/trade @user сума - створити трейд
 /trades - активні трейди
-/accept <id> - прийняти
-/cancel <id> - скасувати
+/accept id - прийняти
+/cancel id - скасувати
 
-**Предмети:**
-/item_trade <предмет> <кількість> - трейд
+Предмети:
+/item_trade предмет count - трейд
 /item_trades - активні трейди
-/item_accept <id> - прийняти
-/item_cancel <id> - скасувати
+/item_accept id - прийняти
+/item_cancel id - скасувати
 
-**Поради:**
+Поради:
 1. Завжди перевіряй ID трейду
 2. Не приймай трейди від незнайомців
 3. Перевіряй предмети перед прийняттям
 4. Скасовуй підозрілі трейди
 
-**Безпека:**
+Безпека:
 • Трейд діє 24 години
 • Можна скасувати до прийняття
 • Предмети перевіряються автоматично"""
-        
-        bot.reply_to(message, text, parse_mode="Markdown")
-        
+
+        bot.reply_to(message, text)
+
     except Exception as e:
         logger.error(f"❌ Помилка /trade_menu: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
@@ -8493,7 +8584,7 @@ def boss_cmd(message):
                 # Перевіряємо кулдаун атаки (2 години + 2 години за кожну перемогу боса)
                 base_cooldown = 7200  # 2 години
                 boss_cooldown = base_cooldown + (boss.get('defeat_count', 0) * 7200)  # +2 години за перемогу
-                
+
                 last_attack = get_last_boss_attack_time(user_id, chat_id)
                 now = int(time.time())
                 if last_attack and (now - last_attack) < boss_cooldown:
@@ -8514,30 +8605,67 @@ def boss_cmd(message):
                     bot.reply_to(message, "❌ У тебе немає хряка! Введи /grow")
                     return
 
+                # Перевіряємо чи бос ще має HP
+                if boss['health'] <= 0:
+                    bot.reply_to(message, "🐲 Бос вже переможений!\n\nНаступний з'явиться через 24 години.")
+                    return
+
                 # Розраховуємо шкоду (вага хряка + рандом)
                 base_damage = hryak['weight'] * 2
                 random_damage = random.randint(-10, 20)
 
                 # Бонус від скіну
                 skin_bonus = get_skin_bonus(user_id, chat_id, 'weight_bonus')
-                
+
                 # Перевіряємо чи це @terchizz - даємо невеликий баф
                 username = message.from_user.username or ''
                 terchizz_bonus = 1.1 if username == 'terchizz' else 1.0  # +10% шкоди для терчіза
-                
+
                 total_damage = max(1, int((base_damage + random_damage) * (1 + skin_bonus / 100) * terchizz_bonus))
+
+                logger.info(f"User {user_id} attacking boss {boss['id']} with {total_damage} damage (hryak weight: {hryak['weight']})")
 
                 # Атакуємо
                 try:
                     result = attack_boss(boss['id'], user_id, chat_id, total_damage)
 
                     if not result:
-                        logger.error(f"❌ attack_boss returned None for user {user_id}")
-                        bot.reply_to(message, "❌ Помилка атаки! Спробуй ще раз.")
+                        # Перевіряємо чи бос ще активний
+                        updated_boss = get_active_boss()
+                        if not updated_boss or not updated_boss.get('is_active', True):
+                            bot.reply_to(message, "🐲 Бос вже переможений!\n\nНаступний з'явиться через 24 години.")
+                        else:
+                            logger.error(f"❌ attack_boss returned None for user {user_id}, boss still active: {updated_boss}")
+                            bot.reply_to(message, "❌ Помилка атаки! Спробуй ще раз.")
                         return
                 except Exception as e:
                     logger.error(f"❌ Exception during attack_boss: {e}", exc_info=True)
                     bot.reply_to(message, "❌ Помилка атаки! Спробуй ще раз.")
+                    return
+
+                # Успішна атака
+                if result and not result.get('defeated'):
+                    # Бос ще жив - отримуємо АКТУАЛЬНІ дані з БД
+                    updated_boss = get_active_boss()
+                    if updated_boss:
+                        remaining = updated_boss['health']
+                        max_health = updated_boss['max_health']
+                    else:
+                        remaining = result.get('remaining_health', boss['health'])
+                        max_health = result.get('max_health', boss['max_health'])
+
+                    hp_percent = int((remaining / max_health) * 100)
+                    hp_bar = "🟩" * (hp_percent // 10) + "🟥" * (10 - hp_percent // 10)
+
+                    bot.reply_to(message, f"""⚔️ **АТАКА!**
+
+Твій хряк {hryak['name']} завдав {total_damage} шкоди!
+
+🐲 {boss['name']}
+❤️ {remaining}/{max_health} ({hp_percent}%)
+{hp_bar}
+
+Продовжуй атакувати командою /boss attack!""")
                     return
 
                 if result and result.get('defeated'):

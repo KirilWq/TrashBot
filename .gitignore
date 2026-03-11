@@ -33,6 +33,7 @@ logs/
 *.swp
 *.swo
 *~
+deploy
 
 # OS
 .DS_Store
