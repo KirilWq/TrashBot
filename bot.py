@@ -37,7 +37,24 @@ from db import (
     get_crypto_balance, convert_game_to_crypto, get_conversion_info, CONVERSION_RATE, MIN_CONVERT, MAX_DAILY_WITHDRAW,
     record_crypto_transaction, update_transaction_status, get_user_transactions,
     create_trade, accept_trade, cancel_trade, get_pending_trades,
-    get_user_quiz_progress, record_quiz_answer, get_quiz_stats
+    get_user_quiz_progress, record_quiz_answer, get_quiz_stats,
+    get_hryak_genes, create_hryak_genes, breed_hryaks, get_genetic_compatibility,
+    get_children_bonuses, train_child, send_child_on_raid, get_child_power,
+    # Guild wars functions
+    create_territory, get_all_territories, get_territory, capture_territory, collect_territory_income,
+    donate_to_chest, get_guild_chest, withdraw_from_chest,
+    declare_war, join_war, add_war_contribution, end_war, get_active_wars,
+    spawn_guild_boss, attack_guild_boss, get_guild_boss_participants,
+    # Guild warriors and items
+    buy_warrior, get_guild_warriors, get_total_warrior_power, station_warriors, get_territory_defense,
+    remove_warriors_from_guild, record_territory_battle,
+    WARRIOR_TYPES,
+    # Items and trades
+    add_item_to_user, get_user_items, get_user_total_bonuses, remove_user_item,
+    create_item_trade, get_item_trade, accept_item_trade, cancel_item_trade, get_pending_trades,
+    withdraw_guild_item_to_user, use_item,
+    ITEM_RARITIES, ITEM_TYPES,
+    GENE_RARITIES, BONUS_TYPES, COLOR_TYPES, TERRITORY_TYPES
 )
 
 # Налаштування логгера (ПОВИННО БУТИ ПЕРШИМ!)
@@ -408,7 +425,7 @@ def create_hryak(user_id, chat_id, username):
     save_hryak_to_db(key, hryak)
     # Додаємо в кеш
     hryaky_data[key] = hryak
-    
+
     # Додаємо класичний скін (name='classic')
     try:
         # Get classic skin ID by name
@@ -420,7 +437,24 @@ def create_hryak(user_id, chat_id, username):
             logger.error(f"❌ Класичний скін не знайдений в базі!")
     except Exception as e:
         logger.error(f"❌ Помилка додавання скіну: {e}")
-    
+
+    # Створюємо базові гени для нового хряка
+    try:
+        # Визначаємо випадковий колір на основі ймовірностей
+        rand = random.random() * 100
+        cumulative = 0
+        color_type = 'normal'
+        for color, data in COLOR_TYPES.items():
+            cumulative += data['chance']
+            if rand <= cumulative:
+                color_type = color
+                break
+        
+        create_hryak_genes(user_id, chat_id, gene_rarity='C', bonus_type=None, bonus_value=0, color_type=color_type)
+        logger.info(f"✅ Створено гени для {key}, колір={color_type}")
+    except Exception as e:
+        logger.error(f"❌ Помилка створення генів: {e}")
+
     logger.info(f"✅ Створено хряка: {key}, вага={weight}")
     return hryak
 
@@ -2581,7 +2615,14 @@ def start(message):
 @bot.message_handler(commands=['help'])
 def help_cmd(message):
     text = (
-        "📜 ПОВНИЙ СПИСОК КОМАНД:\n\n"
+        "📜 **ПОВНИЙ СПИСОК КОМАНД:**\n\n"
+        "🎯 **Швидкі Меню:*"
+        "/guild_menu - меню гільдії\n"
+        "/warriors_menu - меню воїнів\n"
+        "/items_menu - меню предметів\n"
+        "/genetics_menu - генетика\n"
+        "/trade_menu - трейди\n\n"
+        
         "🎯 Образливі:\n"
         "/pidor /roast /insult /hardinsult /slap\n\n"
         "🔮 Передбачення:\n"
@@ -2620,15 +2661,55 @@ def help_cmd(message):
         "/ban /unban\n\n"
         "📌 Інше (адміни):\n"
         "/del /pin /unpin /spam\n\n"
-        "💕 Трахензебітен:\n"
-        "/trachen /children /pregnancies /claimchildren\n"
-        "/childinfo /renamechild /childtop /sacrificechild\n"
-        "/childmarry /childtrain\n\n"
+        "💕 Трахензебітен та Генетика:\n"
+        "/trachen - спарювання хряків (12 год кулдаун)\n"
+        "/breed - схрещування з генетикою (24 год, 100 монет)\n"
+        "/genes - перегляд генів твого хряка\n"
+        "/children - твої діти\n"
+        "/childinfo <ID> - інформація про дитину\n"
+        "/childbonus - бонуси від дітей\n"
+        "/childraid <ID> - рейд дитини\n"
+        "/childduel <ID> - дуель дітей\n"
+        "/renamechild <ID> <ім'я> - перейменувати\n"
+        "/childtop - топ дітей за вагою\n"
+        "/sacrificechild <ID> - жертва (монети + XP)\n"
+        "/childmarry <ID1> <ID2> - одружити дітей\n"
+        "/childtrain <ID> - тренування (+5 ваги)\n"
+        "/pregnancies - активні вагітності\n"
+        "/claimchildren - отримати дітей\n\n"
         "🏆 Турніри:\n"
         "/tournament create /join /start /info\n\n"
         "🏰 Гільдії:\n"
         "/createguild /guild /guildjoin /guildleave\n"
         "/guildtop /contribute /transferguild /deleteguild\n\n"
+        "⚔️ Гільдійні Війни:\n"
+        "/guild_territories - карта територій\n"
+        "/guild_capture <назва> - захопити\n"
+        "/guild_income - зібрати дохід\n"
+        "/guild_chest - скринька\n"
+        "/guild_donate <предмет> - внесок\n"
+        "/guild_withdraw <ID> - вивести\n"
+        "/guild_warriors - армія гільдії\n"
+        "/guild_buy_warrior <тип> - купити воїнів\n"
+        "/guild_defend <територія> - захист\n"
+        "/guild_defense_info - інфо захисту\n"
+        "/guild_attack <територія> - атака\n"
+        "/guild_war_declare <гільдія> - війна\n"
+        "/guild_war_join - приєднатися\n"
+        "/guild_war_battle - битися\n"
+        "/guild_war_status - статус\n"
+        "/guild_boss_spawn <ім'я> - бос\n"
+        "/guild_boss_attack - атака\n"
+        "/guild_boss_info - інфо\n\n"
+        "🎒 Предмети:\n"
+        "/inventory - інвентар\n"
+        "/item_trade <предмет> - трейд\n"
+        "/item_trades - активні трейди\n"
+        "/item_accept <id> - прийняти\n"
+        "/item_cancel <id> - скасувати\n"
+        "/guild_items - предмети гільдії\n"
+        "/guild_claim_item <ID> - вивести предмет\n"
+        "/use_item <ID> - використати предмет\n\n"
         "🎨 Скіни:\n"
         "/skins /buyskin /equipskin\n\n"
         "🐲 Бос-дуелі:\n"
@@ -2637,9 +2718,9 @@ def help_cmd(message):
         "/events /eventsclaim\n\n"
         "⚙️ Інше:\n"
         "/start /menu /help /dbstatus /resetdb\n\n"
-        "Всі команди працюють з рандомом!"
+        "**Всі команди працюють з рандомом!**"
     )
-    bot.reply_to(message, text)
+    bot.reply_to(message, text, parse_mode="Markdown")
 
 
 @bot.message_handler(commands=['members'])
@@ -3984,15 +4065,16 @@ def quiz_cmd(message):
         # Обираємо випадкове питання з тих на які не відповідав
         import random
         question_id, question = random.choice(available_questions)
-        
+
         # Створюємо клавіатуру
         markup = types.InlineKeyboardMarkup(row_width=2)
         for i, option in enumerate(question['options']):
+            # Додаємо user_id до callback_data для перевірки хто відповідає
             markup.add(types.InlineKeyboardButton(
                 f"{i+1}. {option}",
-                callback_data=f"quiz_{question_id}_{i}"
+                callback_data=f"quiz_{user_id}_{question_id}_{i}"
             ))
-        
+
         text = f"""🎯 **КВІЗ - Питання #{today_count + 1}/10**
 
 {question['question']}
@@ -4013,19 +4095,28 @@ def quiz_callback(call):
     user_id = call.from_user.id
 
     try:
-        # Перевіряємо чи це відповідь від того хто отримав питання
-        # (запобігаємо відповідям інших користувачів)
+        # Парсимо дані
+        parts = call.data.split('_')
+        if len(parts) != 4:
+            bot.answer_callback_query(call.id, "❌ Помилка формату питання!", show_alert=True)
+            return
+        
+        quiz_user_id = int(parts[1])  # Хто отримав питання
+        question_id = int(parts[2])
+        answer_id = int(parts[3])
+
+        # Перевіряємо чи це той самий користувач який отримав питання
+        if quiz_user_id != user_id:
+            bot.answer_callback_query(call.id, "❌ Це не твоє питання! Створи своє /quiz", show_alert=True)
+            return
+
+        # Перевіряємо скільки вже відповів сьогодні
         progress = get_user_quiz_progress(user_id, chat_id)
         today_count = len(progress)
-        
+
         if today_count >= 10:
             bot.answer_callback_query(call.id, "❌ Ти вже відповів на 10 питань сьогодні!", show_alert=True)
             return
-
-        # Парсимо дані
-        parts = call.data.split('_')
-        question_id = int(parts[1])
-        answer_id = int(parts[2])
 
         # Перевіряємо чи вже відповідав на це питання
         answered_ids = [p['question_id'] for p in progress]
@@ -4043,11 +4134,11 @@ def quiz_callback(call):
         if is_correct:
             add_coins(user_id, chat_id, 10)  # Збільшено з 5 до 10 монет
             add_xp(user_id, chat_id, 5)  # Додано XP
-            
+
             # 🐰 ІВЕНТ: Великдень - правильна відповідь = прогрес
             add_event_progress(user_id, chat_id, 'easter', 1)
             check_event_random_drop(user_id, chat_id, 'easter', 'відповіді на квіз')
-            
+
             text = f"""✅ **ПРАВИЛЬНО!**
 
 +10 монет
@@ -4570,6 +4661,183 @@ def trachen_cmd(message):
         bot.reply_to(message, f"❌ Помилка: {e}")
 
 
+@bot.message_handler(commands=['breed'])
+def breed_cmd(message):
+    """Схрещування хряків - створення потомства з генетикою"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        parts = message.text.split()
+
+        # Перевіряємо чи є хряк у користувача
+        father_hryak = get_hryak(user_id, chat_id)
+        if not father_hryak:
+            bot.reply_to(message, "❌ У тебе ще немає хряка! Введи /grow")
+            return
+
+        # Перевіряємо кулдаун (24 години)
+        BREED_COOLDOWN = 86400
+        last_breed_time = get_last_trachen_time(user_id, chat_id)  # Використовуємо той самий кулдаун
+        now = int(time.time())
+        time_since_last = now - last_breed_time
+
+        if last_breed_time > 0 and time_since_last < BREED_COOLDOWN:
+            hours_left = int((BREED_COOLDOWN - time_since_last) / 3600)
+            minutes_left = int(((BREED_COOLDOWN - time_since_last) % 3600) / 60)
+            bot.reply_to(message, f"⏳ Ще рано! Схрещування доступне раз на 24 години.\n\nЗалишилось: {hours_left} год {minutes_left} хв")
+            return
+
+        # Перевіряємо чи є партнер (обов'язково згадка)
+        if len(parts) < 2 or not message.reply_to_message:
+            bot.reply_to(message, """❌ Використання: /breed (у відповідь на повідомлення партнера)
+
+**Схрещування** - це просунута версія /trachen:
+• Потомство успадковує гени батьків
+• Можливі рідкісні комбінації
+• Шанс на мутації
+• Дитина народжується відразу
+
+⚠️ Вартість: 100 монет""")
+            return
+
+        # Отримуємо партнера
+        partner_id = message.reply_to_message.from_user.id
+        if partner_id == user_id:
+            bot.reply_to(message, "❌ Не можна схрещувати з самим собою!")
+            return
+
+        mother_hryak = get_hryak(partner_id, chat_id)
+        if not mother_hryak:
+            bot.reply_to(message, "❌ У цього користувача немає хряка!")
+            return
+
+        # Перевіряємо чи вистачає монет
+        user_currency = get_user_currency(user_id, chat_id)
+        if not user_currency or user_currency.get('coins', 0) < 100:
+            bot.reply_to(message, "❌ Недостатньо монет! Потрібно 100 монет.")
+            return
+
+        # Списуємо монети
+        from db import update_user_currency
+        new_coins = max(0, user_currency.get('coins', 0) - 100)
+        update_user_currency(user_id, chat_id, coins=new_coins)
+
+        # Схрещуємо
+        result = breed_hryaks(user_id, partner_id, chat_id, father_hryak, mother_hryak)
+
+        if not result.get('success'):
+            bot.reply_to(message, f"❌ Помилка схрещування: {result.get('error', 'Невідома помилка')}")
+            return
+
+        child = result.get('child')
+
+        # Отримуємо генетичну сумісність
+        compatibility = get_genetic_compatibility(user_id, partner_id, chat_id)
+
+        # Формуємо повідомлення
+        rarity_emoji = GENE_RARITIES.get(child['gene_rarity'], {}).get('color', '⚪')
+        color_emoji = COLOR_TYPES.get(child['color_type'], {}).get('emoji', '🐷')
+
+        text = f"""🎉 **ПОТОМСТВО СТВОРЕНО!**
+
+👨 Батько: {father_hryak['name']} (ID: {user_id})
+👩 Мати: {mother_hryak['name']} (ID: {partner_id})
+
+👶 **Дитина:**
+{color_emoji} Ім'я: {child['name']}
+⚖️ Вага: {child['weight']} кг
+{rarity_emoji} Рідкість: {GENE_RARITIES[child['gene_rarity']]['name']}
+
+🧬 **Особливості:**"""
+
+        if child['has_mutation']:
+            text += "\n🔴 **МУТАЦІЯ!** Унікальна здібність!"
+        elif child['inherited_trait']:
+            text += f"\n✨ {child['inherited_trait']}"
+        else:
+            text += "\n⚪ Без особливих ознак"
+
+        text += f"\n\n💞 Сумісність генів: {compatibility['compatibility']}"
+        text += f"\n💰 Витрачено: 100 монет"
+        text += f"\n\n⏰ Наступне схрещування через 24 години"
+
+        # Зберігаємо гени дитини
+        try:
+            # Отримуємо ID останньої дитини
+            children = get_children(user_id, chat_id)
+            if children:
+                latest_child = children[0]
+                update_child_genes(
+                    latest_child['id'],
+                    child['gene_rarity'],
+                    child['bonus_type'],
+                    child['bonus_value'],
+                    child['color_type']
+                )
+        except Exception as e:
+            logger.error(f"❌ Помилка збереження генів дитини: {e}")
+
+        bot.reply_to(message, text, parse_mode="Markdown")
+
+    except Exception as e:
+        logger.error(f"❌ Помилка /breed: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['genes'])
+def genes_cmd(message):
+    """Показати гени хряка користувача"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        hryak = get_hryak(user_id, chat_id)
+        if not hryak:
+            bot.reply_to(message, "❌ У тебе ще немає хряка! Введи /grow")
+            return
+
+        genes = get_hryak_genes(user_id, chat_id)
+
+        rarity_emoji = GENE_RARITIES.get(genes['gene_rarity'] if genes else 'C', {}).get('color', '⚪')
+        color_emoji = COLOR_TYPES.get(genes['color_type'] if genes else 'normal', {}).get('emoji', '🐷')
+
+        text = f"""🧬 **ГЕНИ ХРЯКА**
+
+🐷 {hryak['name']}
+{color_emoji} Колір: {COLOR_TYPES.get(genes['color_type'] if genes else 'normal', {}).get('name', 'Звичайний')}
+{rarity_emoji} Рідкість: {GENE_RARITIES.get(genes['gene_rarity'] if genes else 'C', {}).get('name', 'Звичайний')}
+
+"""
+
+        if genes and genes.get('bonus_type'):
+            bonus_name = BONUS_TYPES.get(genes['bonus_type'], {}).get('name', 'Бонус')
+            text += f"✨ Бонус: +{genes['bonus_value']}% {bonus_name}\n"
+        else:
+            text += "✨ Бонус: Відсутній\n"
+
+        if genes:
+            text += f"🔮 Шанс мутації: {genes.get('mutation_chance', 0.05) * 100:.1f}%\n"
+
+        text += f"""
+**Команди:**
+/breed - схрещування з іншим гравцем
+/children - перегляд дітей
+/childtop - топ дітей за вагою
+
+**Як працює генетика:**
+• Рідкість: C ⚪ → R 🔵 → E 🟣 → L 🟡 → S 🔴
+• Колір успадковується від батьків
+• Бонуси можуть комбінуватися
+• Мутації дають унікальні здібності"""
+
+        bot.reply_to(message, text, parse_mode="Markdown")
+
+    except Exception as e:
+        logger.error(f"❌ Помилка /genes: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
 @bot.message_handler(commands=['childmarry'])
 def child_marry_cmd(message):
     """Одружити дітей (створити онуків)"""
@@ -4685,13 +4953,20 @@ def child_train_cmd(message):
         
         # Знімаємо монети
         update_user_currency(user_id, chat_id, coins=currency['coins'] - 50)
-        
+
         # Збільшуємо вагу
         new_weight = child['weight'] + 5
-        
-        # Оновлюємо дитину (в майбутньому додати функцію update_child)
-        # Поки що просто повідомлення
-        
+
+        # Оновлюємо дитину
+        from db import get_connection
+        conn = get_connection()
+        if conn:
+            cursor = conn.cursor()
+            cursor.execute('UPDATE children SET weight = %s WHERE id = %s', (new_weight, child_id))
+            conn.commit()
+            cursor.close()
+            conn.close()
+
         bot.reply_to(message, f"""💪 **ТРЕНУВАННЯ ВІДБУЛОСЯ!**
 
 Дитина: {child['name']}
@@ -4703,24 +4978,241 @@ def child_train_cmd(message):
         bot.reply_to(message, f"❌ Помилка: {e}")
 
 
+@bot.message_handler(commands=['childbonus'])
+def child_bonus_cmd(message):
+    """Показати бонуси від дітей"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        bonuses = get_children_bonuses(user_id, chat_id)
+
+        if not bonuses.get('bonuses') or bonuses['children_count'] == 0:
+            bot.reply_to(message, "👶 У тебе ще немає дітей!\n\nДіти дають бонуси до сили хряка!")
+            return
+
+        total_bonus = bonuses['total_bonus']
+
+        text = f"""🎯 **БОНУСИ ВІД ДІТЕЙ**
+
+👨‍👩‍👧‍👦 Всього дітей: {bonuses['children_count']}
+✨ Загальний бонус: +{total_bonus:.1f}%
+
+**Діти:**
+"""
+        for i, child_bonus in enumerate(bonuses['bonuses'][:10], 1):
+            type_emoji = {'mutation': '🧬', 'legendary': '⭐', 'rare': '🔵', 'normal': '⚪'}.get(child_bonus['bonus_type'], '⚪')
+            text += f"{i}. **{child_bonus['name']}** {type_emoji}\n"
+            text += f"   ⚖️ Вага: {child_bonus['weight']} кг | Вік: {child_bonus['age_days']} дн.\n"
+            text += f"   ✨ Бонус: +{child_bonus['bonus']:.1f}%\n\n"
+
+        if len(bonuses['bonuses']) > 10:
+            text += f"... і ще {len(bonuses['bonuses']) - 10} дітей\n"
+
+        text += f"""
+**Як працюють бонуси:**
+• Бонус додається до сили твого хряка
+• Діти з мутаціями дають 2x бонус
+• Старші діти дають +10% за кожен день
+• Максимальний вік для бонусу: 30 днів"""
+
+        bot.reply_to(message, text, parse_mode="Markdown")
+
+    except Exception as e:
+        logger.error(f"❌ Помилка /childbonus: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['childraid'])
+def child_raid_cmd(message):
+    """Відправити дитину в рейд"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        parts = message.text.split()
+
+        if len(parts) < 2:
+            bot.reply_to(message, """❌ **Використання:** /childraid <ID дитини> [тип]
+
+**Типи рейдів:**
+• coins - по монети (за замовчуванням)
+• xp - по досвід
+• items - по предмети
+
+**Приклад:** `/childraid 123 coins`""")
+            return
+
+        child_id = int(parts[1])
+        raid_type = parts[2].lower() if len(parts) > 2 else 'coins'
+
+        if raid_type not in ['coins', 'xp', 'items']:
+            bot.reply_to(message, "❌ Невірний тип рейду! Обирай: coins, xp, items")
+            return
+
+        # Отримуємо дитину
+        children = get_children(user_id, chat_id)
+        child = None
+        for c in children:
+            if c['id'] == child_id:
+                child = c
+                break
+
+        if not child:
+            bot.reply_to(message, "❌ Ця дитина не знайдена!")
+            return
+
+        # Відправляємо в рейд
+        result = send_child_on_raid(child_id, user_id, chat_id, raid_type)
+
+        if not result:
+            bot.reply_to(message, "❌ Помилка відправки в рейд!")
+            return
+
+        raid_time_minutes = int(result['raid_time'] / 60)
+        reward_type = {'coins': '💰 монет', 'xp': '⭐ XP', 'items': '🎁 предметів'}.get(raid_type, '💰 монет')
+
+        text = f"""🗡️ **РЕЙД ВІДПРАВЛЕНО!**
+
+Дитина: {child['name']}
+Тип рейду: {raid_type.upper()}
+Очікувана нагорода: {result['reward']} {reward_type}
+Час рейду: {raid_time_minutes} хв.
+
+**По завершенню рейду:**
+Нагорода буде автоматично додана!
+Через {raid_time_minutes} хв. введи /childclaim {child_id}"""
+
+        # TODO: Додати таймер для claim
+        bot.reply_to(message, text, parse_mode="Markdown")
+
+    except ValueError:
+        bot.reply_to(message, "❌ Невірний ID дитини!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /childraid: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['childduel'])
+def child_duel_cmd(message):
+    """Дуель дітей"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        parts = message.text.split()
+
+        if len(parts) < 2 or not message.reply_to_message:
+            bot.reply_to(message, """❌ **Використання:** /childduel <ID твоєї дитини>
+(У відповідь на повідомлення суперника з його дитиною)
+
+**Дуель дітей:**
+• Переможець отримує 50% ваги дитини суперника
+• Батьки отримують монети та XP
+• Кулдаун: 6 годин""")
+            return
+
+        my_child_id = int(parts[1])
+        opponent_id = message.reply_to_message.from_user.id
+
+        # Отримуємо свою дитину
+        my_children = get_children(user_id, chat_id)
+        my_child = None
+        for c in my_children:
+            if c['id'] == my_child_id:
+                my_child = c
+                break
+
+        if not my_child:
+            bot.reply_to(message, "❌ Ця дитина не знайдена!")
+            return
+
+        # Отримуємо дитину суперника
+        opponent_children = get_children(opponent_id, chat_id)
+        if not opponent_children:
+            bot.reply_to(message, "❌ У суперника немає дітей!")
+            return
+
+        # Беремо першу дитину суперника (або можна додати вибір)
+        opponent_child = opponent_children[0]
+
+        # Розраховуємо силу
+        my_power = get_child_power(my_child_id, chat_id)
+        opponent_power = get_child_power(opponent_child['id'], chat_id)
+
+        if not my_power or not opponent_power:
+            bot.reply_to(message, "❌ Помилка розрахунку сили!")
+            return
+
+        # Визначаємо переможця
+        my_roll = random.uniform(0.8, 1.2) * my_power['power']
+        opponent_roll = random.uniform(0.8, 1.2) * opponent_power['power']
+
+        if my_roll > opponent_roll:
+            winner = user_id
+            weight_gain = int(opponent_child['weight'] * 0.5)
+            coins_reward = 100
+            xp_reward = 50
+            text = f"""🏆 **ПЕРЕМОГА!**
+
+Твоя дитина **{my_child['name']}** перемогла!
+⚖️ +{weight_gain} кг до ваги
+💰 +{coins_reward} монет
+⭐ +{xp_reward} XP"""
+
+            # Оновлюємо вагу
+            from db import get_connection, add_coins, add_xp
+            conn = get_connection()
+            if conn:
+                cursor = conn.cursor()
+                cursor.execute('UPDATE children SET weight = %s WHERE id = %s', 
+                              (my_child['weight'] + weight_gain, my_child_id))
+                conn.commit()
+                cursor.close()
+                conn.close()
+            add_coins(user_id, chat_id, coins_reward)
+            add_xp(user_id, chat_id, xp_reward)
+
+        else:
+            text = f"""💀 **ПОРАЗКА!**
+
+Твоя дитина **{my_child['name']}** програла дитині **{opponent_child['name']}**.
+Наступного разу пощастить!"""
+
+        bot.reply_to(message, text, parse_mode="Markdown")
+
+    except ValueError:
+        bot.reply_to(message, "❌ Невірний ID дитини!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /childduel: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
 @bot.message_handler(commands=['children'])
 def children_cmd(message):
     """Показати дітей користувача"""
     chat_id = message.chat.id
     user_id = message.from_user.id
-    
+
     try:
         children_list = get_children(user_id, chat_id)
-        
+
         if not children_list:
-            bot.reply_to(message, "👶 У тебе ще немає дітей!\n\nЗаведи дітей через /trachen")
+            bot.reply_to(message, "👶 У тебе ще немає дітей!\n\nЗаведи дітей через /trachen або /breed")
             return
-        
+
         text = "👶 **Твої діти:**\n\n"
 
         for i, child in enumerate(children_list, 1):
             born_date = time.strftime('%d.%m.%Y', time.localtime(child['born_at']))
-            text += f"{i}. `{child['id']}` - **{child['name']}**\n"
+            
+            # Отримуємо гени дитини
+            child_genes = get_hryak_genes(child['user_id'], chat_id)
+            rarity_emoji = "⚪"
+            if child_genes:
+                rarity_emoji = GENE_RARITIES.get(child_genes.get('gene_rarity', 'C'), {}).get('color', '⚪')
+            
+            text += f"{i}. `{child['id']}` - **{child['name']}** {rarity_emoji}\n"
             text += f"   ⚖️ Вага: {child['weight']} кг\n"
             text += f"   🎂 Народжений: {born_date}\n"
             text += f"   🧬 Особливість: {child['inherited_trait'] or 'Немає'}\n\n"
@@ -4729,11 +5221,12 @@ def children_cmd(message):
         text += "/childinfo <ID> - інформація\n"
         text += "/renamechild <ID> <ім'я> - перейменувати\n"
         text += "/sacrificechild <ID> - жертва\n"
-        text += "/childmarry <ID1> <ID2> - одружити\n\n"
+        text += "/childmarry <ID1> <ID2> - одружити\n"
+        text += "/genes - гени твого хряка\n\n"
         text += "**Приклад:** `/childinfo 123`"
 
         bot.reply_to(message, text, parse_mode="Markdown")
-        
+
     except Exception as e:
         logger.error(f"❌ Помилка /children: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
@@ -4744,34 +5237,42 @@ def child_info_cmd(message):
     """Інформація про дитину"""
     chat_id = message.chat.id
     user_id = message.from_user.id
-    
+
     try:
         parts = message.text.split()
-        
+
         if len(parts) < 2:
             bot.reply_to(message, "❌ Використання: /childinfo <ID дитини>\n\nДізнайся ID командою /children")
             return
-        
+
         child_id = int(parts[1])
         child = get_child(child_id, chat_id)
-        
+
         if not child:
             bot.reply_to(message, "❌ Дитину не знайдено!")
             return
-        
+
         # Перевіряємо чи це дитина користувача
         if child['user_id'] != user_id:
             bot.reply_to(message, "❌ Це не твоя дитина!")
             return
-        
+
         born_date = time.strftime('%d.%m.%Y %H:%M', time.localtime(child['born_at']))
         
-        text = f"""👶 **ІНФОРМАЦІЯ ПРО ДИТИНУ**
+        # Отримуємо гени дитини
+        child_genes = get_hryak_genes(child['user_id'], chat_id)
+        rarity_emoji = "⚪"
+        color_emoji = "🐷"
+        
+        if child_genes:
+            rarity_emoji = GENE_RARITIES.get(child_genes.get('gene_rarity', 'C'), {}).get('color', '⚪')
+            color_emoji = COLOR_TYPES.get(child_genes.get('color_type', 'normal'), {}).get('emoji', '🐷')
 
-**ID:** {child['id']}
-**Ім'я:** {child['name']}
-**Вага:** {child['weight']} кг
-**Особливість:** {child['inherited_trait'] or 'Немає'}
+        text = f"""👶 **ІНФОРМАЦІЯ ПРО ДИТИНУ** {rarity_emoji}
+
+{color_emoji} **Ім'я:** {child['name']}
+⚖️ **Вага:** {child['weight']} кг
+🧬 **Особливість:** {child['inherited_trait'] or 'Немає'}
 
 **Батьки:**
 👨 Батько: ID {child['father_user_id']}
@@ -4780,12 +5281,27 @@ def child_info_cmd(message):
 **Народжений:** {born_date}
 **Вік:** {int((time.time() - child['born_at']) / 86400)} дн.
 
+"""
+        if child_genes:
+            rarity_name = GENE_RARITIES.get(child_genes.get('gene_rarity', 'C'), {}).get('name', 'Звичайний')
+            color_name = COLOR_TYPES.get(child_genes.get('color_type', 'normal'), {}).get('name', 'Звичайний')
+            text += f"**Гени:**\n"
+            text += f"• Рідкість: {rarity_name} {rarity_emoji}\n"
+            text += f"• Колір: {color_name} {color_emoji}\n"
+            
+            if child_genes.get('bonus_type'):
+                bonus_name = BONUS_TYPES.get(child_genes['bonus_type'], {}).get('name', 'Бонус')
+                text += f"• Бонус: +{child_genes['bonus_value']}% {bonus_name}\n"
+            
+            text += f"• Шанс мутації: {child_genes.get('mutation_chance', 0.05) * 100:.1f}%\n"
+
+        text += f"""
 **Команди:**
 /renamechild {child_id} <нове ім'я> - перейменувати
 /sacrificechild {child_id} - жертва (монети + XP)"""
-        
+
         bot.reply_to(message, text, parse_mode="Markdown")
-    
+
     except ValueError:
         bot.reply_to(message, "❌ Невірний ID дитини!")
     except Exception as e:
@@ -5663,6 +6179,1513 @@ XP гільдії: +{amount}""")
 
 
 # ============================================
+# ГІЛЬДІЙНІ ВІЙНИ - КОМАНДИ
+# ============================================
+
+@bot.message_handler(commands=['guild_territories'])
+def guild_territories_cmd(message):
+    """Показати всі території"""
+    try:
+        territories = get_all_territories()
+        
+        if not territories:
+            bot.reply_to(message, "🗺️ **КАРТА ТЕРИТОРІЙ**\n\nНемає захоплених територій!\n\nЗахопи першу територію: /guild_capture <назва>")
+            return
+        
+        text = "🗺️ **КАРТА ТЕРИТОРІЙ**\n\n"
+        
+        territory_emojis = {'mine': '🏭', 'forest': '🌲', 'castle': '🏰', 'temple': '⛩️', 'market': '🏪', 'fortress': '🏯'}
+        
+        for t in territories:
+            owner = t['guild_name'] if t['guild_name'] else "🔳 Вільна"
+            emoji = territory_emojis.get(t.get('bonus_type', ''), '📍')
+            
+            text += f"{emoji} **{t['name']}** ({owner})\n"
+            text += f"   Бонус: +{t['bonus_value']} {t['bonus_type']}\n"
+            text += f"   Дохід: {t['income_per_hour']}/год\n\n"
+        
+        text += "\n**Команди:**\n"
+        text += "/guild_capture <назва> - захопити територію\n"
+        text += "/guild_income - зібрати дохід"
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка /guild_territories: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['guild_capture'])
+def guild_capture_cmd(message):
+    """Захопити територію"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Використання: /guild_capture <назва території>")
+            return
+        
+        # Перевірка гільдії
+        user_guild = get_user_guild(user_id, chat_id)
+        if not user_guild:
+            bot.reply_to(message, "❌ Ви не в гільдії!")
+            return
+        
+        # Перевірка рівня гільдії
+        if user_guild.get('level', 1) < 5:
+            bot.reply_to(message, "❌ Гільдія має бути 5+ рівня!")
+            return
+        
+        # Знаходимо територію
+        territories = get_all_territories()
+        territory = None
+        for t in territories:
+            if t['name'].lower() == parts[1].lower():
+                territory = t
+                break
+        
+        if not territory:
+            # Створюємо нову територію
+            territory_name = parts[1]
+            territory_type = 'mine'  # За замовчуванням
+            
+            # Визначаємо тип за назвою
+            if 'ліс' in territory_name.lower() or 'forest' in territory_name.lower():
+                territory_type = 'forest'
+            elif 'замок' in territory_name.lower() or 'castle' in territory_name.lower():
+                territory_type = 'castle'
+            elif 'ринок' in territory_name.lower() or 'market' in territory_name.lower():
+                territory_type = 'market'
+            elif 'фортец' in territory_name.lower() or 'fortress' in territory_name.lower():
+                territory_type = 'fortress'
+            elif 'храм' in territory_name.lower() or 'temple' in territory_name.lower():
+                territory_type = 'temple'
+            
+            territory_id = create_territory(territory_name, territory_type)
+            if territory_id:
+                territory = get_territory(territory_id)
+        
+        if not territory:
+            bot.reply_to(message, "❌ Помилка створення території!")
+            return
+        
+        # Захоплення
+        if capture_territory(territory['id'], user_guild['id']):
+            bot.reply_to(message, f"✅ {territory['name']} захоплено гільдією {user_guild['name']}!")
+        else:
+            bot.reply_to(message, "❌ Помилка захоплення!")
+            
+    except Exception as e:
+        logger.error(f"❌ Помилка /guild_capture: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['guild_income'])
+def guild_income_cmd(message):
+    """Зібрати дохід з територій"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        user_guild = get_user_guild(user_id, chat_id)
+        if not user_guild:
+            bot.reply_to(message, "❌ Ви не в гільдії!")
+            return
+        
+        income = collect_territory_income(user_guild['id'])
+        
+        text = f"💰 **ДОХІД ЗБРАНО!**\n\n"
+        text += f"🪙 Монети: +{income['coins']}\n"
+        text += f"⭐ XP: +{income['xp']}\n"
+        
+        if income['coins'] > 0 or income['xp'] > 0:
+            # Додаємо до гільдії та власнику
+            from db import update_user_currency
+            current_currency = get_user_currency(user_id, chat_id)
+            new_coins = current_currency.get('coins', 0) + income['coins']
+            new_xp = current_currency.get('xp', 0) + income['xp']
+            update_user_currency(user_id, chat_id, coins=new_coins, xp=new_xp)
+            
+            text += f"\n💰 Твій баланс: {new_coins} монет\n⭐ Твій XP: {new_xp}"
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка /guild_income: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['guild_chest'])
+def guild_chest_cmd(message):
+    """Показати вміст гільдійної скриньки"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        user_guild = get_user_guild(user_id, chat_id)
+        if not user_guild:
+            bot.reply_to(message, "❌ Ви не в гільдії!")
+            return
+        
+        items = get_guild_chest(user_guild['id'])
+        
+        if not items:
+            bot.reply_to(message, "📦 **СКРИНЬКА ГІЛЬДІЇ**\n\nСкринька пуста!\n\nВнеси предмети: /guild_donate")
+            return
+        
+        text = f"📦 **СКРИНЬКА ГІЛЬДІЇ** {user_guild['name']}\n\n"
+        
+        for item in items[:20]:
+            text += f"• {item['item_name']} x{item['quantity']}\n"
+            text += f"  Вніс: {item['donor_name'] or 'Невідомо'}\n\n"
+        
+        if len(items) > 20:
+            text += f"... і ще {len(items) - 20} предметів\n"
+        
+        text += "\n**Команди:**\n"
+        text += "/guild_donate <предмет> <кількість> - внести\n"
+        text += "/guild_withdraw <ID> <кількість> - вивести"
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка /guild_chest: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['guild_items'])
+def guild_items_cmd(message):
+    """Показати предмети гільдії"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        user_guild = get_user_guild(user_id, chat_id)
+        if not user_guild:
+            bot.reply_to(message, "❌ Ви не в гільдії!")
+            return
+        
+        # Отримуємо предмети з нової таблиці guild_items
+        from db import get_connection
+        conn = get_connection()
+        if not conn:
+            bot.reply_to(message, "❌ Помилка БД!")
+            return
+        
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT gi.*, u.username as donor_name
+            FROM guild_items gi
+            LEFT JOIN user_languages u ON gi.donated_by_user_id = u.user_id
+            WHERE gi.guild_id = %s
+            ORDER BY 
+                CASE gi.rarity 
+                    WHEN 'mythic' THEN 1 
+                    WHEN 'legendary' THEN 2 
+                    WHEN 'epic' THEN 3 
+                    WHEN 'rare' THEN 4 
+                    ELSE 5 
+                END,
+                gi.bonus_value DESC
+        ''', (user_guild['id'],))
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        if not rows:
+            bot.reply_to(message, "🎒 **ПРЕДМЕТИ ГІЛЬДІЇ**\n\nНемає предметів!\n\nВнеси предмети: /guild_donate_item")
+            return
+        
+        text = f"🎒 **ПРЕДМЕТИ ГІЛЬДІЇ** {user_guild['name']}\n\n"
+        
+        rarity_emojis = {'mythic': '🔴', 'legendary': '🟡', 'epic': '🟣', 'rare': '🔵', 'common': '⚪'}
+        type_names = {'weapon': 'Зброя', 'armor': 'Броня', 'accessory': 'Аксесуар', 'consumable': 'Споживне', 'special': 'Особливе'}
+        
+        for i, row in enumerate(rows[:20], 1):
+            item_id = int(row[0])
+            item_name = row[3]
+            rarity = row[4]
+            bonus_type = row[5]
+            bonus_value = int(row[6]) if row[6] else 0
+            quantity = int(row[7]) if row[7] else 0
+            donor = row[9] or 'Невідомо'
+            
+            emoji = rarity_emojis.get(rarity, '⚪')
+            type_name = type_names.get(row[2], row[2])
+            bonus_text = f"+{bonus_value} {bonus_type}" if bonus_type else ""
+            
+            text += f"{i}. {emoji} **{item_name}** ({type_name}) x{quantity}\n"
+            text += f"   ID: `{item_id}` | Вніс: {donor}\n"
+            if bonus_text:
+                text += f"   {bonus_text}\n"
+            text += "\n"
+        
+        if len(rows) > 20:
+            text += f"... і ще {len(rows) - 20} предметів\n"
+        
+        text += "\n**Команди:**\n"
+        text += "/guild_claim_item <ID> <кількість> - вивести в інвентар\n"
+        text += "/guild_donate_item <предмет> <кількість> - внести"
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка /guild_items: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['guild_claim_item'])
+def guild_claim_item_cmd(message):
+    """Вивести предмет з гільдійної скриньки в особистий інвентар"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Використання: /guild_claim_item <ID предмета> [кількість]")
+            return
+        
+        item_id = int(parts[1])
+        quantity = int(parts[2]) if len(parts) > 2 else 1
+        
+        user_guild = get_user_guild(user_id, chat_id)
+        if not user_guild:
+            bot.reply_to(message, "❌ Ви не в гільдії!")
+            return
+        
+        # Виводимо предмет
+        result = withdraw_guild_item_to_user(user_guild['id'], user_id, chat_id, item_id, quantity)
+        
+        if result.get('success'):
+            item = result.get('item', {})
+            rarity_emoji = ITEM_RARITIES.get(item.get('rarity'), {}).get('color', '⚪')
+            
+            text = f"✅ **ПРЕДМЕТ ОТРИМАНО!**\n\n"
+            text += f"{rarity_emoji} {item.get('name')}\n"
+            text += f"Тип: {item.get('type')}\n"
+            text += f"Рідкість: {item.get('rarity')}\n"
+            if item.get('bonus_type'):
+                text += f"Бонус: +{item.get('bonus_value')} {item.get('bonus_type')}\n"
+            text += f"Кількість: x{quantity}\n\n"
+            text += f"Предмет додано до твого інвентарю!\n"
+            text += f"Використай /inventory для перегляду"
+            
+            bot.reply_to(message, text, parse_mode="Markdown")
+        else:
+            bot.reply_to(message, f"❌ Помилка: {result.get('error', 'Невідома помилка')}")
+            
+    except ValueError:
+        bot.reply_to(message, "❌ Невірний ID або кількість!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /guild_claim_item: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['use_item'])
+def use_item_cmd(message):
+    """Використати предмет для бафу"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Використання: /use_item <ID предмета>")
+            return
+        
+        item_id = int(parts[1])
+        
+        # Використовуємо предмет
+        result = use_item(user_id, chat_id, item_id)
+        
+        if result.get('success'):
+            duration_hours = result.get('duration', 3600) / 3600
+            
+            text = f"✅ **ПРЕДМЕТ ВИКОРИСТАНО!**\n\n"
+            text += f"🎒 {result.get('item_name')}\n"
+            text += f"✨ Ефект: {result.get('effect')}\n"
+            text += f"⏰ Тривалість: {duration_hours:.1f} год\n\n"
+            text += "Баф активний! Бонуси вже враховані."
+            
+            bot.reply_to(message, text, parse_mode="Markdown")
+        else:
+            bot.reply_to(message, f"❌ Помилка: {result.get('error', 'Невідома помилка')}")
+            
+    except ValueError:
+        bot.reply_to(message, "❌ Невірний ID!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /use_item: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['guild_donate'])
+def guild_donate_cmd(message):
+    """Внести предмет до скриньки"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        if len(parts) < 3:
+            bot.reply_to(message, "❌ Використання: /guild_donate <предмет> <кількість>")
+            return
+        
+        user_guild = get_user_guild(user_id, chat_id)
+        if not user_guild:
+            bot.reply_to(message, "❌ Ви не в гільдії!")
+            return
+        
+        item_name = parts[1]
+        quantity = int(parts[2])
+        
+        if quantity <= 0:
+            bot.reply_to(message, "❌ Кількість має бути додатною!")
+            return
+        
+        if donate_to_chest(user_guild['id'], user_id, 'item', item_name, quantity):
+            bot.reply_to(message, f"✅ Внесено {item_name} x{quantity} до скриньки!")
+        else:
+            bot.reply_to(message, "❌ Помилка внеску!")
+            
+    except ValueError:
+        bot.reply_to(message, "❌ Невірна кількість!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /guild_donate: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['guild_withdraw'])
+def guild_withdraw_cmd(message):
+    """Вивести предмет з гільдійної скриньки"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        if len(parts) < 3:
+            bot.reply_to(message, "❌ Використання: /guild_withdraw <ID предмета> <кількість>")
+            return
+        
+        user_guild = get_user_guild(user_id, chat_id)
+        if not user_guild:
+            bot.reply_to(message, "❌ Ви не в гільдії!")
+            return
+        
+        # Перевірка прав
+        members = get_guild_members(user_guild['id'])
+        is_leader = False
+        for m in members:
+            if m['user_id'] == user_id and m['role'] in ['owner', 'officer']:
+                is_leader = True
+                break
+        
+        if not is_leader:
+            bot.reply_to(message, "❌ Тільки лідер або офіцер може виводити предмети!")
+            return
+        
+        item_id = int(parts[1])
+        quantity = int(parts[2])
+        
+        if withdraw_from_chest(user_guild['id'], item_id, quantity):
+            bot.reply_to(message, f"✅ Виведено {quantity} предметів зі скриньки!")
+        else:
+            bot.reply_to(message, "❌ Помилка виводу або недостатньо предметів!")
+            
+    except ValueError:
+        bot.reply_to(message, "❌ Невірний ID або кількість!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /guild_withdraw: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+# ============================================
+# ГІЛЬДІЙНІ ВІЙНИ - КОМАНДИ ВІЙН
+# ============================================
+
+@bot.message_handler(commands=['guild_war_declare'])
+def guild_war_declare_cmd(message):
+    """Оголосити війну"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Використання: /guild_war_declare <гільдія>")
+            return
+        
+        user_guild = get_user_guild(user_id, chat_id)
+        if not user_guild:
+            bot.reply_to(message, "❌ Ви не в гільдії!")
+            return
+        
+        # Перевірка що це лідер або офіцер
+        members = get_guild_members(user_guild['id'])
+        is_leader = False
+        for m in members:
+            if m['user_id'] == user_id and m['role'] in ['owner', 'officer']:
+                is_leader = True
+                break
+        
+        if not is_leader:
+            bot.reply_to(message, "❌ Тільки лідер або офіцер може оголосити війну!")
+            return
+        
+        # Знаходимо гільдію суперника
+        enemy_guild = get_guild_by_name(parts[1])
+        if not enemy_guild:
+            bot.reply_to(message, "❌ Гільдію не знайдено!")
+            return
+        
+        if enemy_guild['id'] == user_guild['id']:
+            bot.reply_to(message, "❌ Не можна оголосити війну собі!")
+            return
+        
+        # Перевірка на вже активну війну
+        active_wars = get_active_wars(user_guild['id'])
+        if len(active_wars) >= 3:
+            bot.reply_to(message, "❌ Максимум 3 активні війни!")
+            return
+        
+        # Оголошуємо війну
+        war_id = declare_war(user_guild['id'], enemy_guild['id'])
+        
+        if war_id:
+            text = f"⚔️ **ВІЙНА ОГОЛОШЕНА!**\n\n"
+            text += f"🔴 {user_guild['name']} проти 🔵 {enemy_guild['name']}\n\n"
+            text += f"ID війни: {war_id}\n"
+            text += f"Тривалість: 7 днів\n\n"
+            text += "Використовуйте /guild_war_join для приєднання!\n"
+            text += "/guild_war_battle для битви!"
+            
+            bot.reply_to(message, text, parse_mode="Markdown")
+        else:
+            bot.reply_to(message, "❌ Помилка оголошення війни!")
+            
+    except Exception as e:
+        logger.error(f"❌ Помилка /guild_war_declare: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['guild_war_join'])
+def guild_war_join_cmd(message):
+    """Приєднатися до війни"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        user_guild = get_user_guild(user_id, chat_id)
+        if not user_guild:
+            bot.reply_to(message, "❌ Ви не в гільдії!")
+            return
+        
+        wars = get_active_wars(user_guild['id'])
+        
+        if not wars:
+            bot.reply_to(message, "⚔️ Немає активних воєн!")
+            return
+        
+        text = "⚔️ **АКТИВНІ ВІЙНИ**\n\n"
+        
+        for war in wars:
+            text += f"ID: {war['id']}\n"
+            text += f"{war['attacker_name']} 🔴 vs 🔵 {war['defender_name']}\n"
+            text += f"Рахунок: {war['attacker_score']} - {war['defender_score']}\n\n"
+        
+        # Автоматично приєднуємо до всіх воєн
+        joined_count = 0
+        for war in wars:
+            if join_war(war['id'], user_id, user_guild['id']):
+                joined_count += 1
+        
+        text += f"\n✅ Ви приєдналися до {joined_count} воєн!"
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка /guild_war_join: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['guild_war_battle'])
+def guild_war_battle_cmd(message):
+    """Битися у війні"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        user_guild = get_user_guild(user_id, chat_id)
+        if not user_guild:
+            bot.reply_to(message, "❌ Ви не в гільдії!")
+            return
+        
+        wars = get_active_wars(user_guild['id'])
+        
+        if not wars:
+            bot.reply_to(message, "⚔️ Немає активних воєн!")
+            return
+        
+        # Отримуємо хряка для розрахунку внеску
+        hryak = get_hryak(user_id, chat_id)
+        
+        if not hryak:
+            bot.reply_to(message, "❌ У тебе немає хряка!")
+            return
+        
+        # Битва в кожній війні
+        total_contribution = 0
+        
+        for war in wars:
+            # Розрахунок внеску (вага хряка * 2)
+            contribution = hryak['weight'] * 2
+            add_war_contribution(war['id'], user_id, user_guild['id'], contribution)
+            total_contribution += contribution
+        
+        text = f"⚔️ **БИТВА ВІДБУЛАСЯ!**\n\n"
+        text += f"Ваш внесок: {total_contribution} очок\n"
+        
+        if total_contribution > 0:
+            add_coins(user_id, chat_id, 50)
+            add_xp(user_id, chat_id, 25)
+            text += "💰 +50 монет\n"
+            text += "⭐ +25 XP\n"
+        
+        text += "\nКулдаун: 24 години"
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка /guild_war_battle: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['guild_war_status'])
+def guild_war_status_cmd(message):
+    """Показати статус воєн"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        user_guild = get_user_guild(user_id, chat_id)
+        if not user_guild:
+            bot.reply_to(message, "❌ Ви не в гільдії!")
+            return
+        
+        wars = get_active_wars(user_guild['id'])
+        
+        if not wars:
+            bot.reply_to(message, "⚔️ Немає активних воєн!")
+            return
+        
+        text = "⚔️ **ВІЙНИ ГІЛЬДІЇ**\n\n"
+        
+        for war in wars:
+            text += f"ID: {war['id']}\n"
+            text += f"{war['attacker_name']} 🔴 vs 🔵 {war['defender_name']}\n"
+            text += f"Рахунок: {war['attacker_score']} - {war['defender_score']}\n"
+            
+            # Рахуємо днів до кінця
+            days_left = 7 - int((time.time() - war['started_at']) / 86400)
+            text += f"Залишилось днів: {max(0, days_left)}\n\n"
+        
+        text += "\n**Команди:**\n"
+        text += "/guild_war_battle - битися (щодня)\n"
+        text += "/guild_war_join - приєднатися"
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка /guild_war_status: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+# ============================================
+# ГІЛЬДІЙНІ БОСИ - КОМАНДИ
+# ============================================
+
+@bot.message_handler(commands=['guild_boss_spawn'])
+def guild_boss_spawn_cmd(message):
+    """Спавнити боса гільдії"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        if len(parts) < 3:
+            bot.reply_to(message, "❌ Використання: /guild_boss_spawn <ім'я> <рівень>")
+            return
+        
+        user_guild = get_user_guild(user_id, chat_id)
+        if not user_guild:
+            bot.reply_to(message, "❌ Ви не в гільдії!")
+            return
+        
+        # Перевірка прав
+        members = get_guild_members(user_guild['id'])
+        is_leader = False
+        for m in members:
+            if m['user_id'] == user_id and m['role'] in ['owner', 'officer']:
+                is_leader = True
+                break
+        
+        if not is_leader:
+            bot.reply_to(message, "❌ Тільки лідер або офіцер може спавнити боса!")
+            return
+        
+        boss_name = parts[1]
+        boss_level = int(parts[2])
+        
+        if boss_level < 1 or boss_level > 100:
+            bot.reply_to(message, "❌ Рівень має бути від 1 до 100!")
+            return
+        
+        # Розрахунок статів
+        health = boss_level * 1000
+        damage = boss_level * 50
+        reward_coins = boss_level * 500
+        reward_xp = boss_level * 250
+        
+        # Перевірка вартості (1000 монет за спавн)
+        currency = get_user_currency(user_id, chat_id)
+        if currency.get('coins', 0) < 1000:
+            bot.reply_to(message, "❌ Недостатньо монет! Потрібно 1000 монет.")
+            return
+        
+        # Списуємо монети
+        update_user_currency(user_id, chat_id, coins=currency['coins'] - 1000)
+        
+        boss_id = spawn_guild_boss(boss_name, boss_level, health, damage, reward_coins, reward_xp, user_guild['id'])
+        
+        if boss_id:
+            text = f"🐲 **БОС СПАВНЕНИЙ!**\n\n"
+            text += f"Ім'я: {boss_name}\n"
+            text += f"⭐ Рівень: {boss_level}\n"
+            text += f"❤️ Здоров'я: {health}\n"
+            text += f"⚔️ Шкода: {damage}\n"
+            text += f"💰 Нагорода: {reward_coins} монет + {reward_xp} XP\n\n"
+            text += "Атакуйте: /guild_boss_attack"
+            
+            bot.reply_to(message, text, parse_mode="Markdown")
+        else:
+            bot.reply_to(message, "❌ Помилка спавну!")
+            
+    except ValueError:
+        bot.reply_to(message, "❌ Невірний рівень!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /guild_boss_spawn: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['guild_boss_attack'])
+def guild_boss_attack_cmd(message):
+    """Атакувати боса гільдії"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        user_guild = get_user_guild(user_id, chat_id)
+        if not user_guild:
+            bot.reply_to(message, "❌ Ви не в гільдії!")
+            return
+        
+        # Отримуємо хряка
+        hryak = get_hryak(user_id, chat_id)
+        
+        if not hryak:
+            bot.reply_to(message, "❌ У тебе немає хряка!")
+            return
+        
+        # Знаходимо активного боса гільдії
+        # (тут потрібна функція get_active_guild_boss, поки що заглушка)
+        bot.reply_to(message, f"⚔️ **АТАКА!**\n\nТвій хряк {hryak['name']} готовий до бою!\n\nШкода: {hryak['weight'] * 2}\n\n⚠️ Функція в розробці...")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка /guild_boss_attack: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['guild_boss_info'])
+def guild_boss_info_cmd(message):
+    """Інформація про боса гільдії"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        user_guild = get_user_guild(user_id, chat_id)
+        if not user_guild:
+            bot.reply_to(message, "❌ Ви не в гільдії!")
+            return
+        
+        bot.reply_to(message, "🐲 **ІНФОРМАЦІЯ ПРО БОСІВ**\n\nФункція в розробці...\n\nСкоро тут буде інформація про активних босів гільдії!")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка /guild_boss_info: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+# ============================================
+# ГІЛЬДІЙНІ ВОЇНИ - КОМАНДИ
+# ============================================
+
+@bot.message_handler(commands=['guild_warriors'])
+def guild_warriors_cmd(message):
+    """Показати всіх воїнів гільдії"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        user_guild = get_user_guild(user_id, chat_id)
+        if not user_guild:
+            bot.reply_to(message, "❌ Ви не в гільдії!")
+            return
+        
+        warriors = get_guild_warriors(user_guild['id'])
+        total = get_total_warrior_power(user_guild['id'])
+        
+        if not warriors:
+            bot.reply_to(message, "🪖 **АРМІЯ ГІЛЬДІЇ**\n\nУ вас ще немає воїнів!\n\nКупіть воїнів: /guild_buy_warrior")
+            return
+        
+        text = f"🪖 **АРМІЯ ГІЛЬДІЇ** {user_guild['name']}\n\n"
+        text += f"💪 Загальна сила: {total['total_power']}\n"
+        text += f"👥 Всього воїнів: {total['total_quantity']}\n\n"
+        
+        warrior_emojis = {'regular': '🐷', 'matochnik': '🐗', 'elite': '⚔️', 'legendary': '👑'}
+        
+        for w in warriors:
+            emoji = warrior_emojis.get(w['warrior_type'], '🐷')
+            name = WARRIOR_TYPES.get(w['warrior_type'], {}).get('name', 'Свинар')
+            text += f"{emoji} **{name}** x{w['quantity']}\n"
+            text += f"   Сила: {w['power']} ({w['power'] // w['quantity']} на воїна)\n\n"
+        
+        text += "\n**Команди:**\n"
+        text += "/guild_buy_warrior <тип> <кількість> - купити\n"
+        text += "/guild_defend <територія> <тип> <кількість> - захист"
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка /guild_warriors: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['guild_buy_warrior'])
+def guild_buy_warrior_cmd(message):
+    """Купити воїнів"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        if len(parts) < 3:
+            bot.reply_to(message, "❌ Використання: /guild_buy_warrior <тип> <кількість>\n\nТипи: regular, matochnik, elite, legendary")
+            return
+        
+        warrior_type = parts[1].lower()
+        quantity = int(parts[2])
+        
+        if warrior_type not in WARRIOR_TYPES:
+            bot.reply_to(message, f"❌ Невірний тип! Доступні: {', '.join(WARRIOR_TYPES.keys())}")
+            return
+        
+        if quantity <= 0 or quantity > 1000:
+            bot.reply_to(message, "❌ Кількість має бути від 1 до 1000!")
+            return
+        
+        user_guild = get_user_guild(user_id, chat_id)
+        if not user_guild:
+            bot.reply_to(message, "❌ Ви не в гільдії!")
+            return
+        
+        # Розрахунок вартості
+        warrior_data = WARRIOR_TYPES.get(warrior_type, {})
+        total_cost = warrior_data.get('cost', 100) * quantity
+        
+        # Перевірка балансу
+        currency = get_user_currency(user_id, chat_id)
+        if currency.get('coins', 0) < total_cost:
+            bot.reply_to(message, f"❌ Недостатньо монет! Потрібно {total_cost} монет.")
+            return
+        
+        # Списуємо монети
+        update_user_currency(user_id, chat_id, coins=currency['coins'] - total_cost)
+        
+        # Купуємо воїнів
+        if buy_warrior(user_guild['id'], warrior_type, quantity):
+            emoji = warrior_data.get('emoji', '🐷')
+            name = warrior_data.get('name', 'Свинар')
+            bot.reply_to(message, f"✅ Куплено {quantity} x {emoji} {name}!\n\nВитрачено: {total_cost} монет")
+        else:
+            bot.reply_to(message, "❌ Помилка купівлі!")
+            
+    except ValueError:
+        bot.reply_to(message, "❌ Невірна кількість!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /guild_buy_warrior: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['guild_defend'])
+def guild_defend_cmd(message):
+    """Розмістити воїнів на захист території"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        if len(parts) < 4:
+            bot.reply_to(message, "❌ Використання: /guild_defend <територія> <тип> <кількість>")
+            return
+        
+        territory_name = parts[1]
+        warrior_type = parts[2].lower()
+        warrior_count = int(parts[3])
+        
+        if warrior_type not in WARRIOR_TYPES:
+            bot.reply_to(message, f"❌ Невірний тип! Доступні: {', '.join(WARRIOR_TYPES.keys())}")
+            return
+        
+        user_guild = get_user_guild(user_id, chat_id)
+        if not user_guild:
+            bot.reply_to(message, "❌ Ви не в гільдії!")
+            return
+        
+        # Перевірка що воїни є
+        warriors = get_guild_warriors(user_guild['id'])
+        has_warriors = False
+        for w in warriors:
+            if w['warrior_type'] == warrior_type and w['quantity'] >= warrior_count:
+                has_warriors = True
+                break
+        
+        if not has_warriors:
+            bot.reply_to(message, "❌ У вас немає стільки воїнів цього типу!")
+            return
+        
+        # Знаходимо територію
+        territories = get_all_territories()
+        territory = None
+        for t in territories:
+            if t['name'].lower() == territory_name.lower():
+                territory = t
+                break
+        
+        if not territory:
+            bot.reply_to(message, "❌ Територію не знайдено!")
+            return
+        
+        # Перевірка що територія належить гільдії
+        if territory.get('owner_guild_id') != user_guild['id']:
+            bot.reply_to(message, "❌ Ця територія не належить вашій гільдії!")
+            return
+        
+        # Розміщуємо воїнів
+        if station_warriors(territory['id'], user_guild['id'], warrior_type, warrior_count):
+            # Видаляємо воїнів з гільдії
+            remove_warriors_from_guild(user_guild['id'], warrior_type, warrior_count)
+            
+            emoji = WARRIOR_TYPES.get(warrior_type, {}).get('emoji', '🐷')
+            name = WARRIOR_TYPES.get(warrior_type, {}).get('name', 'Свинар')
+            bot.reply_to(message, f"✅ {warrior_count} x {emoji} {name} розміщено на захист {territory_name}!")
+        else:
+            bot.reply_to(message, "❌ Помилка розміщення!")
+            
+    except ValueError:
+        bot.reply_to(message, "❌ Невірна кількість!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /guild_defend: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['guild_defense_info'])
+def guild_defense_info_cmd(message):
+    """Показати інформацію про захист території"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Використання: /guild_defense_info <територія>")
+            return
+        
+        territory_name = parts[1]
+        
+        # Знаходимо територію
+        territories = get_all_territories()
+        territory = None
+        for t in territories:
+            if t['name'].lower() == territory_name.lower():
+                territory = t
+                break
+        
+        if not territory:
+            bot.reply_to(message, "❌ Територію не знайдено!")
+            return
+        
+        defense = get_territory_defense(territory['id'])
+        
+        text = f"🏰 **ЗАХИТ ТЕРИТОРІЇ** {territory['name']}\n\n"
+        text += f"💪 Загальна сила захисту: {defense['total_power']}\n\n"
+        
+        if not defense['defense']:
+            text += "⚠️ Територія не захищена!"
+        else:
+            warrior_emojis = {'regular': '🐷', 'matochnik': '🐗', 'elite': '⚔️', 'legendary': '👑'}
+            
+            for d in defense['defense']:
+                emoji = warrior_emojis.get(d['warrior_type'], '🐷')
+                text += f"{emoji} {d['guild_name']}: {d['warrior_count']} воїнів (сила: {d['defense_power']})\n"
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка /guild_defense_info: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['guild_attack'])
+def guild_attack_cmd(message):
+    """Атакувати територію"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Використання: /guild_attack <територія>")
+            return
+        
+        territory_name = parts[1]
+        
+        user_guild = get_user_guild(user_id, chat_id)
+        if not user_guild:
+            bot.reply_to(message, "❌ Ви не в гільдії!")
+            return
+        
+        # Перевірка що є воїни
+        attackers = get_total_warrior_power(user_guild['id'])
+        if attackers['total_power'] <= 0:
+            bot.reply_to(message, "❌ У вас немає воїнів для атаки!")
+            return
+        
+        # Знаходимо територію
+        territories = get_all_territories()
+        territory = None
+        for t in territories:
+            if t['name'].lower() == territory_name.lower():
+                territory = t
+                break
+        
+        if not territory:
+            bot.reply_to(message, "❌ Територію не знайдено!")
+            return
+        
+        # Перевірка що це не своя територія
+        if territory.get('owner_guild_id') == user_guild['id']:
+            bot.reply_to(message, "❌ Не можна атакувати свою територію!")
+            return
+        
+        # Отримуємо захист
+        defense = get_territory_defense(territory['id'])
+        defender_power = defense['total_power']
+        
+        # Розрахунок битви
+        attacker_power = attackers['total_power']
+        
+        # Якщо атакуючих більше - перемога
+        if attacker_power > defender_power:
+            # Втрачаємо частину воїнів (пропорційно до захисту)
+            loss_percent = defender_power / attacker_power if attacker_power > 0 else 0
+            warriors_lost = int(attackers['total_quantity'] * loss_percent * 0.5)  # 50% від пропорції
+            
+            # Захоплюємо територію
+            capture_territory(territory['id'], user_guild['id'])
+            
+            # Записуємо битву
+            record_territory_battle(
+                territory['id'], user_guild['id'], territory.get('owner_guild_id', 0),
+                attackers['total_quantity'], defense.get('total_quantity', 0),
+                warriors_lost, 0, user_guild['id']
+            )
+            
+            text = f"🎉 **ПЕРЕМОГА!**\n\n"
+            text += f"Територія {territory['name']} захоплена!\n"
+            text += f"💪 Сила атаки: {attacker_power}\n"
+            text += f"🛡️ Сила захисту: {defender_power}\n"
+            text += f"💀 Втрачено воїнів: {warriors_lost}\n\n"
+            text += "Територія тепер належить вашій гільдії!"
+            
+            bot.reply_to(message, text, parse_mode="Markdown")
+        else:
+            # Поразка - втрачаємо всіх воїнів
+            text = f"💀 **ПОРАЗКА!**\n\n"
+            text += f"Атака відбита!\n"
+            text += f"💪 Сила атаки: {attacker_power}\n"
+            text += f"🛡️ Сила захисту: {defender_power}\n\n"
+            text += "Всі ваші воїни загинули в бою!"
+            
+            bot.reply_to(message, text, parse_mode="Markdown")
+            
+    except Exception as e:
+        logger.error(f"❌ Помилка /guild_attack: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+# ============================================
+# ПРЕДМЕТИ ТА ІНВЕНТАР - КОМАНДИ
+# ============================================
+
+@bot.message_handler(commands=['inventory'])
+def inventory_cmd(message):
+    """Показати інвентар предметів користувача"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        items = get_user_items(user_id, chat_id)
+        bonuses = get_user_total_bonuses(user_id, chat_id)
+        
+        if not items:
+            bot.reply_to(message, "🎒 **ІНВЕНТАР**\n\nУ тебе ще немає предметів!\n\nОтримай предмети з трейдів або івентів.")
+            return
+        
+        text = f"🎒 **ІНВЕНТАР**\n\n"
+        text += f"💪 Загальні бонуси:\n"
+        text += f"   ⚔️ Сила: +{bonuses.get('power', 0)}\n"
+        text += f"   🛡️ Захист: +{bonuses.get('defense', 0)}\n"
+        text += f"   🍀 Удача: +{bonuses.get('luck', 0)}\n\n"
+        
+        rarity_emojis = {'mythic': '🔴', 'legendary': '🟡', 'epic': '🟣', 'rare': '🔵', 'common': '⚪'}
+        type_names = {'weapon': 'Зброя', 'armor': 'Броня', 'accessory': 'Аксесуар', 'consumable': 'Споживне', 'special': 'Особливе'}
+        
+        for item in items[:20]:
+            rarity_emoji = rarity_emojis.get(item['rarity'], '⚪')
+            type_name = type_names.get(item['item_type'], item['item_type'])
+            bonus_text = f"+{item['bonus_value']} {item['bonus_type']}" if item['bonus_type'] else ""
+            
+            text += f"{rarity_emoji} **{item['item_name']}** ({type_name}) x{item['quantity']}\n"
+            if bonus_text:
+                text += f"   {bonus_text}\n"
+            text += "\n"
+        
+        if len(items) > 20:
+            text += f"... і ще {len(items) - 20} предметів\n"
+        
+        text += "\n**Команди:**\n"
+        text += "/item_trade @user <предмет> - трейд предметом"
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка /inventory: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['item_trade'])
+def item_trade_cmd(message):
+    """Створити трейд предметами"""
+    chat_id = message.chat.id
+    sender_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        
+        if len(parts) < 3 or not message.reply_to_message:
+            bot.reply_to(message, """💱 **ТРЕЙД ПРЕДМЕТАМИ**
+
+Використання: /item_trade <предмет> <кількість> (у відповідь на повідомлення)
+
+Приклад:
+1. Відповідь на повідомлення отримувача
+2. /item_trade Меч 1
+
+**Команди:**
+/item_trade <предмет> <кількість> - створити трейд
+/item_trades - показати активні трейди
+/item_accept <id> - прийняти
+/item_cancel <id> - скасувати""")
+            return
+        
+        item_name = parts[1]
+        quantity = int(parts[2]) if len(parts) > 2 else 1
+        
+        # Отримуємо отримувача
+        receiver_id = message.reply_to_message.from_user.id
+        
+        if receiver_id == sender_id:
+            bot.reply_to(message, "❌ Не можна торгувати з самим собою!")
+            return
+        
+        # Перевіряємо чи є предмет
+        items = get_user_items(sender_id, chat_id)
+        has_item = False
+        for item in items:
+            if item['item_name'].lower() == item_name.lower() and item['quantity'] >= quantity:
+                has_item = True
+                break
+        
+        if not has_item:
+            bot.reply_to(message, f"❌ У тебе немає предмета '{item_name}' в такій кількості!")
+            return
+        
+        # Створюємо трейд
+        sender_items = [{'name': item_name, 'quantity': quantity}]
+        trade_id = create_item_trade(sender_id, receiver_id, chat_id, sender_items=sender_items)
+        
+        if trade_id:
+            bot.reply_to(message, f"""💱 **ТРЕЙД СТВОРЕНО!**
+
+Отримувач: ID {receiver_id}
+Предмет: {item_name} x{quantity}
+
+Отримувач має написати /item_accept {trade_id} щоб прийняти трейд.
+
+⏰ Трейд дійсний 24 години.""")
+        else:
+            bot.reply_to(message, "❌ Помилка створення трейду!")
+            
+    except ValueError:
+        bot.reply_to(message, "❌ Невірна кількість!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /item_trade: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['item_trades'])
+def item_trades_cmd(message):
+    """Показати активні трейди предметами"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        trades = get_pending_trades(user_id)
+        
+        if not trades:
+            bot.reply_to(message, "📭 Немає активних трейдів предметами!")
+            return
+        
+        text = "💱 **Активні трейди предметами:**\n\n"
+        
+        for trade in trades:
+            sender = "Ви" if trade['sender_id'] == user_id else f"ID {trade['sender_id']}"
+            receiver = "Ви" if trade['receiver_id'] == user_id else f"ID {trade['receiver_id']}"
+            
+            text += f"ID: `{trade['id']}`\n"
+            text += f"Від: {sender} → До: {receiver}\n"
+            text += f"Створено: {time.strftime('%d.%m %H:%M', time.localtime(trade['created_at']))}\n\n"
+        
+        text += "**Команди:**\n"
+        text += "/item_accept <id> - прийняти\n"
+        text += "/item_cancel <id> - скасувати"
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка /item_trades: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['item_accept'])
+def item_accept_cmd(message):
+    """Прийняти трейд предметами"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Використання: /item_accept <ID трейду>")
+            return
+        
+        trade_id = int(parts[1])
+        trade = get_item_trade(trade_id)
+        
+        if not trade:
+            bot.reply_to(message, "❌ Трейд не знайдено!")
+            return
+        
+        # Перевіряємо чи це отримувач
+        if trade['receiver_id'] != user_id:
+            bot.reply_to(message, "❌ Це не ваш трейд!")
+            return
+        
+        if trade['status'] != 'pending':
+            bot.reply_to(message, "❌ Трейд вже оброблено!")
+            return
+        
+        # Приймаємо трейд
+        if accept_item_trade(trade_id):
+            # Передаємо предмети
+            for item in trade.get('sender_items', []):
+                add_item_to_user(
+                    user_id, chat_id,
+                    'item', item['name'],
+                    rarity='common',
+                    quantity=item.get('quantity', 1)
+                )
+            
+            bot.reply_to(message, f"✅ Трейд {trade_id} прийнято!\n\nПредмети додано до інвентарю!")
+        else:
+            bot.reply_to(message, "❌ Помилка прийняття трейду!")
+            
+    except ValueError:
+        bot.reply_to(message, "❌ Невірний ID!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /item_accept: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['item_cancel'])
+def item_cancel_cmd(message):
+    """Скасувати трейд предметами"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    try:
+        parts = message.text.split()
+        
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Використання: /item_cancel <ID трейду>")
+            return
+        
+        trade_id = int(parts[1])
+        trade = get_item_trade(trade_id)
+        
+        if not trade:
+            bot.reply_to(message, "❌ Трейд не знайдено!")
+            return
+        
+        # Перевіряємо чи це відправник
+        if trade['sender_id'] != user_id:
+            bot.reply_to(message, "❌ Це не ваш трейд!")
+            return
+        
+        if trade['status'] != 'pending':
+            bot.reply_to(message, "❌ Трейд вже оброблено!")
+            return
+        
+        # Скасовуємо трейд
+        if cancel_item_trade(trade_id):
+            bot.reply_to(message, f"✅ Трейд {trade_id} скасовано!")
+        else:
+            bot.reply_to(message, "❌ Помилка скасування!")
+            
+    except ValueError:
+        bot.reply_to(message, "❌ Невірний ID!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /item_cancel: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+# ============================================
+# МЕНЮ КОМАНД - ЗРУЧНИЙ ДОСТУП
+# ============================================
+
+@bot.message_handler(commands=['guild_menu'])
+def guild_menu_cmd(message):
+    """Головне меню гільдії"""
+    try:
+        text = """🏰 **МЕНЮ ГІЛЬДІЇ**
+
+**📊 Інформація:**
+/guild - інформація про гільдію
+/guildtop - топ гільдій
+/guild_chest - скринька гільдії
+
+**🗺️ Території:**
+/guild_territories - карта
+/guild_capture - захопити
+/guild_income - дохід
+/guild_defense_info - захист
+
+**🪖 Армія:**
+/guild_warriors - воїни
+/guild_buy_warrior - купити
+/guild_defend - захист
+/guild_attack - атака
+
+**⚔️ Війни:**
+/guild_war_declare - війна
+/guild_war_battle - битва
+/guild_war_status - статус
+
+**🐲 Боси:**
+/guild_boss_spawn - спавн
+/guild_boss_attack - атака
+
+**🎒 Предмети:**
+/guild_items - предмети гільдії
+/guild_claim_item - вивести предмет
+
+**Швидкі команди:**
+/warriors_menu - меню армії
+/items_menu - меню предметів
+/genetics_menu - генетика
+/trade_menu - трейди"""
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка /guild_menu: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['warriors_menu'])
+def warriors_menu_cmd(message):
+    """Меню воїнів"""
+    try:
+        text = """🪖 **МЕНЮ ВОЇНІВ**
+
+**Інформація:**
+/guild_warriors - список армії
+
+**Купівля:**
+/guild_buy_warrior regular 10 - 10 звичайних (100💰)
+/guild_buy_warrior matochnik 5 - 5 маточників (2500💰)
+/guild_buy_warrior elite 2 - 2 елітних (2000💰)
+/guild_buy_warrior legendary 1 - 1 легендарний (5000💰)
+
+**Управління:**
+/guild_defend <територія> <тип> <кількість> - на захист
+/guild_attack <територія> - атака
+
+**Типи воїнів:**
+🐷 Свинар - 100💰, сила 10
+🐗 Маточник - 500💰, сила 60
+⚔️ Елітний - 1000💰, сила 150
+👑 Легендарний - 5000💰, сила 1000"""
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка /warriors_menu: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['items_menu'])
+def items_menu_cmd(message):
+    """Меню предметів"""
+    try:
+        text = """🎒 **МЕНЮ ПРЕДМЕТІВ**
+
+**Інформація:**
+/inventory - твій інвентар
+/guild_items - предмети гільдії
+
+**Трейд:**
+/item_trade <предмет> - створити трейд
+/item_trades - активні трейди
+/item_accept <id> - прийняти
+/item_cancel <id> - скасувати
+
+**Вивід з гільдії:**
+/guild_claim_item <ID> <кількість> - вивести
+
+**Використання:**
+/use_item <ID> - використати предмет
+
+**Рідкості:**
+⚪ Common - 1x бонус
+🔵 Rare - 2x бонус
+🟣 Epic - 3x бонус
+🟡 Legendary - 5x бонус
+🔴 Mythic - 10x бонус
+
+**Типи:**
+⚔️ Зброя - сила
+🛡️ Броня - захист
+🍀 Аксесуар - удача"""
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка /items_menu: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['genetics_menu'])
+def genetics_menu_cmd(message):
+    """Меню генетики"""
+    try:
+        text = """🧬 **МЕНЮ ГЕНЕТИКИ**
+
+**Основні команди:**
+/genes - гени твого хряка
+/breed - схрещування (100💰)
+/children - діти
+/childinfo <ID> - інфо дитини
+
+**Бонуси дітей:**
+/childbonus - бонуси від дітей
+/childraid <ID> - рейд
+/childduel <ID> - дуель
+/childtrain <ID> - тренування (50💰)
+
+**Рідкості генів:**
+⚪ C (Common) - 70%
+🔵 R (Rare) - 20%
+🟣 E (Epic) - 7%
+🟡 L (Legendary) - 2.5%
+🔴 S (Special) - 0.5%
+
+**Кольори:**
+🐷 Звичайний - 60%
+🐗 Дикий - 20%
+✨ Золотий - 10%
+🌈 Веселка - 5%
+🤖 Кібер - 3%
+👑 Королівський - 1.5%
+🌑 Порожнеча - 0.5%"""
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка /genetics_menu: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['trade_menu'])
+def trade_menu_cmd(message):
+    """Меню трейдів"""
+    try:
+        text = """💱 **МЕНЮ ТРЕЙДІВ**
+
+**Монети:**
+/trade @user <сума> - створити трейд
+/trades - активні трейди
+/accept <id> - прийняти
+/cancel <id> - скасувати
+
+**Предмети:**
+/item_trade <предмет> <кількість> - трейд
+/item_trades - активні трейди
+/item_accept <id> - прийняти
+/item_cancel <id> - скасувати
+
+**Поради:**
+1. Завжди перевіряй ID трейду
+2. Не приймай трейди від незнайомців
+3. Перевіряй предмети перед прийняттям
+4. Скасовуй підозрілі трейди
+
+**Безпека:**
+• Трейд діє 24 години
+• Можна скасувати до прийняття
+• Предмети перевіряються автоматично"""
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"❌ Помилка /trade_menu: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+# ============================================
 # СКІНИ ДЛЯ ХРЯКІВ
 # ============================================
 
@@ -5962,7 +7985,17 @@ def boss_cmd(message):
                 total_damage = max(1, int((base_damage + random_damage) * (1 + skin_bonus / 100) * terchizz_bonus))
 
                 # Атакуємо
-                result = attack_boss(boss['id'], user_id, chat_id, total_damage)
+                try:
+                    result = attack_boss(boss['id'], user_id, chat_id, total_damage)
+
+                    if not result:
+                        logger.error(f"❌ attack_boss returned None for user {user_id}")
+                        bot.reply_to(message, "❌ Помилка атаки! Спробуй ще раз.")
+                        return
+                except Exception as e:
+                    logger.error(f"❌ Exception during attack_boss: {e}", exc_info=True)
+                    bot.reply_to(message, "❌ Помилка атаки! Спробуй ще раз.")
+                    return
 
                 if result and result.get('defeated'):
                     # Бос переможений!

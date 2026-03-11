@@ -314,10 +314,31 @@ def init_db():
                 name TEXT,
                 weight INTEGER,
                 inherited_trait TEXT,
-                born_at BIGINT
+                born_at BIGINT,
+                gene_rarity TEXT DEFAULT 'C',
+                bonus_type TEXT,
+                bonus_value INTEGER DEFAULT 0,
+                color_type TEXT DEFAULT 'normal'
             )
         ''')
         logger.info("✅ Таблиця children створена")
+
+        # Таблиця генів хряка
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS hryak_genes (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT,
+                chat_id BIGINT,
+                gene_rarity TEXT DEFAULT 'C',
+                bonus_type TEXT,
+                bonus_value INTEGER DEFAULT 0,
+                color_type TEXT DEFAULT 'normal',
+                mutation_chance REAL DEFAULT 0.05,
+                updated_at BIGINT,
+                UNIQUE(user_id, chat_id)
+            )
+        ''')
+        logger.info("✅ Таблиця hryak_genes створена")
 
         # Таблиця турнірів
         cursor.execute('''
@@ -397,6 +418,214 @@ def init_db():
             )
         ''')
         logger.info("✅ Таблиця guild_members створена")
+
+        # Таблиця територій гільдій
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS guild_territories (
+                id SERIAL PRIMARY KEY,
+                name TEXT UNIQUE,
+                owner_guild_id INTEGER,
+                bonus_type TEXT,
+                bonus_value INTEGER DEFAULT 0,
+                captured_at BIGINT,
+                income_per_hour INTEGER DEFAULT 0,
+                last_income_at BIGINT,
+                FOREIGN KEY (owner_guild_id) REFERENCES guilds(id) ON DELETE SET NULL
+            )
+        ''')
+        logger.info("✅ Таблиця guild_territories створена")
+
+        # Таблиця гільдійних скриньок
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS guild_chests (
+                id SERIAL PRIMARY KEY,
+                guild_id INTEGER,
+                item_type TEXT,
+                item_name TEXT,
+                quantity INTEGER DEFAULT 0,
+                donated_by_user_id BIGINT,
+                donated_at BIGINT,
+                FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+            )
+        ''')
+        logger.info("✅ Таблиця guild_chests створена")
+
+        # Таблиця гільдійних воєн
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS guild_wars (
+                id SERIAL PRIMARY KEY,
+                attacker_guild_id INTEGER,
+                defender_guild_id INTEGER,
+                territory_id INTEGER,
+                status TEXT DEFAULT 'active',
+                started_at BIGINT,
+                ended_at BIGINT,
+                winner_guild_id INTEGER,
+                attacker_score INTEGER DEFAULT 0,
+                defender_score INTEGER DEFAULT 0,
+                FOREIGN KEY (attacker_guild_id) REFERENCES guilds(id) ON DELETE CASCADE,
+                FOREIGN KEY (defender_guild_id) REFERENCES guilds(id) ON DELETE CASCADE,
+                FOREIGN KEY (territory_id) REFERENCES guild_territories(id) ON DELETE SET NULL
+            )
+        ''')
+        logger.info("✅ Таблиця guild_wars створена")
+
+        # Таблиця участі в гільдійних війнах
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS guild_war_participants (
+                id SERIAL PRIMARY KEY,
+                war_id INTEGER,
+                user_id BIGINT,
+                guild_id INTEGER,
+                contribution INTEGER DEFAULT 0,
+                battles_fought INTEGER DEFAULT 0,
+                battles_won INTEGER DEFAULT 0,
+                joined_at BIGINT,
+                FOREIGN KEY (war_id) REFERENCES guild_wars(id) ON DELETE CASCADE,
+                FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+            )
+        ''')
+        logger.info("✅ Таблиця guild_war_participants створена")
+
+        # Таблиця воїнів гільдії (свинарі)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS guild_warriors (
+                id SERIAL PRIMARY KEY,
+                guild_id INTEGER,
+                warrior_type TEXT DEFAULT 'regular',
+                quantity INTEGER DEFAULT 0,
+                power INTEGER DEFAULT 10,
+                hired_at BIGINT,
+                FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+            )
+        ''')
+        logger.info("✅ Таблиця guild_warriors створена")
+
+        # Таблиця захисту територій
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS territory_defense (
+                id SERIAL PRIMARY KEY,
+                territory_id INTEGER,
+                guild_id INTEGER,
+                warrior_type TEXT,
+                warrior_count INTEGER DEFAULT 0,
+                defense_power INTEGER DEFAULT 0,
+                stationed_at BIGINT,
+                FOREIGN KEY (territory_id) REFERENCES guild_territories(id) ON DELETE CASCADE,
+                FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+            )
+        ''')
+        logger.info("✅ Таблиця territory_defense створена")
+
+        # Таблиця предметів з бонусами
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS guild_items (
+                id SERIAL PRIMARY KEY,
+                guild_id INTEGER,
+                item_type TEXT,
+                item_name TEXT,
+                rarity TEXT DEFAULT 'common',
+                bonus_type TEXT,
+                bonus_value INTEGER DEFAULT 0,
+                quantity INTEGER DEFAULT 1,
+                donated_by_user_id BIGINT,
+                donated_at BIGINT,
+                FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+            )
+        ''')
+        logger.info("✅ Таблиця guild_items створена")
+
+        # Таблиця інвентарю користувача (предмети)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS user_items (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT,
+                chat_id BIGINT,
+                item_type TEXT,
+                item_name TEXT,
+                rarity TEXT DEFAULT 'common',
+                bonus_type TEXT,
+                bonus_value INTEGER DEFAULT 0,
+                quantity INTEGER DEFAULT 1,
+                obtained_at BIGINT,
+                UNIQUE(user_id, chat_id, item_type, item_name)
+            )
+        ''')
+        logger.info("✅ Таблиця user_items створена")
+
+        # Таблиця трейдів предметами
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS item_trades (
+                id SERIAL PRIMARY KEY,
+                sender_id BIGINT,
+                receiver_id BIGINT,
+                chat_id BIGINT,
+                sender_items_json TEXT,
+                receiver_items_json TEXT,
+                sender_coins INTEGER DEFAULT 0,
+                receiver_coins INTEGER DEFAULT 0,
+                status TEXT DEFAULT 'pending',
+                created_at BIGINT,
+                completed_at BIGINT
+            )
+        ''')
+        logger.info("✅ Таблиця item_trades створена")
+
+        # Таблиця історії битв за території
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS territory_battles (
+                id SERIAL PRIMARY KEY,
+                territory_id INTEGER,
+                attacker_guild_id INTEGER,
+                defender_guild_id INTEGER,
+                attacker_warriors INTEGER,
+                defender_warriors INTEGER,
+                attacker_loss INTEGER,
+                defender_loss INTEGER,
+                winner_guild_id INTEGER,
+                battle_date BIGINT,
+                FOREIGN KEY (territory_id) REFERENCES guild_territories(id) ON DELETE SET NULL
+            )
+        ''')
+        logger.info("✅ Таблиця territory_battles створена")
+
+        # Таблиця командних босів гільдій
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS guild_bosses (
+                id SERIAL PRIMARY KEY,
+                name TEXT,
+                level INTEGER DEFAULT 1,
+                health BIGINT,
+                max_health BIGINT,
+                damage BIGINT,
+                reward_coins INTEGER,
+                reward_xp INTEGER,
+                reward_chest_items TEXT,
+                owner_guild_id INTEGER,
+                is_active BOOLEAN DEFAULT TRUE,
+                spawn_date BIGINT,
+                defeat_date BIGINT,
+                defeated_by_guild_id INTEGER,
+                defeat_count INTEGER DEFAULT 0,
+                FOREIGN KEY (owner_guild_id) REFERENCES guilds(id) ON DELETE SET NULL
+            )
+        ''')
+        logger.info("✅ Таблиця guild_bosses створена")
+
+        # Таблиця участі в боях з босом
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS guild_boss_participants (
+                id SERIAL PRIMARY KEY,
+                boss_id INTEGER,
+                user_id BIGINT,
+                guild_id INTEGER,
+                damage_dealt BIGINT DEFAULT 0,
+                joined_at BIGINT,
+                FOREIGN KEY (boss_id) REFERENCES guild_bosses(id) ON DELETE CASCADE,
+                FOREIGN KEY (guild_id) REFERENCES guilds(id) ON DELETE CASCADE
+            )
+        ''')
+        logger.info("✅ Таблиця guild_boss_participants створена")
 
         # Таблиця скінів
         cursor.execute('''
@@ -3530,32 +3759,32 @@ def marry_children(child1_id, child2_id, user_id, chat_id):
         # Отримуємо обох дітей
         cursor.execute('SELECT * FROM children WHERE id = %s AND chat_id = %s', (child1_id, chat_id))
         child1 = cursor.fetchone()
-        
+
         cursor.execute('SELECT * FROM children WHERE id = %s AND chat_id = %s', (child2_id, chat_id))
         child2 = cursor.fetchone()
-        
+
         if not child1 or not child2:
             return None
-        
+
         # Перевіряємо що це різні діти
         if child1[0] == child2[0]:
             return None
-        
+
         # Створюємо онука
         now = int(time.time())
         child_weight = max(1, int((child1[6] + child2[6]) / 2) + random.randint(-3, 3))
-        
+
         cursor.execute('''
-            INSERT INTO children (user_id, chat_id, father_user_id, mother_user_id, 
+            INSERT INTO children (user_id, chat_id, father_user_id, mother_user_id,
                                 name, weight, inherited_trait, born_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
-        ''', (user_id, chat_id, child1[3], child2[3], 
+        ''', (user_id, chat_id, child1[3], child2[3],
               f"{child1[5][:3]}-{child2[5][:3]}-F1", child_weight, '', now))
-        
+
         grandchild_id = cursor.fetchone()[0]
         conn.commit()
-        
+
         return {
             'grandchild_id': grandchild_id,
             'weight': child_weight
@@ -3563,6 +3792,244 @@ def marry_children(child1_id, child2_id, user_id, chat_id):
     except Exception as e:
         logger.error(f"❌ Помилка одруження дітей: {e}")
         conn.rollback()
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ============================================
+# НОВІ ФУНКЦІЇ ДЛЯ БОНУСІВ ВІД ДІТЕЙ
+# ============================================
+
+def get_children_bonuses(user_id, chat_id):
+    """
+    Отримує бонуси від всіх дітей користувача
+    Повертає: {'total_bonus': float, 'bonuses': list}
+    """
+    conn = get_connection()
+    if not conn:
+        return {'total_bonus': 0, 'bonuses': []}
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT id, name, weight, inherited_trait, born_at
+            FROM children
+            WHERE (user_id = %s OR father_user_id = %s OR mother_user_id = %s) 
+            AND chat_id = %s
+            ORDER BY weight DESC
+        ''', (user_id, user_id, user_id, chat_id))
+        rows = cursor.fetchall()
+
+        bonuses = []
+        total_bonus = 0
+
+        for row in rows:
+            child_id = int(row[0])
+            name = row[1]
+            weight = int(row[2]) if row[2] else 0
+            trait = row[3] or ''
+            born_at = int(row[4]) if row[4] else 0
+
+            # Розрахунок бонусів на основі ваги та особливостей
+            bonus = 0
+            bonus_type = ''
+
+            # Базовий бонус від ваги (1% за кожні 10 кг)
+            base_bonus = weight / 10
+
+            # Бонус за особливість
+            if 'мутація' in trait.lower():
+                bonus = base_bonus * 2  # Подвійний бонус за мутацію
+                bonus_type = 'mutation'
+            elif 'легендарний' in trait.lower() or '⭐' in trait:
+                bonus = base_bonus * 1.5
+                bonus_type = 'legendary'
+            elif 'рідкісний' in trait.lower() or '🔵' in trait:
+                bonus = base_bonus * 1.2
+                bonus_type = 'rare'
+            else:
+                bonus = base_bonus
+                bonus_type = 'normal'
+
+            # Бонус за вік (старші діти дають +10% бонусу за кожен день)
+            age_days = (time.time() - born_at) / 86400
+            age_bonus = 1 + (min(age_days, 30) * 0.1)  # Макс +300% за 30 днів
+
+            bonus = bonus * age_bonus
+            total_bonus += bonus
+
+            bonuses.append({
+                'id': child_id,
+                'name': name,
+                'weight': weight,
+                'bonus': bonus,
+                'bonus_type': bonus_type,
+                'age_days': int(age_days)
+            })
+
+        return {
+            'total_bonus': total_bonus,
+            'bonuses': bonuses,
+            'children_count': len(bonuses)
+        }
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання бонусів дітей: {e}")
+        return {'total_bonus': 0, 'bonuses': [], 'children_count': 0}
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def train_child(child_id, user_id, chat_id, training_type='weight'):
+    """
+    Тренує дитину (покращує статистику)
+    training_type: 'weight', 'genes', 'skills'
+    Повертає: {'success': bool, 'new_weight': int, 'cost': int}
+    """
+    conn = get_connection()
+    if not conn:
+        return None
+
+    cursor = conn.cursor()
+    try:
+        # Отримуємо дитину
+        cursor.execute('SELECT * FROM children WHERE id = %s AND user_id = %s AND chat_id = %s',
+                      (child_id, user_id, chat_id))
+        child = cursor.fetchone()
+
+        if not child:
+            return None
+
+        current_weight = int(child[6]) if child[6] else 0
+        cost = 50  # Вартість тренування
+
+        # Перевіряємо чи вистачає монет (це перевіряється в боті)
+        # Тренування
+        weight_gain = random.randint(2, 8)
+        new_weight = current_weight + weight_gain
+
+        # Оновлюємо вагу
+        cursor.execute('''
+            UPDATE children SET weight = %s WHERE id = %s
+        ''', (new_weight, child_id))
+        conn.commit()
+
+        return {
+            'success': True,
+            'new_weight': new_weight,
+            'weight_gain': weight_gain,
+            'cost': cost
+        }
+    except Exception as e:
+        logger.error(f"❌ Помилка тренування дитини: {e}")
+        conn.rollback()
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def send_child_on_raid(child_id, user_id, chat_id, raid_type='coins'):
+    """
+    Відправляє дитину в рейд за ресурсами
+    raid_type: 'coins', 'xp', 'items'
+    Повертає: {'success': bool, 'reward': int, 'time': int}
+    """
+    import random
+    conn = get_connection()
+    if not conn:
+        return None
+
+    cursor = conn.cursor()
+    try:
+        # Отримуємо дитину
+        cursor.execute('SELECT * FROM children WHERE id = %s AND user_id = %s AND chat_id = %s',
+                      (child_id, user_id, chat_id))
+        child = cursor.fetchone()
+
+        if not child:
+            return None
+
+        weight = int(child[6]) if child[6] else 0
+
+        # Розрахунок нагороди
+        base_reward = weight * 5
+        reward = random.randint(int(base_reward * 0.8), int(base_reward * 1.2))
+
+        # Час рейду в секундах (залежить від ваги)
+        raid_time = max(300, 3600 - (weight * 10))  # 5 хв - 1 год
+
+        return {
+            'success': True,
+            'reward': reward,
+            'raid_time': raid_time,
+            'raid_type': raid_type
+        }
+    except Exception as e:
+        logger.error(f"❌ Помилка рейду дитини: {e}")
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_child_power(child_id, chat_id):
+    """
+    Розраховує силу дитини для дуелей
+    Повертає: {'power': int, 'stats': dict}
+    """
+    conn = get_connection()
+    if not conn:
+        return None
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('SELECT * FROM children WHERE id = %s AND chat_id = %s',
+                      (child_id, chat_id))
+        child = cursor.fetchone()
+
+        if not child:
+            return None
+
+        weight = int(child[6]) if child[6] else 0
+        trait = child[7] or ''
+
+        # Отримуємо гени дитини
+        cursor.execute('SELECT * FROM hryak_genes WHERE user_id = %s AND chat_id = %s',
+                      (child[1], chat_id))
+        genes = cursor.fetchone()
+
+        # Базова сила = вага * 2
+        power = weight * 2
+
+        # Бонус від генів
+        if genes:
+            gene_rarity = genes[3] or 'C'
+            rarity_mult = {'C': 1, 'R': 1.5, 'E': 2, 'L': 3, 'S': 5}.get(gene_rarity, 1)
+            power *= rarity_mult
+
+            bonus_type = genes[4]
+            bonus_value = int(genes[5]) if genes[5] else 0
+
+            if bonus_type == 'strength':
+                power *= (1 + bonus_value / 100)
+
+        # Бонус від особливості
+        if 'мутація' in trait.lower():
+            power *= 2
+        elif 'легендарний' in trait.lower():
+            power *= 1.5
+
+        return {
+            'power': int(power),
+            'weight': weight,
+            'trait': trait,
+            'has_genes': genes is not None
+        }
+    except Exception as e:
+        logger.error(f"❌ Помилка розрахунку сили дитини: {e}")
         return None
     finally:
         cursor.close()
@@ -3810,6 +4277,1667 @@ def set_user_language(user_id, language):
         logger.error(f"❌ Помилка встановлення мови: {e}")
         conn.rollback()
         return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ============================================
+# ГЕНЕТИКА - НОВІ ФУНКЦІЇ
+# ============================================
+
+# Рідкості генів
+GENE_RARITIES = {
+    'C': {'name': 'Звичайний', 'color': '⚪', 'chance': 70, 'bonus_mult': 1},
+    'R': {'name': 'Рідкісний', 'color': '🔵', 'chance': 20, 'bonus_mult': 2},
+    'E': {'name': 'Епічний', 'color': '🟣', 'chance': 7, 'bonus_mult': 3},
+    'L': {'name': 'Легендарний', 'color': '🟡', 'chance': 2.5, 'bonus_mult': 5},
+    'S': {'name': 'Особливий', 'color': '🔴', 'chance': 0.5, 'bonus_mult': 10}
+}
+
+# Типи бонусів
+BONUS_TYPES = {
+    'weight_gain': {'name': 'Приріст ваги', 'desc': '+X% до приросту ваги'},
+    'strength': {'name': 'Сила', 'desc': '+X% до сили в дуелі'},
+    'luck': {'name': 'Удача', 'desc': '+X% шанс критичного удару'},
+    'xp_bonus': {'name': 'Досвід', 'desc': '+X% до отриманого XP'},
+    'coin_bonus': {'name': 'Монети', 'desc': '+X% до отриманих монет'},
+    'mutation': {'name': 'Мутація', 'desc': 'Унікальна здібність'}
+}
+
+# Кольори хряків
+COLOR_TYPES = {
+    'normal': {'name': 'Звичайний', 'emoji': '🐷', 'chance': 60},
+    'wild': {'name': 'Дикий', 'emoji': '🐗', 'chance': 20},
+    'golden': {'name': 'Золотий', 'emoji': '✨', 'chance': 10},
+    'rainbow': {'name': 'Веселка', 'emoji': '🌈', 'chance': 5},
+    'cyber': {'name': 'Кібер', 'emoji': '🤖', 'chance': 3},
+    'royal': {'name': 'Королівський', 'emoji': '👑', 'chance': 1.5},
+    'void': {'name': 'Порожнеча', 'emoji': '🌑', 'chance': 0.5}
+}
+
+
+def get_hryak_genes(user_id, chat_id):
+    """Отримує гени хряка користувача"""
+    conn = get_connection()
+    if not conn:
+        return None
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT * FROM hryak_genes
+            WHERE user_id = %s AND chat_id = %s
+        ''', (user_id, chat_id))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return {
+            'id': int(row[0]),
+            'user_id': int(row[1]),
+            'chat_id': int(row[2]),
+            'gene_rarity': row[3] or 'C',
+            'bonus_type': row[4],
+            'bonus_value': int(row[5]) if row[5] else 0,
+            'color_type': row[6] or 'normal',
+            'mutation_chance': float(row[7]) if row[7] else 0.05,
+            'updated_at': int(row[8]) if row[8] else 0
+        }
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання генів: {e}")
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def create_hryak_genes(user_id, chat_id, gene_rarity='C', bonus_type=None, bonus_value=0, color_type='normal'):
+    """Створює гени для хряка"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        now = int(time.time())
+        cursor.execute('''
+            INSERT INTO hryak_genes (user_id, chat_id, gene_rarity, bonus_type, bonus_value, color_type, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (user_id, chat_id) DO UPDATE SET
+                gene_rarity = EXCLUDED.gene_rarity,
+                bonus_type = EXCLUDED.bonus_type,
+                bonus_value = EXCLUDED.bonus_value,
+                color_type = EXCLUDED.color_type,
+                updated_at = EXCLUDED.updated_at
+        ''', (user_id, chat_id, gene_rarity, bonus_type, bonus_value, color_type, now))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка створення генів: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def calculate_offspring_genes(father_genes, mother_genes):
+    """
+    Розраховує гени потомства на основі генів батьків
+    Повертає: gene_rarity, bonus_type, bonus_value, color_type, has_mutation
+    """
+    import random
+    
+    # Визначаємо рідкість гена потомства
+    father_rarity = father_genes.get('gene_rarity', 'C') if father_genes else 'C'
+    mother_rarity = mother_genes.get('gene_rarity', 'C') if mother_genes else 'C'
+    
+    # Шанс на підвищення рідкості (5% на кожну рідкість вище)
+    rarity_upgrade_chance = 0.05
+    if father_rarity != mother_rarity:
+        rarity_upgrade_chance += 0.03  # Бонус за різні гени
+    
+    # Визначаємо базову рідкість (середня або краща)
+    rarity_order = ['C', 'R', 'E', 'L', 'S']
+    father_idx = rarity_order.index(father_rarity) if father_rarity in rarity_order else 0
+    mother_idx = rarity_order.index(mother_rarity) if mother_rarity in rarity_order else 0
+    
+    # Базова рідкість - середня або краща з шансом
+    if random.random() < 0.6:  # 60% шанс взяти кращий ген
+        base_rarity_idx = max(father_idx, mother_idx)
+    else:  # 40% шанс середнього
+        base_rarity_idx = (father_idx + mother_idx) // 2
+    
+    # Перевірка на підвищення рідкості
+    if random.random() < rarity_upgrade_chance and base_rarity_idx < len(rarity_order) - 1:
+        base_rarity_idx += 1
+    
+    offspring_rarity = rarity_order[base_rarity_idx]
+    
+    # Визначаємо тип бонусу (успадковується від одного з батьків)
+    bonus_type = None
+    bonus_value = 0
+    
+    father_bonus = father_genes.get('bonus_type') if father_genes else None
+    mother_bonus = mother_genes.get('bonus_type') if mother_genes else None
+    
+    if father_bonus and mother_bonus:
+        # Обидва мають бонус - обираємо випадково або комбінуємо
+        if random.random() < 0.5:
+            bonus_type = father_bonus
+            bonus_value = father_genes.get('bonus_value', 0)
+        else:
+            bonus_type = mother_bonus
+            bonus_value = mother_genes.get('bonus_value', 0)
+    elif father_bonus:
+        bonus_type = father_bonus
+        bonus_value = father_genes.get('bonus_value', 0)
+    elif mother_bonus:
+        bonus_type = mother_bonus
+        bonus_value = mother_genes.get('bonus_value', 0)
+    
+    # Розраховуємо значення бонусу на основі рідкості
+    if bonus_type:
+        rarity_mult = GENE_RARITIES.get(offspring_rarity, {}).get('bonus_mult', 1)
+        bonus_value = int(bonus_value * rarity_mult * random.uniform(0.8, 1.2))
+    
+    # Визначаємо колір потомства
+    father_color = father_genes.get('color_type', 'normal') if father_genes else 'normal'
+    mother_color = mother_genes.get('color_type', 'normal') if mother_genes else 'normal'
+    
+    # 70% шанс успадкувати один з батьківських кольорів
+    if random.random() < 0.7:
+        offspring_color = random.choice([father_color, mother_color])
+    else:
+        # 30% шанс на новий колір на основі ймовірностей
+        rand = random.random() * 100
+        cumulative = 0
+        offspring_color = 'normal'
+        for color, data in COLOR_TYPES.items():
+            cumulative += data['chance']
+            if rand <= cumulative:
+                offspring_color = color
+                break
+    
+    # Перевірка на мутацію (1-5% залежно від генів)
+    father_mutation_chance = father_genes.get('mutation_chance', 0.05) if father_genes else 0.05
+    mother_mutation_chance = mother_genes.get('mutation_chance', 0.05) if mother_genes else 0.05
+    mutation_chance = (father_mutation_chance + mother_mutation_chance) / 2
+    
+    has_mutation = random.random() < mutation_chance
+    
+    return {
+        'gene_rarity': offspring_rarity,
+        'bonus_type': bonus_type,
+        'bonus_value': bonus_value,
+        'color_type': offspring_color,
+        'has_mutation': has_mutation
+    }
+
+
+def breed_hryaks(father_user_id, mother_user_id, chat_id, father_hryak, mother_hryak):
+    """
+    Схрещує двох хряків та створює потомство
+    Повертає: {'success': bool, 'child': dict, 'error': str}
+    """
+    import random
+    
+    # Отримуємо гени батьків
+    father_genes = get_hryak_genes(father_user_id, chat_id)
+    mother_genes = get_hryak_genes(mother_user_id, chat_id)
+    
+    # Розраховуємо гени потомства
+    offspring_genes = calculate_offspring_genes(father_genes, mother_genes)
+    
+    # Розраховуємо вагу потомства (середня батьків + рандом)
+    father_weight = father_hryak.get('weight', 10) if father_hryak else 10
+    mother_weight = mother_hryak.get('weight', 10) if mother_hryak else 10
+    
+    # Вага = середня + генетичний бонус + рандом
+    base_weight = (father_weight + mother_weight) // 2
+    gene_bonus = GENE_RARITIES.get(offspring_genes['gene_rarity'], {}).get('bonus_mult', 1) * 2
+    random_variance = random.randint(-5, 10)
+    child_weight = max(1, base_weight + gene_bonus + random_variance)
+    
+    # Визначаємо назву особливості
+    inherited_trait = ""
+    if offspring_genes['has_mutation']:
+        inherited_trait = "🧬 Мутація!"
+    elif offspring_genes['gene_rarity'] in ['L', 'S']:
+        inherited_trait = f"⭐ {GENE_RARITIES[offspring_genes['gene_rarity']]['name']}"
+    elif offspring_genes['bonus_type']:
+        bonus_name = BONUS_TYPES.get(offspring_genes['bonus_type'], {}).get('name', 'Бонус')
+        inherited_trait = f"+{offspring_genes['bonus_value']}% {bonus_name}"
+    
+    # Створюємо запис про дитину
+    child_name = f"Нащадок {father_hryak['name'][:10]} та {mother_hryak['name'][:10]}"
+    
+    # Генеруємо унікальне ім'я на основі кольору
+    color_emoji = COLOR_TYPES.get(offspring_genes['color_type'], {}).get('emoji', '🐷')
+    child_name = f"{color_emoji} {offspring_genes['gene_rarity']}-{random.randint(1, 999)}"
+    
+    success = add_child(
+        user_id=father_user_id,  # Власник = батько
+        chat_id=chat_id,
+        father_user_id=father_user_id,
+        mother_user_id=mother_user_id,
+        name=child_name,
+        weight=child_weight,
+        inherited_trait=inherited_trait
+    )
+    
+    if not success:
+        return {'success': False, 'error': 'Не вдалося створити потомство'}
+    
+    # Зберігаємо гени дитини (для майбутнього використання)
+    # Note: add_child повертає ID дитини, але нам потрібно оновити з генами
+    
+    return {
+        'success': True,
+        'child': {
+            'name': child_name,
+            'weight': child_weight,
+            'gene_rarity': offspring_genes['gene_rarity'],
+            'bonus_type': offspring_genes['bonus_type'],
+            'bonus_value': offspring_genes['bonus_value'],
+            'color_type': offspring_genes['color_type'],
+            'has_mutation': offspring_genes['has_mutation'],
+            'inherited_trait': inherited_trait
+        }
+    }
+
+
+def update_child_genes(child_id, gene_rarity, bonus_type=None, bonus_value=0, color_type='normal'):
+    """Оновлює гени дитини (використовується при народженні)"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        # Отримуємо user_id та chat_id з дитини
+        cursor.execute('SELECT user_id, chat_id FROM children WHERE id = %s', (child_id,))
+        row = cursor.fetchone()
+        if not row:
+            return False
+        
+        user_id, chat_id = int(row[0]), int(row[1])
+        now = int(time.time())
+        
+        cursor.execute('''
+            INSERT INTO hryak_genes (user_id, chat_id, gene_rarity, bonus_type, bonus_value, color_type, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (user_id, chat_id) DO UPDATE SET
+                gene_rarity = EXCLUDED.gene_rarity,
+                bonus_type = EXCLUDED.bonus_type,
+                bonus_value = EXCLUDED.bonus_value,
+                color_type = EXCLUDED.color_type,
+                updated_at = EXCLUDED.updated_at
+        ''', (user_id, chat_id, gene_rarity, bonus_type, bonus_value, color_type, now))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка оновлення генів дитини: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_genetic_compatibility(father_user_id, mother_user_id, chat_id):
+    """
+    Перевіряє генетичну сумісність пари
+    Повертає: {'compatibility': str, 'bonus_chance': float, 'mutation_chance': float}
+    """
+    father_genes = get_hryak_genes(father_user_id, chat_id)
+    mother_genes = get_hryak_genes(mother_user_id, chat_id)
+    
+    if not father_genes or not mother_genes:
+        return {'compatibility': 'unknown', 'bonus_chance': 0.5, 'mutation_chance': 0.05}
+    
+    # Сумісність за рідкістю
+    father_rarity = father_genes.get('gene_rarity', 'C')
+    mother_rarity = mother_genes.get('gene_rarity', 'C')
+    
+    rarity_order = ['C', 'R', 'E', 'L', 'S']
+    father_idx = rarity_order.index(father_rarity) if father_rarity in rarity_order else 0
+    mother_idx = rarity_order.index(mother_rarity) if mother_rarity in rarity_order else 0
+    
+    # Чим ближчі рідкості - тим вища сумісність
+    rarity_diff = abs(father_idx - mother_idx)
+    compatibility_score = max(0, 100 - (rarity_diff * 15))
+    
+    if compatibility_score >= 85:
+        compatibility = 'Ідеальна'
+    elif compatibility_score >= 70:
+        compatibility = 'Висока'
+    elif compatibility_score >= 50:
+        compatibility = 'Середня'
+    else:
+        compatibility = 'Низька'
+    
+    # Шанс на бонус залежить від сумісності
+    bonus_chance = 0.3 + (compatibility_score / 200)
+    
+    # Шанс на мутацію
+    mutation_chance = (father_genes.get('mutation_chance', 0.05) + mother_genes.get('mutation_chance', 0.05)) / 2
+    
+    return {
+        'compatibility': compatibility,
+        'bonus_chance': bonus_chance,
+        'mutation_chance': mutation_chance
+    }
+
+
+# ============================================
+# ГІЛЬДІЙНІ ВІЙНИ - НОВІ ФУНКЦІЇ
+# ============================================
+
+# Типи територій
+TERRITORY_TYPES = {
+    'mine': {'name': 'Шахта', 'bonus_type': 'coins', 'bonus_value': 100, 'income': 50},
+    'forest': {'name': 'Ліс', 'bonus_type': 'xp', 'bonus_value': 50, 'income': 25},
+    'castle': {'name': 'Замок', 'bonus_type': 'power', 'bonus_value': 10, 'income': 100},
+    'temple': {'name': 'Храм', 'bonus_type': 'blessing', 'bonus_value': 5, 'income': 75},
+    'market': {'name': 'Ринок', 'bonus_type': 'trade', 'bonus_value': 15, 'income': 120},
+    'fortress': {'name': 'Фортеця', 'bonus_type': 'defense', 'bonus_value': 20, 'income': 80}
+}
+
+
+def create_territory(name, territory_type, owner_guild_id=None):
+    """Створює нову територію"""
+    conn = get_connection()
+    if not conn:
+        return None
+
+    cursor = conn.cursor()
+    try:
+        now = int(time.time())
+        territory_data = TERRITORY_TYPES.get(territory_type, TERRITORY_TYPES['mine'])
+        
+        cursor.execute('''
+            INSERT INTO guild_territories (name, owner_guild_id, bonus_type, bonus_value, captured_at, income_per_hour, last_income_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        ''', (name, owner_guild_id, territory_data['bonus_type'], territory_data['bonus_value'], 
+              now, territory_data['income'], now))
+        
+        territory_id = cursor.fetchone()[0]
+        conn.commit()
+        return territory_id
+    except Exception as e:
+        logger.error(f"❌ Помилка створення території: {e}")
+        conn.rollback()
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_all_territories():
+    """Отримує всі території"""
+    conn = get_connection()
+    if not conn:
+        return []
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT gt.*, g.name as guild_name
+            FROM guild_territories gt
+            LEFT JOIN guilds g ON gt.owner_guild_id = g.id
+            ORDER BY gt.income_per_hour DESC
+        ''')
+        rows = cursor.fetchall()
+        
+        territories = []
+        for row in rows:
+            territories.append({
+                'id': int(row[0]),
+                'name': row[1],
+                'owner_guild_id': int(row[2]) if row[2] else None,
+                'guild_name': row[3],
+                'bonus_type': row[4],
+                'bonus_value': int(row[5]) if row[5] else 0,
+                'captured_at': int(row[6]) if row[6] else 0,
+                'income_per_hour': int(row[7]) if row[7] else 0,
+                'last_income_at': int(row[8]) if row[8] else 0
+            })
+        return territories
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання територій: {e}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_territory(territory_id):
+    """Отримує територію за ID"""
+    conn = get_connection()
+    if not conn:
+        return None
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT gt.*, g.name as guild_name
+            FROM guild_territories gt
+            LEFT JOIN guilds g ON gt.owner_guild_id = g.id
+            WHERE gt.id = %s
+        ''', (territory_id,))
+        row = cursor.fetchone()
+        
+        if not row:
+            return None
+            
+        return {
+            'id': int(row[0]),
+            'name': row[1],
+            'owner_guild_id': int(row[2]) if row[2] else None,
+            'guild_name': row[3],
+            'bonus_type': row[4],
+            'bonus_value': int(row[5]) if row[5] else 0,
+            'captured_at': int(row[6]) if row[6] else 0,
+            'income_per_hour': int(row[7]) if row[7] else 0,
+            'last_income_at': int(row[8]) if row[8] else 0
+        }
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання території: {e}")
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def capture_territory(territory_id, guild_id):
+    """Захоплює територію"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        now = int(time.time())
+        cursor.execute('''
+            UPDATE guild_territories
+            SET owner_guild_id = %s, captured_at = %s, last_income_at = %s
+            WHERE id = %s
+        ''', (guild_id, now, now, territory_id))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка захоплення території: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def collect_territory_income(guild_id):
+    """Збирає дохід з всіх територій гільдії"""
+    conn = get_connection()
+    if not conn:
+        return {'coins': 0, 'xp': 0}
+
+    cursor = conn.cursor()
+    try:
+        now = int(time.time())
+        cursor.execute('''
+            SELECT * FROM guild_territories
+            WHERE owner_guild_id = %s
+        ''', (guild_id,))
+        rows = cursor.fetchall()
+        
+        total_coins = 0
+        total_xp = 0
+        
+        for row in rows:
+            territory_id = int(row[0])
+            income = int(row[7]) if row[7] else 0
+            last_income = int(row[8]) if row[8] else 0
+            bonus_type = row[4]
+            
+            # Розраховуємо скільки годин пройшло
+            hours_passed = (now - last_income) / 3600
+            
+            if hours_passed >= 1:
+                income_amount = int(income * hours_passed)
+                
+                if bonus_type == 'coins' or bonus_type == 'trade':
+                    total_coins += income_amount
+                elif bonus_type == 'xp':
+                    total_xp += income_amount
+                
+                # Оновлюємо last_income_at
+                cursor.execute('''
+                    UPDATE guild_territories SET last_income_at = %s WHERE id = %s
+                ''', (now, territory_id))
+        
+        conn.commit()
+        return {'coins': total_coins, 'xp': total_xp}
+    except Exception as e:
+        logger.error(f"❌ Помилка збору доходу: {e}")
+        conn.rollback()
+        return {'coins': 0, 'xp': 0}
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ============================================
+# ГІЛЬДІЙНІ СКРИНЬКИ
+# ============================================
+
+def donate_to_chest(guild_id, user_id, item_type, item_name, quantity=1):
+    """Вносить предмет до гільдійної скриньки"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        now = int(time.time())
+        
+        # Перевіряємо чи вже є такий предмет
+        cursor.execute('''
+            SELECT id, quantity FROM guild_chests
+            WHERE guild_id = %s AND item_type = %s AND item_name = %s
+        ''', (guild_id, item_type, item_name))
+        row = cursor.fetchone()
+        
+        if row:
+            # Оновлюємо кількість
+            cursor.execute('''
+                UPDATE guild_chests SET quantity = quantity + %s WHERE id = %s
+            ''', (quantity, int(row[0])))
+        else:
+            # Додаємо новий предмет
+            cursor.execute('''
+                INSERT INTO guild_chests (guild_id, item_type, item_name, quantity, donated_by_user_id, donated_at)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            ''', (guild_id, item_type, item_name, quantity, user_id, now))
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка внеску до скриньки: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_guild_chest(guild_id):
+    """Отримує вміст гільдійної скриньки"""
+    conn = get_connection()
+    if not conn:
+        return []
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT gc.*, u.username as donor_name
+            FROM guild_chests gc
+            LEFT JOIN user_languages u ON gc.donated_by_user_id = u.user_id
+            WHERE gc.guild_id = %s
+            ORDER BY gc.quantity DESC
+        ''', (guild_id,))
+        rows = cursor.fetchall()
+        
+        items = []
+        for row in rows:
+            items.append({
+                'id': int(row[0]),
+                'guild_id': int(row[1]),
+                'item_type': row[2],
+                'item_name': row[3],
+                'quantity': int(row[4]) if row[4] else 0,
+                'donated_by_user_id': int(row[5]) if row[5] else None,
+                'donor_name': row[6],
+                'donated_at': int(row[7]) if row[7] else 0
+            })
+        return items
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання скриньки: {e}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def withdraw_from_chest(guild_id, item_id, quantity=1):
+    """Виводить предмет з гільдійної скриньки (старий метод)"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        # Перевіряємо кількість
+        cursor.execute('SELECT quantity FROM guild_chests WHERE id = %s AND guild_id = %s', (item_id, guild_id))
+        row = cursor.fetchone()
+
+        if not row or row[0] < quantity:
+            return False
+
+        if quantity == row[0]:
+            cursor.execute('DELETE FROM guild_chests WHERE id = %s', (item_id,))
+        else:
+            cursor.execute('UPDATE guild_chests SET quantity = quantity - %s WHERE id = %s', (quantity, item_id))
+
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка виводу зі скриньки: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def withdraw_guild_item_to_user(guild_id, user_id, chat_id, item_id, quantity=1):
+    """
+    Виводить предмет з гільдійної скриньки в особистий інвентар користувача
+    Повертає: {'success': bool, 'item': dict, 'error': str}
+    """
+    conn = get_connection()
+    if not conn:
+        return {'success': False, 'error': 'Помилка БД'}
+
+    cursor = conn.cursor()
+    try:
+        # Отримуємо предмет з гільдійної скриньки
+        cursor.execute('''
+            SELECT * FROM guild_items
+            WHERE id = %s AND guild_id = %s
+        ''', (item_id, guild_id))
+        row = cursor.fetchone()
+
+        if not row:
+            return {'success': False, 'error': 'Предмет не знайдено'}
+
+        item_quantity = int(row[7]) if row[7] else 0
+        if item_quantity < quantity:
+            return {'success': False, 'error': 'Недостатньо предметів'}
+
+        # Створюємо предмет в інвентарі користувача
+        now = int(time.time())
+        item_data = {
+            'id': int(row[0]),
+            'item_type': row[2],
+            'item_name': row[3],
+            'rarity': row[4],
+            'bonus_type': row[5],
+            'bonus_value': int(row[6]) if row[6] else 0
+        }
+
+        # Додаємо до інвентарю користувача
+        cursor.execute('''
+            INSERT INTO user_items (user_id, chat_id, item_type, item_name, rarity,
+                                   bonus_type, bonus_value, quantity, obtained_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (user_id, chat_id, item_type, item_name) DO UPDATE SET
+                quantity = user_items.quantity + EXCLUDED.quantity,
+                bonus_value = GREATEST(user_items.bonus_value, EXCLUDED.bonus_value)
+        ''', (user_id, chat_id, item_data['item_type'], item_data['item_name'],
+              item_data['rarity'], item_data['bonus_type'], item_data['bonus_value'], quantity, now))
+
+        # Видаляємо з гільдійної скриньки
+        if quantity >= item_quantity:
+            cursor.execute('DELETE FROM guild_items WHERE id = %s', (item_id,))
+        else:
+            cursor.execute('UPDATE guild_items SET quantity = quantity - %s WHERE id = %s', (quantity, item_id))
+
+        conn.commit()
+
+        return {
+            'success': True,
+            'item': {
+                'name': item_data['item_name'],
+                'type': item_data['item_type'],
+                'rarity': item_data['rarity'],
+                'bonus_type': item_data['bonus_type'],
+                'bonus_value': item_data['bonus_value'],
+                'quantity': quantity
+            }
+        }
+    except Exception as e:
+        logger.error(f"❌ Помилка виводу предмета: {e}")
+        conn.rollback()
+        return {'success': False, 'error': str(e)}
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def use_item(user_id, chat_id, item_id):
+    """
+    Використовує предмет (дає баф)
+    Повертає: {'success': bool, 'effect': str, 'duration': int}
+    """
+    conn = get_connection()
+    if not conn:
+        return {'success': False, 'error': 'Помилка БД'}
+
+    cursor = conn.cursor()
+    try:
+        # Отримуємо предмет
+        cursor.execute('''
+            SELECT * FROM user_items
+            WHERE id = %s AND user_id = %s AND chat_id = %s
+        ''', (item_id, user_id, chat_id))
+        row = cursor.fetchone()
+
+        if not row:
+            return {'success': False, 'error': 'Предмет не знайдено'}
+
+        quantity = int(row[7]) if row[7] else 0
+        if quantity <= 0:
+            return {'success': False, 'error': 'Предметів немає'}
+
+        item_type = row[3]
+        bonus_type = row[6]
+        bonus_value = int(row[7]) if row[7] else 0
+        rarity = row[5]
+
+        # Розрахунок ефекту
+        rarity_mult = ITEM_RARITIES.get(rarity, {}).get('bonus_mult', 1)
+        effect_value = bonus_value * rarity_mult
+
+        # Тривалість залежить від типу
+        duration = 3600  # 1 година за замовчуванням
+        if item_type == 'consumable':
+            duration = 1800  # 30 хвилин
+        elif rarity == 'legendary':
+            duration = 7200  # 2 години
+        elif rarity == 'mythic':
+            duration = 14400  # 4 години
+
+        # Видаляємо предмет (споживний)
+        if item_type == 'consumable':
+            if quantity == 1:
+                cursor.execute('DELETE FROM user_items WHERE id = %s', (item_id,))
+            else:
+                cursor.execute('UPDATE user_items SET quantity = quantity - 1 WHERE id = %s', (item_id,))
+            conn.commit()
+
+        # TODO: Додати таблицю active_buffs для зберігання активних бафів
+        # Поки що просто повертаємо інформацію
+
+        return {
+            'success': True,
+            'effect': f"+{effect_value} {bonus_type}",
+            'duration': duration,
+            'item_name': row[4]
+        }
+    except Exception as e:
+        logger.error(f"❌ Помилка використання предмета: {e}")
+        conn.rollback()
+        return {'success': False, 'error': str(e)}
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ============================================
+# ГІЛЬДІЙНІ ВІЙНИ
+# ============================================
+
+def declare_war(attacker_guild_id, defender_guild_id, territory_id=None):
+    """Оголошує війну між гільдіями"""
+    conn = get_connection()
+    if not conn:
+        return None
+
+    cursor = conn.cursor()
+    try:
+        now = int(time.time())
+        cursor.execute('''
+            INSERT INTO guild_wars (attacker_guild_id, defender_guild_id, territory_id, started_at, status)
+            VALUES (%s, %s, %s, %s, 'active')
+            RETURNING id
+        ''', (attacker_guild_id, defender_guild_id, territory_id, now))
+        
+        war_id = cursor.fetchone()[0]
+        conn.commit()
+        return war_id
+    except Exception as e:
+        logger.error(f"❌ Помилка оголошення війни: {e}")
+        conn.rollback()
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def join_war(war_id, user_id, guild_id):
+    """Гравець приєднується до війни"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        now = int(time.time())
+        cursor.execute('''
+            INSERT INTO guild_war_participants (war_id, user_id, guild_id, joined_at)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT DO NOTHING
+        ''', (war_id, user_id, guild_id, now))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка приєднання до війни: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def add_war_contribution(war_id, user_id, guild_id, contribution):
+    """Додає внесок у війну"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            UPDATE guild_war_participants
+            SET contribution = contribution + %s,
+                battles_fought = battles_fought + 1
+            WHERE war_id = %s AND user_id = %s AND guild_id = %s
+        ''', (contribution, war_id, user_id, guild_id))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка додавання внеску: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def end_war(war_id, winner_guild_id):
+    """Завершує війну"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        now = int(time.time())
+        
+        # Отримуємо інформацію про війну
+        cursor.execute('''
+            SELECT territory_id FROM guild_wars WHERE id = %s
+        ''', (war_id,))
+        row = cursor.fetchone()
+        
+        if row and row[0]:
+            # Передаємо територію переможцю
+            cursor.execute('''
+                UPDATE guild_territories SET owner_guild_id = %s WHERE id = %s
+            ''', (winner_guild_id, int(row[0])))
+        
+        # Завершуємо війну
+        cursor.execute('''
+            UPDATE guild_wars
+            SET status = 'ended', ended_at = %s, winner_guild_id = %s
+            WHERE id = %s
+        ''', (now, winner_guild_id, war_id))
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка завершення війни: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_active_wars(guild_id=None):
+    """Отримує активні війни"""
+    conn = get_connection()
+    if not conn:
+        return []
+
+    cursor = conn.cursor()
+    try:
+        if guild_id:
+            cursor.execute('''
+                SELECT gw.*, 
+                    ag.name as attacker_name, 
+                    dg.name as defender_name
+                FROM guild_wars gw
+                JOIN guilds ag ON gw.attacker_guild_id = ag.id
+                JOIN guilds dg ON gw.defender_guild_id = dg.id
+                WHERE gw.status = 'active' AND (gw.attacker_guild_id = %s OR gw.defender_guild_id = %s)
+            ''', (guild_id, guild_id))
+        else:
+            cursor.execute('''
+                SELECT gw.*, 
+                    ag.name as attacker_name, 
+                    dg.name as defender_name
+                FROM guild_wars gw
+                JOIN guilds ag ON gw.attacker_guild_id = ag.id
+                JOIN guilds dg ON gw.defender_guild_id = dg.id
+                WHERE gw.status = 'active'
+            ''')
+        
+        rows = cursor.fetchall()
+        wars = []
+        for row in rows:
+            wars.append({
+                'id': int(row[0]),
+                'attacker_guild_id': int(row[1]),
+                'defender_guild_id': int(row[2]),
+                'territory_id': int(row[3]) if row[3] else None,
+                'status': row[4],
+                'started_at': int(row[5]) if row[5] else 0,
+                'ended_at': int(row[6]) if row[6] else 0,
+                'winner_guild_id': int(row[7]) if row[7] else None,
+                'attacker_score': int(row[8]) if row[8] else 0,
+                'defender_score': int(row[9]) if row[9] else 0,
+                'attacker_name': row[10],
+                'defender_name': row[11]
+            })
+        return wars
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання воєн: {e}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ============================================
+# ГІЛЬДІЙНІ БОСИ
+# ============================================
+
+def spawn_guild_boss(name, level, health, damage, reward_coins, reward_xp, owner_guild_id=None):
+    """Створює боса для гільдії"""
+    conn = get_connection()
+    if not conn:
+        return None
+
+    cursor = conn.cursor()
+    try:
+        now = int(time.time())
+        cursor.execute('''
+            INSERT INTO guild_bosses (name, level, health, max_health, damage, reward_coins, reward_xp, 
+                                      owner_guild_id, spawn_date, is_active)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE)
+            RETURNING id
+        ''', (name, level, health, health, damage, reward_coins, reward_xp, owner_guild_id, now))
+        
+        boss_id = cursor.fetchone()[0]
+        conn.commit()
+        return boss_id
+    except Exception as e:
+        logger.error(f"❌ Помилка створення боса гільдії: {e}")
+        conn.rollback()
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def attack_guild_boss(boss_id, user_id, guild_id, damage):
+    """Атакує боса гільдії"""
+    conn = get_connection()
+    if not conn:
+        return None
+
+    cursor = conn.cursor()
+    try:
+        now = int(time.time())
+        
+        # Додаємо шкоду
+        cursor.execute('''
+            INSERT INTO guild_boss_participants (boss_id, user_id, guild_id, damage_dealt, joined_at)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (boss_id, user_id, guild_id) DO UPDATE SET
+                damage_dealt = guild_boss_participants.damage_dealt + %s
+        ''', (boss_id, user_id, guild_id, damage, now, damage))
+        
+        # Отримуємо поточне здоров'я
+        cursor.execute('SELECT health, max_health FROM guild_bosses WHERE id = %s', (boss_id,))
+        row = cursor.fetchone()
+        
+        if not row:
+            return None
+        
+        current_health = int(row[0])
+        max_health = int(row[1])
+        new_health = max(0, current_health - damage)
+        
+        # Оновлюємо здоров'я
+        cursor.execute('UPDATE guild_bosses SET health = %s WHERE id = %s', (new_health, boss_id))
+        
+        # Перевіряємо чи переможений
+        if new_health <= 0:
+            cursor.execute('''
+                UPDATE guild_bosses
+                SET is_active = FALSE, defeat_date = %s, defeated_by_guild_id = %s,
+                    defeat_count = COALESCE(defeat_count, 0) + 1
+                WHERE id = %s
+            ''', (now, guild_id, boss_id))
+            conn.commit()
+            return {'defeated': True, 'boss_id': boss_id}
+        
+        conn.commit()
+        return {'defeated': False, 'remaining_health': new_health, 'max_health': max_health}
+    except Exception as e:
+        logger.error(f"❌ Помилка атаки боса гільдії: {e}")
+        conn.rollback()
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_guild_boss_participants(boss_id):
+    """Отримує учасників бою з босом"""
+    conn = get_connection()
+    if not conn:
+        return []
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT gbp.*, u.username
+            FROM guild_boss_participants gbp
+            LEFT JOIN user_languages u ON gbp.user_id = u.user_id
+            WHERE gbp.boss_id = %s
+            ORDER BY gbp.damage_dealt DESC
+        ''', (boss_id,))
+        
+        rows = cursor.fetchall()
+        participants = []
+        for row in rows:
+            participants.append({
+                'id': int(row[0]),
+                'boss_id': int(row[1]),
+                'user_id': int(row[2]),
+                'guild_id': int(row[3]),
+                'damage_dealt': int(row[4]) if row[4] else 0,
+                'joined_at': int(row[5]) if row[5] else 0,
+                'username': row[6]
+            })
+        return participants
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання учасників боса: {e}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ============================================
+# ГІЛЬДІЙНІ ВОЇНИ (СВИНАРІ) - НОВІ ФУНКЦІЇ
+# ============================================
+
+# Типи воїнів
+WARRIOR_TYPES = {
+    'regular': {'name': 'Свинар', 'cost': 100, 'power': 10, 'emoji': '🐷'},
+    'matochnik': {'name': 'Свинар-Маточник', 'cost': 500, 'power': 60, 'emoji': '🐗'},
+    'elite': {'name': 'Елітний Свинар', 'cost': 1000, 'power': 150, 'emoji': '⚔️'},
+    'legendary': {'name': 'Легендарний Герой', 'cost': 5000, 'power': 1000, 'emoji': '👑'}
+}
+
+
+def buy_warrior(guild_id, warrior_type='regular', quantity=1):
+    """Купує воїнів для гільдії"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        now = int(time.time())
+        warrior_data = WARRIOR_TYPES.get(warrior_type, WARRIOR_TYPES['regular'])
+        total_power = warrior_data['power'] * quantity
+        
+        # Перевіряємо чи вже є такі воїни
+        cursor.execute('''
+            SELECT id, quantity, power FROM guild_warriors
+            WHERE guild_id = %s AND warrior_type = %s
+        ''', (guild_id, warrior_type))
+        row = cursor.fetchone()
+        
+        if row:
+            # Оновлюємо кількість
+            new_quantity = int(row[1]) + quantity
+            new_power = int(row[2]) + (warrior_data['power'] * quantity)
+            cursor.execute('''
+                UPDATE guild_warriors SET quantity = %s, power = %s WHERE id = %s
+            ''', (new_quantity, new_power, int(row[0])))
+        else:
+            # Додаємо нових воїнів
+            cursor.execute('''
+                INSERT INTO guild_warriors (guild_id, warrior_type, quantity, power, hired_at)
+                VALUES (%s, %s, %s, %s, %s)
+            ''', (guild_id, warrior_type, quantity, total_power, now))
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка купівлі воїнів: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_guild_warriors(guild_id):
+    """Отримує всіх воїнів гільдії"""
+    conn = get_connection()
+    if not conn:
+        return []
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT * FROM guild_warriors
+            WHERE guild_id = %s
+            ORDER BY power DESC
+        ''', (guild_id,))
+        rows = cursor.fetchall()
+        
+        warriors = []
+        for row in rows:
+            warriors.append({
+                'id': int(row[0]),
+                'guild_id': int(row[1]),
+                'warrior_type': row[2],
+                'quantity': int(row[3]) if row[3] else 0,
+                'power': int(row[4]) if row[4] else 0,
+                'hired_at': int(row[5]) if row[5] else 0
+            })
+        return warriors
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання воїнів: {e}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_total_warrior_power(guild_id):
+    """Отримує загальну силу воїнів гільдії"""
+    warriors = get_guild_warriors(guild_id)
+    total_power = sum(w['power'] for w in warriors)
+    total_quantity = sum(w['quantity'] for w in warriors)
+    return {'total_power': total_power, 'total_quantity': total_quantity, 'warriors': warriors}
+
+
+def station_warriors(territory_id, guild_id, warrior_type, warrior_count):
+    """Розміщує воїнів на захист території"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        now = int(time.time())
+        warrior_data = WARRIOR_TYPES.get(warrior_type, WARRIOR_TYPES['regular'])
+        defense_power = warrior_data['power'] * warrior_count
+        
+        # Перевіряємо чи вже є захист
+        cursor.execute('''
+            SELECT id, warrior_count, defense_power FROM territory_defense
+            WHERE territory_id = %s AND guild_id = %s AND warrior_type = %s
+        ''', (territory_id, guild_id, warrior_type))
+        row = cursor.fetchone()
+        
+        if row:
+            new_count = int(row[1]) + warrior_count
+            new_power = int(row[2]) + defense_power
+            cursor.execute('''
+                UPDATE territory_defense SET warrior_count = %s, defense_power = %s WHERE id = %s
+            ''', (new_count, new_power, int(row[0])))
+        else:
+            cursor.execute('''
+                INSERT INTO territory_defense (territory_id, guild_id, warrior_type, warrior_count, defense_power, stationed_at)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            ''', (territory_id, guild_id, warrior_type, warrior_count, defense_power, now))
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка розміщення воїнів: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_territory_defense(territory_id):
+    """Отримує захист території"""
+    conn = get_connection()
+    if not conn:
+        return []
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT td.*, g.name as guild_name
+            FROM territory_defense td
+            JOIN guilds g ON td.guild_id = g.id
+            WHERE td.territory_id = %s
+            ORDER BY td.defense_power DESC
+        ''', (territory_id,))
+        rows = cursor.fetchall()
+        
+        defense = []
+        total_power = 0
+        for row in rows:
+            power = int(row[5]) if row[5] else 0
+            total_power += power
+            defense.append({
+                'id': int(row[0]),
+                'territory_id': int(row[1]),
+                'guild_id': int(row[2]),
+                'guild_name': row[3],
+                'warrior_type': row[4],
+                'warrior_count': int(row[5]) if row[5] else 0,
+                'defense_power': power,
+                'stationed_at': int(row[6]) if row[6] else 0
+            })
+        
+        return {'defense': defense, 'total_power': total_power}
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання захисту: {e}")
+        return {'defense': [], 'total_power': 0}
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def remove_warriors_from_guild(guild_id, warrior_type, quantity):
+    """Видаляє воїнів з гільдії (після битви)"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT id, quantity FROM guild_warriors
+            WHERE guild_id = %s AND warrior_type = %s
+        ''', (guild_id, warrior_type))
+        row = cursor.fetchone()
+        
+        if not row:
+            return False
+        
+        new_quantity = int(row[1]) - quantity
+        if new_quantity <= 0:
+            cursor.execute('DELETE FROM guild_warriors WHERE id = %s', (int(row[0]),))
+        else:
+            warrior_data = WARRIOR_TYPES.get(warrior_type, WARRIOR_TYPES['regular'])
+            new_power = warrior_data['power'] * new_quantity
+            cursor.execute('''
+                UPDATE guild_warriors SET quantity = %s, power = %s WHERE id = %s
+            ''', (new_quantity, new_power, int(row[0])))
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка видалення воїнів: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def record_territory_battle(territory_id, attacker_guild_id, defender_guild_id, 
+                            attacker_warriors, defender_warriors, 
+                            attacker_loss, defender_loss, winner_guild_id):
+    """Записує історію битви за територію"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        now = int(time.time())
+        cursor.execute('''
+            INSERT INTO territory_battles (territory_id, attacker_guild_id, defender_guild_id,
+                                          attacker_warriors, defender_warriors,
+                                          attacker_loss, defender_loss, winner_guild_id, battle_date)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ''', (territory_id, attacker_guild_id, defender_guild_id,
+              attacker_warriors, defender_warriors,
+              attacker_loss, defender_loss, winner_guild_id, now))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка запису битви: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ============================================
+# ПРЕДМЕТИ З БОНУСАМИ - НОВІ ФУНКЦІЇ
+# ============================================
+
+# Рідкості предметів
+ITEM_RARITIES = {
+    'common': {'name': 'Звичайний', 'color': '⚪', 'bonus_mult': 1},
+    'rare': {'name': 'Рідкісний', 'color': '🔵', 'bonus_mult': 2},
+    'epic': {'name': 'Епічний', 'color': '🟣', 'bonus_mult': 3},
+    'legendary': {'name': 'Легендарний', 'color': '🟡', 'bonus_mult': 5},
+    'mythic': {'name': 'Міфічний', 'color': '🔴', 'bonus_mult': 10}
+}
+
+# Типи предметів
+ITEM_TYPES = {
+    'weapon': {'name': 'Зброя', 'bonus_type': 'power'},
+    'armor': {'name': 'Броня', 'bonus_type': 'defense'},
+    'accessory': {'name': 'Аксесуар', 'bonus_type': 'luck'},
+    'consumable': {'name': 'Споживне', 'bonus_type': 'temporary'},
+    'special': {'name': 'Особливе', 'bonus_type': 'special'}
+}
+
+
+def add_item_to_user(user_id, chat_id, item_type, item_name, rarity='common', 
+                     bonus_type=None, bonus_value=0, quantity=1):
+    """Додає предмет до інвентарю користувача"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        now = int(time.time())
+        cursor.execute('''
+            INSERT INTO user_items (user_id, chat_id, item_type, item_name, rarity, 
+                                   bonus_type, bonus_value, quantity, obtained_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (user_id, chat_id, item_type, item_name) DO UPDATE SET
+                quantity = user_items.quantity + EXCLUDED.quantity,
+                bonus_value = GREATEST(user_items.bonus_value, EXCLUDED.bonus_value)
+        ''', (user_id, chat_id, item_type, item_name, rarity, bonus_type, bonus_value, quantity, now))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка додавання предмета: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_user_items(user_id, chat_id):
+    """Отримує предмети користувача"""
+    conn = get_connection()
+    if not conn:
+        return []
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT * FROM user_items
+            WHERE user_id = %s AND chat_id = %s
+            ORDER BY 
+                CASE rarity 
+                    WHEN 'mythic' THEN 1 
+                    WHEN 'legendary' THEN 2 
+                    WHEN 'epic' THEN 3 
+                    WHEN 'rare' THEN 4 
+                    ELSE 5 
+                END,
+                bonus_value DESC
+        ''', (user_id, chat_id))
+        rows = cursor.fetchall()
+        
+        items = []
+        for row in rows:
+            items.append({
+                'id': int(row[0]),
+                'user_id': int(row[1]),
+                'chat_id': int(row[2]),
+                'item_type': row[3],
+                'item_name': row[4],
+                'rarity': row[5],
+                'bonus_type': row[6],
+                'bonus_value': int(row[7]) if row[7] else 0,
+                'quantity': int(row[8]) if row[8] else 0,
+                'obtained_at': int(row[9]) if row[9] else 0
+            })
+        return items
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання предметів: {e}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_user_total_bonuses(user_id, chat_id):
+    """Отримує загальні бонуси від всіх предметів користувача"""
+    items = get_user_items(user_id, chat_id)
+    
+    bonuses = {
+        'power': 0,
+        'defense': 0,
+        'luck': 0,
+        'special': 0
+    }
+    
+    for item in items:
+        bonus_type = item.get('bonus_type')
+        bonus_value = item.get('bonus_value', 0)
+        quantity = item.get('quantity', 1)
+        
+        if bonus_type in bonuses:
+            bonuses[bonus_type] += bonus_value * quantity
+    
+    return bonuses
+
+
+def remove_user_item(user_id, chat_id, item_id, quantity=1):
+    """Видаляє предмет у користувача"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('SELECT quantity FROM user_items WHERE id = %s AND user_id = %s AND chat_id = %s',
+                      (item_id, user_id, chat_id))
+        row = cursor.fetchone()
+        
+        if not row or row[0] < quantity:
+            return False
+        
+        if quantity == row[0]:
+            cursor.execute('DELETE FROM user_items WHERE id = %s', (item_id,))
+        else:
+            cursor.execute('UPDATE user_items SET quantity = quantity - %s WHERE id = %s', (quantity, item_id))
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка видалення предмета: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ============================================
+# ТРЕЙДИ ПРЕДМЕТАМИ - НОВІ ФУНКЦІЇ
+# ============================================
+
+def create_item_trade(sender_id, receiver_id, chat_id, 
+                     sender_items=None, receiver_items=None,
+                     sender_coins=0, receiver_coins=0):
+    """Створює трейд між гравцями"""
+    conn = get_connection()
+    if not conn:
+        return None
+
+    cursor = conn.cursor()
+    try:
+        now = int(time.time())
+        import json
+        sender_items_json = json.dumps(sender_items) if sender_items else '[]'
+        receiver_items_json = json.dumps(receiver_items) if receiver_items else '[]'
+        
+        cursor.execute('''
+            INSERT INTO item_trades (sender_id, receiver_id, chat_id,
+                                    sender_items_json, receiver_items_json,
+                                    sender_coins, receiver_coins, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        ''', (sender_id, receiver_id, chat_id, 
+              sender_items_json, receiver_items_json,
+              sender_coins, receiver_coins, now))
+        
+        trade_id = cursor.fetchone()[0]
+        conn.commit()
+        return trade_id
+    except Exception as e:
+        logger.error(f"❌ Помилка створення трейду: {e}")
+        conn.rollback()
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_item_trade(trade_id):
+    """Отримує інформацію про трейд"""
+    conn = get_connection()
+    if not conn:
+        return None
+
+    cursor = conn.cursor()
+    try:
+        import json
+        cursor.execute('SELECT * FROM item_trades WHERE id = %s', (trade_id,))
+        row = cursor.fetchone()
+        
+        if not row:
+            return None
+        
+        return {
+            'id': int(row[0]),
+            'sender_id': int(row[1]),
+            'receiver_id': int(row[2]),
+            'chat_id': int(row[3]),
+            'sender_items': json.loads(row[4]) if row[4] else [],
+            'receiver_items': json.loads(row[5]) if row[5] else [],
+            'sender_coins': int(row[6]) if row[6] else 0,
+            'receiver_coins': int(row[7]) if row[7] else 0,
+            'status': row[8],
+            'created_at': int(row[9]) if row[9] else 0,
+            'completed_at': int(row[10]) if row[10] else 0
+        }
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання трейду: {e}")
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def accept_item_trade(trade_id):
+    """Приймає трейд"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        now = int(time.time())
+        cursor.execute('''
+            UPDATE item_trades SET status = 'accepted', completed_at = %s
+            WHERE id = %s
+        ''', (now, trade_id))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка прийняття трейду: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def cancel_item_trade(trade_id):
+    """Скасовує трейд"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            UPDATE item_trades SET status = 'cancelled'
+            WHERE id = %s
+        ''', (trade_id,))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка скасування трейду: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_pending_trades(user_id):
+    """Отримує активні трейди користувача"""
+    conn = get_connection()
+    if not conn:
+        return []
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT * FROM item_trades
+            WHERE (sender_id = %s OR receiver_id = %s) AND status = 'pending'
+            ORDER BY created_at DESC
+        ''', (user_id, user_id))
+        rows = cursor.fetchall()
+        
+        trades = []
+        for row in rows:
+            trades.append({
+                'id': int(row[0]),
+                'sender_id': int(row[1]),
+                'receiver_id': int(row[2]),
+                'chat_id': int(row[3]),
+                'status': row[8],
+                'created_at': int(row[9]) if row[9] else 0
+            })
+        return trades
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання трейдів: {e}")
+        return []
     finally:
         cursor.close()
         conn.close()
