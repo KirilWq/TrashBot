@@ -8635,8 +8635,19 @@ def boss_cmd(message):
                         if not updated_boss or not updated_boss.get('is_active', True):
                             bot.reply_to(message, "🐲 Бос вже переможений!\n\nНаступний з'явиться через 24 години.")
                         else:
-                            logger.error(f"❌ attack_boss returned None for user {user_id}, boss still active: {updated_boss}")
-                            bot.reply_to(message, "❌ Помилка атаки! Спробуй ще раз.")
+                            logger.error(f"❌ attack_boss повернув None для user {user_id}, бос активний: {updated_boss}")
+                            bot.reply_to(message, """❌ **ПОМИЛКА АТАКИ!**
+
+Бос ще живий, але сталася помилка.
+
+**Причини:**
+• Тимчасова проблема з БД
+• Бос щойно переможений іншим гравцем
+
+**Спробуйте:**
+1. Зачекайте 1-2 хвилини
+2. Перевірте /boss info
+3. Спробуйте ще раз""")
                         return
                 except Exception as e:
                     logger.error(f"❌ Exception during attack_boss: {e}", exc_info=True)
