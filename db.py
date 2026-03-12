@@ -4842,29 +4842,32 @@ def get_all_territories():
     cursor = conn.cursor()
     try:
         cursor.execute('''
-            SELECT gt.*, g.name as guild_name
+            SELECT gt.id, gt.name, gt.owner_guild_id, gt.bonus_type, 
+                   gt.bonus_value, gt.captured_at, gt.income_per_hour, 
+                   gt.last_income_at, g.name as guild_name
             FROM guild_territories gt
             LEFT JOIN guilds g ON gt.owner_guild_id = g.id
             ORDER BY gt.income_per_hour DESC
         ''')
         rows = cursor.fetchall()
-        
+
         territories = []
         for row in rows:
             territories.append({
                 'id': int(row[0]),
                 'name': row[1],
                 'owner_guild_id': int(row[2]) if row[2] else None,
-                'guild_name': row[3],
-                'bonus_type': row[4],
-                'bonus_value': int(row[5]) if row[5] else 0,
-                'captured_at': int(row[6]) if row[6] else 0,
-                'income_per_hour': int(row[7]) if row[7] else 0,
-                'last_income_at': int(row[8]) if row[8] else 0
+                'bonus_type': row[3],
+                'bonus_value': int(row[4]) if row[4] else 0,
+                'captured_at': int(row[5]) if row[5] else 0,
+                'income_per_hour': int(row[6]) if row[6] else 0,
+                'last_income_at': int(row[7]) if row[7] else 0,
+                'guild_name': row[8]
             })
+        logger.info(f"✅ Отримано {len(territories)} територій")
         return territories
     except Exception as e:
-        logger.error(f"❌ Помилка отримання територій: {e}")
+        logger.error(f"❌ Помилка отримання територій: {e}", exc_info=True)
         return []
     finally:
         cursor.close()
