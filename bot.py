@@ -3890,13 +3890,13 @@ def trade_cmd(message):
         parts = message.text.split()
 
         if len(parts) < 3:
-            bot.reply_to(message, """💱 **ТРЕЙД**
+            bot.reply_to(message, """💱 ТРЕЙД
 
 Використання: /trade @username <сума>
 
 Приклад: /trade @skyfidon79 100
 
-**Команди:**
+Команди:
 /trade @username <сума> - створити трейд
 /trades - показати активні трейди
 /accept <id> - прийняти трейд
@@ -3927,20 +3927,48 @@ def trade_cmd(message):
 
         # Знаходимо отримувача по username в статистиці
         receiver_id = None
+        
+        # Спочатку шукаємо в stats_data
         for key, data in stats_data.items():
             if data.get('username', '').lower() == receiver_username and data.get('chat_id') == chat_id:
                 receiver_id = data.get('user_id')
                 break
+        
+        # Якщо не знайшли, шукаємо в chat_members_cache
+        if not receiver_id and chat_id in chat_members_cache:
+            for member in chat_members_cache[chat_id]:
+                member_username = f"@{member.get('username', '')}".lower()
+                if member_username == receiver_username:
+                    receiver_id = member.get('user_id')
+                    break
+        
+        # Якщо все ще не знайшли, шукаємо в manual_users
+        if not receiver_id:
+            manual_key = f"{chat_id}"
+            if manual_key in manual_users:
+                for username, uid in manual_users[manual_key].items():
+                    if username.lower() == receiver_username:
+                        receiver_id = uid
+                        break
 
         if not receiver_id:
-            bot.reply_to(message, f"❌ Користувач {receiver_username} не знайдений в чаті!")
+            bot.reply_to(message, f"""❌ Користувач {receiver_username} не знайдений в чаті!
+
+**Можливі причини:**
+• Користувач ще не писав в чат
+• Бот не бачить цього користувача
+
+**Рішення:**
+1. Нехай користувач напише повідомлення
+2. Додайте бота в друзі
+3. Спробуйте /members щоб побачити список""")
             return
 
         if receiver_id == sender_id:
             bot.reply_to(message, "❌ Не можна торгувати з самим собою!")
             return
 
-        bot.reply_to(message, f"""💱 **ТРЕЙД СТВОРЕНО!**
+        bot.reply_to(message, f"""💱 ТРЕЙД СТВОРЕНО!
 
 Отримувач: {receiver_username}
 Сума: {amount} монет
