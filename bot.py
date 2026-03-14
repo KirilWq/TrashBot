@@ -5390,24 +5390,37 @@ def rename_child_cmd(message):
 def child_top_cmd(message):
     """Топ дітей за вагою"""
     chat_id = message.chat.id
-    
+
     try:
         children = get_top_children(chat_id, limit=10)
-        
+
         if not children:
-            bot.reply_to(message, "👶 **ТОП ДІТЕЙ**\n\nВ чаті ще немає дітей!")
+            bot.reply_to(message, "👶 ТОП ДІТЕЙ\n\nВ чаті ще немає дітей!")
             return
-        
-        text = "🏆 **ТОП ДІТЕЙ ЗА ВАГОЮ**\n\n"
-        
+
+        text = "🏆 ТОП ДІТЕЙ ЗА ВАГОЮ\n\n"
+
         for i, child in enumerate(children, 1):
             medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
-            trait_emoji = f" ({child['inherited_trait']})" if child['inherited_trait'] else ""
-            text += f"{medal} **{child['name']}** - {child['weight']} кг{trait_emoji}\n"
-            text += f"   Батьки: {child['father_name'][:15]} + {child['mother_name'][:15]}\n\n"
-        
-        bot.reply_to(message, text, parse_mode="Markdown")
-    
+            
+            # Екрануємо спеціальні символи в імені
+            child_name = child['name'].replace('_', '\\_').replace('*', '\\*').replace('`', '\\`')
+            
+            # Екрануємо спеціальні символи в особливості
+            trait_text = ""
+            if child['inherited_trait']:
+                trait = child['inherited_trait'].replace('_', '\\_').replace('*', '\\*').replace('`', '\\`')
+                trait_text = f" ({trait})"
+            
+            # Обрізаємо імена батьків і екрануємо
+            father_name = child['father_name'][:15].replace('_', '\\_').replace('*', '\\*') if child.get('father_name') else "Unknown"
+            mother_name = child['mother_name'][:15].replace('_', '\\_').replace('*', '\\*') if child.get('mother_name') else "Unknown"
+            
+            text += f"{medal} {child_name} - {child['weight']} кг{trait_text}\n"
+            text += f"   Батьки: {father_name} + {mother_name}\n\n"
+
+        bot.reply_to(message, text)
+
     except Exception as e:
         logger.error(f"❌ Помилка /childtop: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
