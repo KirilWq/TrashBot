@@ -3592,17 +3592,7 @@ def attack_boss(boss_id, user_id, chat_id, damage):
     try:
         now = int(time.time())
 
-        # Додаємо шкоду до учасника (оновлюємо joined_at для кулдауну)
-        cursor.execute('''
-            INSERT INTO boss_battle_participants (boss_id, user_id, chat_id, damage_dealt, joined_at)
-            VALUES (%s, %s, %s, %s, %s)
-            ON CONFLICT (boss_id, user_id, chat_id) DO UPDATE SET
-                damage_dealt = boss_battle_participants.damage_dealt + %s,
-                joined_at = EXCLUDED.joined_at
-        ''', (boss_id, user_id, chat_id, damage, now, damage))
-        logger.info(f"✅ Додано шкоду в boss_battle_participants")
-
-        # Отримуємо поточне здоров'я боса ПЕРЕД оновленням
+        # Отримуємо поточне здоров'я боса ПЕРЕД будь-яких дій
         cursor.execute('SELECT health, max_health FROM bosses WHERE id = %s', (boss_id,))
         boss_row = cursor.fetchone()
 
@@ -3612,10 +3602,27 @@ def attack_boss(boss_id, user_id, chat_id, damage):
 
         current_health = int(boss_row[0]) if boss_row[0] else 0
         max_health = int(boss_row[1]) if boss_row[1] else 1000
-        logger.info(f"📊 Бос: HP {current_health}/{max_health}, damage={damage}")
+        logger.info(f"📊 Бос: HP {current_health}/{max_health}, ваша шкода={damage}")
 
-        # Зменшуємо здоров'я боса
-        new_health = max(0, current_health - damage)
+        # Обмежуємо шкоду поточним HP боса (не можна завдати більше ніж у боса HP)
+        actual_damage = min(damage, current_health)
+        if damage > current_health:
+            logger.info(f"⚠️ Шкода обмежена: {damage} → {actual_damage} (бос мав {current_health} HP)")
+        
+        new_health = current_health - actual_damage
+        logger.info(f"💥 Нове HP боса: {current_health} - {actual_damage} = {new_health}")
+
+        # Додаємо шкоду до учасника (оновлюємо joined_at для кулдауну)
+        cursor.execute('''
+            INSERT INTO boss_battle_participants (boss_id, user_id, chat_id, damage_dealt, joined_at)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (boss_id, user_id, chat_id) DO UPDATE SET
+                damage_dealt = boss_battle_participants.damage_dealt + %s,
+                joined_at = EXCLUDED.joined_at
+        ''', (boss_id, user_id, chat_id, actual_damage, now, actual_damage))
+        logger.info(f"✅ Додано шкоду в boss_battle_participants")
+
+        # Оновлюємо здоров'я боса
         cursor.execute('''
             UPDATE bosses SET health = %s WHERE id = %s
         ''', (new_health, boss_id))
@@ -4939,6 +4946,8 @@ def capture_territory(territory_id, guild_id):
 
 def collect_territory_income(guild_id):
     """Збирає дохід з всіх територій гільдії"""
+    logger.info(f"💰 Збір доходу для гільдії {guild_id}")
+    
     conn = get_connection()
     if not conn:
         return {'coins': 0, 'xp': 0}
@@ -4947,40 +4956,49 @@ def collect_territory_income(guild_id):
     try:
         now = int(time.time())
         cursor.execute('''
-            SELECT * FROM guild_territories
+            SELECT id, name, owner_guild_id, bonus_type, bonus_value, 
+                   captured_at, income_per_hour, last_income_at
+            FROM guild_territories
             WHERE owner_guild_id = %s
         ''', (guild_id,))
         rows = cursor.fetchall()
-        
+
         total_coins = 0
         total_xp = 0
-        
+        territories_count = 0
+
         for row in rows:
             territory_id = int(row[0])
-            income = int(row[7]) if row[7] else 0
-            last_income = int(row[8]) if row[8] else 0
-            bonus_type = row[4]
-            
+            territory_name = row[1]
+            bonus_type = row[3]
+            income = int(row[6]) if row[6] else 0  # income_per_hour
+            last_income = int(row[7]) if row[7] else 0  # last_income_at
+
             # Розраховуємо скільки годин пройшло
             hours_passed = (now - last_income) / 3600
-            
+            logger.info(f"📊 Територія {territory_name}: {hours_passed:.1f} год, дохід {income}/год")
+
             if hours_passed >= 1:
                 income_amount = int(income * hours_passed)
-                
+                territories_count += 1
+
                 if bonus_type == 'coins' or bonus_type == 'trade':
                     total_coins += income_amount
+                    logger.info(f"  💰 +{income_amount} монет")
                 elif bonus_type == 'xp':
                     total_xp += income_amount
-                
+                    logger.info(f"  ⭐ +{income_amount} XP")
+
                 # Оновлюємо last_income_at
                 cursor.execute('''
                     UPDATE guild_territories SET last_income_at = %s WHERE id = %s
                 ''', (now, territory_id))
-        
+
         conn.commit()
+        logger.info(f"✅ Зібрано дохід: {total_coins} монет, {total_xp} XP з {territories_count} територій")
         return {'coins': total_coins, 'xp': total_xp}
     except Exception as e:
-        logger.error(f"❌ Помилка збору доходу: {e}")
+        logger.error(f"❌ Помилка збору доходу: {e}", exc_info=True)
         conn.rollback()
         return {'coins': 0, 'xp': 0}
     finally:

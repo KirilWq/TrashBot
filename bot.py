@@ -8668,9 +8668,12 @@ def boss_cmd(message):
                     hp_percent = int((remaining / max_health) * 100)
                     hp_bar = "🟩" * (hp_percent // 10) + "🟥" * (10 - hp_percent // 10)
 
+                    # Показуємо фактичну шкоду
+                    actual_damage = total_damage if total_damage <= (boss['health'] - remaining) else boss['health'] - remaining
+
                     bot.reply_to(message, f"""⚔️ **АТАКА!**
 
-Твій хряк {hryak['name']} завдав {total_damage} шкоди!
+Твій хряк {hryak['name']} завдав {actual_damage} шкоди!
 
 🐲 {boss['name']}
 ❤️ {remaining}/{max_health} ({hp_percent}%)
