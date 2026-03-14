@@ -964,7 +964,7 @@ def top_hryaky(message):
         # Беремо топ 10
         top_count = min(10, len(chat_hryaky))
 
-        text = "🏆 **ТОП ХРЯКІВ ЧАТУ**\n\n"
+        text = "🏆 ТОП ХРЯКІВ ЧАТУ\n\n"
         emojis = ["🥇", "🥈", "🥉"]
 
         for i, hryak in enumerate(chat_hryaky[:top_count]):
@@ -973,10 +973,11 @@ def top_hryaky(message):
             else:
                 emoji = f"{i+1}."
 
-            name = hryak['name'][:20]
+            # Екрануємо спеціальні символи в імені
+            name = hryak['name'][:20].replace('_', '\\_').replace('*', '\\*').replace('`', '\\`')
             text += f"{emoji} {name} - {hryak['weight']} кг\n"
 
-        bot.reply_to(message, text, parse_mode="Markdown")
+        bot.reply_to(message, text)
     except Exception as e:
         logger.error(f"❌ Помилка /hryaketop: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
