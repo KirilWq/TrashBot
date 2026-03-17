@@ -9252,17 +9252,12 @@ def webapp_data_handler(message):
         logger.error(f"❌ Помилка web_app_data: {e}")
 
 
-# Обробник спам контролю
-@bot.message_handler(func=lambda m: True)
+# Обробник спам контролю - ТІЛЬКИ для повідомлень (НЕ для команд!)
+@bot.message_handler(func=lambda m: m.text and not m.text.startswith('/'))
 def spam_handler(message):
     """Перевірка на спам (ігнорує команди)"""
     chat_id = message.chat.id
     user_id = message.from_user.id
-
-    # Ігноруємо команди - ПОВИННО БУТИ ПЕРШИМ!
-    if message.text and message.text.startswith('/'):
-        logger.info(f"⏭️ Пропущено команду: {message.text} від {user_id}")
-        return False  # Змінено з return на return False щоб інші обробники працювали
 
     logger.debug(f"📨 Повідомлення: {message.text[:50] if message.text else 'no text'}")
 
