@@ -6129,8 +6129,8 @@ def cancel_item_trade(trade_id):
         conn.close()
 
 
-def get_pending_trades(user_id):
-    """Отримує активні трейди користувача"""
+def get_pending_item_trades(user_id):
+    """Отримує активні трейди предметами користувача"""
     conn = get_connection()
     if not conn:
         return []
@@ -6143,7 +6143,7 @@ def get_pending_trades(user_id):
             ORDER BY created_at DESC
         ''', (user_id, user_id))
         rows = cursor.fetchall()
-        
+
         trades = []
         for row in rows:
             trades.append({

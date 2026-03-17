@@ -4031,21 +4031,23 @@ def trades_cmd(message):
     user_id = message.from_user.id
 
     try:
-        trades = get_pending_trades(user_id, chat_id)
-        
+        # Отримуємо звичайні трейди (монетами)
+        from db import get_pending_trades as get_pending_coin_trades
+        trades = get_pending_coin_trades(user_id, chat_id)
+
         if not trades:
             bot.reply_to(message, "📭 Немає активних трейдів!")
             return
-        
+
         text = "💱 **Активні трейди:**\n\n"
-        
+
         for trade in trades:
             text += f"ID: `{trade['id']}`\n"
             text += f"Від: ID {trade['sender_id']}\n"
             text += f"Сума: {trade['coins_offered']} монет\n\n"
-        
+
         text += "Використовуй /accept <id> щоб прийняти"
-        
+
         bot.reply_to(message, text, parse_mode="Markdown")
     except Exception as e:
         logger.error(f"❌ Помилка /trades: {e}", exc_info=True)
@@ -8087,44 +8089,51 @@ def casino_play_cmd(message):
     """Грати в казино"""
     chat_id = message.chat.id
     user_id = message.from_user.id
-    
+
     try:
         parts = message.text.split()
-        
+
         if len(parts) < 2:
             bot.reply_to(message, "❌ Використання: /casino_play <сума>")
             return
-        
+
         bet_amount = int(parts[1])
-        
+
         if bet_amount <= 0:
             bot.reply_to(message, "❌ Ставка має бути додатною!")
             return
-        
+
         casino = get_user_casino(user_id, chat_id)
-        
+
+        if not casino:
+            bot.reply_to(message, "❌ У тебе немає казино! Створи: /casino_create")
+            return
+
         # Перевірка балансу гравця
         currency = get_user_currency(user_id, chat_id)
         if currency.get('coins', 0) < bet_amount:
             bot.reply_to(message, "❌ Недостатньо монет!")
             return
-        
+
         # Граємо
+        logger.info(f"🎰 Casino play: user={user_id}, casino_id={casino['id']}, bet={bet_amount}")
         result = play_casino_game(casino['id'], user_id, bet_amount)
-        
+        logger.info(f"🎰 Casino result: {result}")
+
         if not result:
-            bot.reply_to(message, "❌ Помилка гри!")
+            logger.error(f"❌ play_casino_game returned None")
+            bot.reply_to(message, "❌ Помилка гри! Спробуй ще раз.")
             return
-        
+
         if result.get('result') == 'Недостатньо монет в казино':
             bot.reply_to(message, "❌ В казино недостатньо монет для виплати!")
             return
-        
+
         # Оновлюємо баланс гравця
         if result.get('win'):
             new_coins = currency['coins'] - bet_amount + result['amount']
             update_user_currency(user_id, chat_id, coins=new_coins)
-            
+
             text = f"""🎰 **ГРА В КАЗИНО**
 
 Ставка: {bet_amount} монет
@@ -8133,15 +8142,15 @@ def casino_play_cmd(message):
         else:
             new_coins = currency['coins'] - bet_amount
             update_user_currency(user_id, chat_id, coins=new_coins)
-            
+
             text = f"""🎰 **ГРА В КАЗИНО**
 
 Ставка: {bet_amount} монет
 {result['result']}
 💸 Програш: -{bet_amount} монет"""
-        
+
         bot.reply_to(message, text, parse_mode="Markdown")
-        
+
     except ValueError:
         bot.reply_to(message, "❌ Невірна ставка!")
     except Exception as e:
