@@ -127,12 +127,6 @@ bot.enable_save_next_step_handlers()
 
 logger.info(f"✅ Бот ініціалізований з токеном: {BOT_TOKEN[:20]}...")
 
-# Обробник ВСІХ повідомлень для тесту
-@bot.message_handler(func=lambda message: True)
-def log_all_messages(message):
-    """Логує всі повідомлення для тесту"""
-    logger.info(f"📨 Отримано повідомлення: {message.text} від {message.from_user.id} ({message.from_user.username})")
-
 
 
 # ============================================
@@ -9267,8 +9261,8 @@ def spam_handler(message):
 
     # Ігноруємо команди - ПОВИННО БУТИ ПЕРШИМ!
     if message.text and message.text.startswith('/'):
-        logger.debug(f"⏭️ Пропущено команду: {message.text}")
-        return
+        logger.info(f"⏭️ Пропущено команду: {message.text} від {user_id}")
+        return False  # Змінено з return на return False щоб інші обробники працювали
 
     logger.debug(f"📨 Повідомлення: {message.text[:50] if message.text else 'no text'}")
 
