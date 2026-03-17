@@ -710,6 +710,13 @@ def init_db():
             )
         ''')
         logger.info("✅ Таблиця bosses створена")
+        
+        # Додаємо відсутні колонки якщо їх немає
+        try:
+            cursor.execute('ALTER TABLE bosses ADD COLUMN IF NOT EXISTS defeat_count INTEGER DEFAULT 0')
+            logger.info("✅ Додано колонку defeat_count")
+        except Exception as e:
+            logger.info(f"ℹ️ defeat_count вже існує: {e}")
 
         # Таблиця участі в бос-дуелях
         cursor.execute('''

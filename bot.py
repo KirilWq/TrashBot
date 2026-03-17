@@ -79,6 +79,9 @@ load_dotenv()
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 ADMIN_ID = int(os.environ.get('ADMIN_ID', 0))  # Твій ID для адмінки
 
+logger.info(f"🔑 BOT_TOKEN: {'✅' if BOT_TOKEN else '❌'}")
+logger.info(f"🛡️ ADMIN_ID: {ADMIN_ID}")
+
 if not BOT_TOKEN:
     logger.error("❌ ПОМИЛКА: BOT_TOKEN не знайдено в змінних середовища!")
     logger.error("Додай змінну середовища BOT_TOKEN з токеном бота")
@@ -2187,8 +2190,8 @@ def menu_callback(call):
     bot.send_message(chat_id, text, parse_mode="Markdown")
 
 
-def is_admin(chat_id, user_id):
-    """Перевіряє чи користувач є адміном"""
+def is_chat_admin(chat_id, user_id):
+    """Перевіряє чи користувач є адміном чату"""
     try:
         admins = bot.get_chat_administrators(chat_id)
         for admin in admins:
@@ -9251,7 +9254,7 @@ def spam_handler(message):
             del provin_users[chat_id][user_id]
 
     # Перевіряємо чи не адмін
-    if is_admin(chat_id, user_id):
+    if is_chat_admin(chat_id, user_id):
         return
 
     # Перевіряємо на спам
