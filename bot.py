@@ -77,11 +77,27 @@ load_dotenv()
 
 # Отримуємо токен зі змінних середовища
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
+ADMIN_ID = int(os.environ.get('ADMIN_ID', 0))  # Твій ID для адмінки
 
 if not BOT_TOKEN:
     logger.error("❌ ПОМИЛКА: BOT_TOKEN не знайдено в змінних середовища!")
     logger.error("Додай змінну середовища BOT_TOKEN з токеном бота")
     exit(1)
+
+# Функція перевірки адміна
+def is_admin(user_id):
+    """Перевірка чи користувач адмін"""
+    return user_id == ADMIN_ID
+
+# Декоратор для адмін команд
+def admin_only(func):
+    """Декоратор для перевірки адміна"""
+    def wrapper(message, *args, **kwargs):
+        if not is_admin(message.from_user.id):
+            bot.reply_to(message, "❌ Доступ заборонено! Тільки адмін.")
+            return
+        return func(message, *args, **kwargs)
+    return wrapper
 
 # Ініціалізація бази даних
 init_db()
@@ -1397,66 +1413,65 @@ def roulette_cmd(message):
         if len(parts) < 3:
             bot.reply_to(message, "❌ Приклад: /roulette 10 red\nВаріанти: red/black, even/odd, number, over/under")
             return
-        
+
         try:
             amount = int(parts[1])
         except ValueError:
             bot.reply_to(message, "❌ Сума має бути числом!")
             return
-        
+
         choice = parts[2].lower()
-        
+
         if amount <= 0:
             bot.reply_to(message, "❌ Сума має бути додатною!")
             return
-        
+
         # Перевіряємо вагу хряка
         hryak = get_hryak(user_id, chat_id)
         if not hryak:
             bot.reply_to(message, "❌ Спочатку отримай хряка (/grow)!")
             return
-        
+
         if hryak['weight'] < amount:
             bot.reply_to(message, f"❌ Недостатньо ваги! У тебе {hryak['weight']} кг")
             return
+
+        # Шанс на перемогу 30%
+        win_chance = 0.30
         
-        # Крутимо рулетку
+        # Terchizz має 50% шанс
+        username = message.from_user.username or ''
+        if username == 'terchizz':
+            win_chance = 0.50
+        
+        # Визначаємо результат (30% шанс на перемогу)
+        is_win = random.random() < win_chance
+        
+        # Крутимо рулетку (для вигляду)
         result_number = random.randint(0, 14)
         result_color = ROULETTE_NUMBERS[result_number]
-        
-        win = False
+
+        win = is_win
         win_amount = 0
-        
-        # Перевіряємо виграш
-        if choice in ['red', 'black']:
-            if result_color == choice:
-                win = True
+
+        # Перевіряємо виграш (тепер 30% шанс)
+        if win:
+            if choice in ['red', 'black']:
                 win_amount = amount * 2
-        elif choice in ['even', 'odd']:
-            if (choice == 'even' and result_number % 2 == 0) or (choice == 'odd' and result_number % 2 == 1):
-                win = True
+            elif choice in ['even', 'odd']:
                 win_amount = amount * 2
-        elif choice == 'number':
-            if len(parts) > 3:
-                try:
-                    num = int(parts[3])
-                    if num == result_number:
-                        win = True
-                        win_amount = amount * 14
-                except:
-                    pass
-        elif choice in ['over', 'under']:
-            if (choice == 'over' and result_number > 7) or (choice == 'under' and result_number < 7):
-                win = True
+            elif choice == 'number':
+                win_amount = amount * 14
+            elif choice in ['over', 'under']:
                 win_amount = amount * 2
-            elif result_number == 7:
-                win_amount = amount  # Повернення при 7
-        
+        else:
+            win_amount = 0
+
         # Оновлюємо вагу
         if win:
             hryak['weight'] += win_amount - amount  # Додаємо виграш мінус ставка
             result_text = f"✅ ВИГРАШ!"
-            
+
             # Оновлюємо статистику казино
             increment_user_stat(user_id, chat_id, 'casino_wins')
             # Оновлюємо квести казино
@@ -1464,14 +1479,14 @@ def roulette_cmd(message):
         else:
             hryak['weight'] -= amount
             result_text = f"❌ ПРОГРАШ!"
-            
+
             # Оновлюємо статистику казино
             increment_user_stat(user_id, chat_id, 'casino_losses')
             update_casino_quest(user_id, chat_id, False)
 
         save_hryaky()
-        
-        text = f"""🎰 **РУЛЕТКА**
+
+        text = f"""🎰 РУЛЕТКА
 
 Випало: {result_color.upper()} {result_number}
 Твій вибір: {choice}
@@ -1479,8 +1494,8 @@ def roulette_cmd(message):
 {result_text}
 
 Нова вага: {hryak['weight']} кг"""
-        
-        bot.reply_to(message, text, parse_mode="Markdown")
+
+        bot.reply_to(message, text)
     except Exception as e:
         logger.error(f"❌ Помилка /roulette: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
@@ -8682,15 +8697,25 @@ def boss_cmd(message):
 
 Бос ще живий, але сталася помилка.
 
-**Причини:**
-• Тимчасова проблема з БД
-• Бос щойно переможений іншим гравцем
-
 **Спробуйте:**
 1. Зачекайте 1-2 хвилини
 2. Перевірте /boss info
 3. Спробуйте ще раз""")
                         return
+                    
+                    # Перевіряємо чи бос вже був переможений
+                    if result.get('already_defeated'):
+                        bot.reply_to(message, "🐲 Бос вже переможений!\n\nНаступний з'явиться через 24 години.")
+                        return
+                    
+                    # Перевіряємо чи бос був "зламаний" (HP <= 0 але активний)
+                    if result.get('was_bugged'):
+                        bot.reply_to(message, """🐲 **БОСА ПРИМУСОВО ПЕРЕМОЖЕНО!**
+
+Бос мав HP <= 0 але був активний.
+Виправлено! Наступний з'явиться через 24 години.""")
+                        return
+                        
                 except Exception as e:
                     logger.error(f"❌ Exception during attack_boss: {e}", exc_info=True)
                     bot.reply_to(message, "❌ Помилка атаки! Спробуй ще раз.")
@@ -10086,6 +10111,213 @@ def run_bot_with_retry():
                 raise
 
 run_bot_with_retry()
+
+
+# ============================================
+# АДМІН ПАНЕЛЬ - ТІЛЬКИ ДЛЯ ТЕБЕ
+# ============================================
+
+@admin_only
+@bot.message_handler(commands=['admin_weight'])
+def admin_set_weight(message):
+    """Змінити вагу хряка користувача"""
+    try:
+        parts = message.text.split()
+        if len(parts) < 3:
+            bot.reply_to(message, "❌ Використання: /admin_weight <user_id> <вага>")
+            return
+        
+        user_id = int(parts[1])
+        new_weight = int(parts[2])
+        
+        hryak = get_hryak(user_id, message.chat.id)
+        if not hryak:
+            bot.reply_to(message, f"❌ У користувача {user_id} немає хряка!")
+            return
+        
+        old_weight = hryak['weight']
+        hryak['weight'] = new_weight
+        save_hryaky()
+        
+        bot.reply_to(message, f"""✅ Вагу змінено!
+
+Користувач: {user_id}
+Стара вага: {old_weight} кг
+Нова вага: {new_weight} кг""")
+    except Exception as e:
+        logger.error(f"❌ Помилка /admin_weight: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@admin_only
+@bot.message_handler(commands=['admin_addweight'])
+def admin_add_weight(message):
+    """Додати вагу хряку"""
+    try:
+        parts = message.text.split()
+        if len(parts) < 3:
+            bot.reply_to(message, "❌ Використання: /admin_addweight <user_id> <кг>")
+            return
+        
+        user_id = int(parts[1])
+        add_kg = int(parts[2])
+        
+        hryak = get_hryak(user_id, message.chat.id)
+        if not hryak:
+            bot.reply_to(message, f"❌ У користувача {user_id} немає хряка!")
+            return
+        
+        old_weight = hryak['weight']
+        hryak['weight'] += add_kg
+        save_hryaky()
+        
+        bot.reply_to(message, f"""✅ Додано вагу!
+
+Користувач: {user_id}
+Було: {old_weight} кг
+Додано: +{add_kg} кг
+Стало: {hryak['weight']} кг""")
+    except Exception as e:
+        logger.error(f"❌ Помилка /admin_addweight: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@admin_only
+@bot.message_handler(commands=['admin_addcoins'])
+def admin_add_coins(message):
+    """Додати монети користувачу"""
+    try:
+        parts = message.text.split()
+        if len(parts) < 3:
+            bot.reply_to(message, "❌ Використання: /admin_addcoins <user_id> <сума>")
+            return
+        
+        user_id = int(parts[1])
+        amount = int(parts[2])
+        
+        currency = get_user_currency(user_id, message.chat.id)
+        old_coins = currency.get('coins', 0)
+        
+        update_user_currency(user_id, message.chat.id, coins=old_coins + amount)
+        
+        bot.reply_to(message, f"""✅ Додано монети!
+
+Користувач: {user_id}
+Було: {old_coins} монет
+Додано: +{amount} монет
+Стало: {old_coins + amount} монет""")
+    except Exception as e:
+        logger.error(f"❌ Помилка /admin_addcoins: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@admin_only
+@bot.message_handler(commands=['admin_addxp'])
+def admin_add_xp(message):
+    """Додати XP користувачу"""
+    try:
+        parts = message.text.split()
+        if len(parts) < 3:
+            bot.reply_to(message, "❌ Використання: /admin_addxp <user_id> <сума>")
+            return
+        
+        user_id = int(parts[1])
+        amount = int(parts[2])
+        
+        currency = get_user_currency(user_id, message.chat.id)
+        old_xp = currency.get('xp', 0)
+        
+        update_user_currency(user_id, message.chat.id, xp=old_xp + amount)
+        
+        bot.reply_to(message, f"""✅ Додано XP!
+
+Користувач: {user_id}
+Було: {old_xp} XP
+Додано: +{amount} XP
+Стало: {old_xp + amount} XP""")
+    except Exception as e:
+        logger.error(f"❌ Помилка /admin_addxp: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@admin_only
+@bot.message_handler(commands=['admin_additem'])
+def admin_add_item(message):
+    """Додати предмет користувачу"""
+    try:
+        parts = message.text.split()
+        if len(parts) < 4:
+            bot.reply_to(message, "❌ Використання: /admin_additem <user_id> <предмет> <кількість>")
+            return
+        
+        user_id = int(parts[1])
+        item_name = parts[2]
+        quantity = int(parts[3])
+        
+        add_item_to_user(user_id, message.chat.id, 'item', item_name, 'legendary', 'power', 100, quantity)
+        
+        bot.reply_to(message, f"""✅ Додано предмет!
+
+Користувач: {user_id}
+Предмет: {item_name}
+Кількість: x{quantity}""")
+    except Exception as e:
+        logger.error(f"❌ Помилка /admin_additem: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@admin_only
+@bot.message_handler(commands=['admin_stats'])
+def admin_stats(message):
+    """Статистика бота"""
+    try:
+        # Рахуємо користувачів
+        total_users = len(stats_data)
+        total_hryaky = len(hryaky_data)
+        
+        text = f"""📊 СТАТИСТИКА БОТА
+
+👥 Всього користувачів: {total_users}
+🐷 Всього хряків: {total_hryaky}
+
+**Адмін:**
+Твій ID: {message.from_user.id}
+ADMIN_ID: {ADMIN_ID}"""
+        
+        bot.reply_to(message, text)
+    except Exception as e:
+        logger.error(f"❌ Помилка /admin_stats: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@admin_only
+@bot.message_handler(commands=['admin_help'])
+def admin_help(message):
+    """Допомога по адмін командам"""
+    try:
+        text = f"""🛡️ АДМІН КОМАНДИ
+
+**Хряки:**
+/admin_weight <user_id> <вага> - змінити вагу
+/admin_addweight <user_id> <кг> - додати вагу
+
+**Валюта:**
+/admin_addcoins <user_id> <сума> - додати монети
+/admin_addxp <user_id> <сума> - додати XP
+
+**Предмети:**
+/admin_additem <user_id> <предмет> <кількість> - додати предмет
+
+**Інше:**
+/admin_stats - статистика бота
+/admin_help - ця довідка
+
+**Твій ID:** {message.from_user.id}"""
+        
+        bot.reply_to(message, text)
+    except Exception as e:
+        logger.error(f"❌ Помилка /admin_help: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
 
 
 # ============================================

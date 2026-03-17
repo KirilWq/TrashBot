@@ -3593,7 +3593,7 @@ def attack_boss(boss_id, user_id, chat_id, damage):
         now = int(time.time())
 
         # Отримуємо поточне здоров'я боса ПЕРЕД будь-яких дій
-        cursor.execute('SELECT health, max_health FROM bosses WHERE id = %s', (boss_id,))
+        cursor.execute('SELECT health, max_health, is_active FROM bosses WHERE id = %s', (boss_id,))
         boss_row = cursor.fetchone()
 
         if not boss_row:
@@ -3602,7 +3602,30 @@ def attack_boss(boss_id, user_id, chat_id, damage):
 
         current_health = int(boss_row[0]) if boss_row[0] else 0
         max_health = int(boss_row[1]) if boss_row[1] else 1000
-        logger.info(f"📊 Бос: HP {current_health}/{max_health}, ваша шкода={damage}")
+        is_active = bool(boss_row[2])
+        
+        logger.info(f"📊 Бос: HP {current_health}/{max_health}, ваша шкода={damage}, active={is_active}")
+
+        # Перевіряємо чи бос ще активний
+        if not is_active:
+            logger.info(f"⚠️ Бос вже переможений!")
+            return {'defeated': True, 'boss_id': boss_id, 'already_defeated': True}
+
+        # Перевіряємо чи бос вже мертвий (HP <= 0)
+        if current_health <= 0:
+            logger.error(f"❌ Бос має HP={current_health}! Примусово переможемо його.")
+            # Примусово переможемо боса
+            cursor.execute('''
+                UPDATE bosses
+                SET is_active = FALSE,
+                    defeat_date = %s,
+                    defeated_by_user_id = %s,
+                    defeat_count = COALESCE(defeat_count, 0) + 1,
+                    level = COALESCE(level, 1) + 1
+                WHERE id = %s
+            ''', (now, user_id, boss_id))
+            conn.commit()
+            return {'defeated': True, 'boss_id': boss_id, 'defeated_by_user_id': user_id, 'was_bugged': True}
 
         # Обмежуємо шкоду поточним HP боса (не можна завдати більше ніж у боса HP)
         actual_damage = min(damage, current_health)
@@ -3638,7 +3661,8 @@ def attack_boss(boss_id, user_id, chat_id, damage):
                     defeat_date = %s,
                     defeated_by_user_id = %s,
                     defeat_count = COALESCE(defeat_count, 0) + 1,
-                    level = COALESCE(level, 1) + 1
+                    level = COALESCE(level, 1) + 1,
+                    health = 0  # Примусово ставимо 0 HP
                 WHERE id = %s
             ''', (now, user_id, boss_id))
             conn.commit()
