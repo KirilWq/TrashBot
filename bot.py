@@ -81,11 +81,17 @@ ADMIN_ID = int(os.environ.get('ADMIN_ID', 0))  # Твій ID для адмінк
 
 logger.info(f"🔑 BOT_TOKEN: {'✅' if BOT_TOKEN else '❌'}")
 logger.info(f"🛡️ ADMIN_ID: {ADMIN_ID}")
+logger.info(f"👤 Твій user_id (terchizz): 1044325356")
+logger.info(f"✅ Адмін-команди доступні: {ADMIN_ID == 1044325356}")
 
 if not BOT_TOKEN:
     logger.error("❌ ПОМИЛКА: BOT_TOKEN не знайдено в змінних середовища!")
     logger.error("Додай змінну середовища BOT_TOKEN з токеном бота")
     exit(1)
+
+if ADMIN_ID == 0:
+    logger.warning("⚠️ ADMIN_ID не встановлено! Адмін-команди не працюватимуть.")
+    logger.warning("Додай ADMIN_ID=1044325356 в .env файл")
 
 # Функція перевірки адміна
 def is_admin(user_id):
@@ -10285,6 +10291,9 @@ ADMIN_ID: {ADMIN_ID}"""
 def admin_help(message):
     """Допомога по адмін командам"""
     try:
+        logger.info(f"🛡️ Admin command called by user {message.from_user.id} (ADMIN_ID={ADMIN_ID})")
+        logger.info(f"Is admin? {is_admin(message.from_user.id)}")
+        
         text = f"""🛡️ АДМІН КОМАНДИ
 
 **Хряки:**
@@ -10302,7 +10311,8 @@ def admin_help(message):
 /admin_stats - статистика бота
 /admin_help - ця довідка
 
-**Твій ID:** {message.from_user.id}"""
+**Твій ID:** {message.from_user.id}
+**ADMIN_ID:** {ADMIN_ID}"""
         
         bot.reply_to(message, text)
     except Exception as e:
