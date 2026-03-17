@@ -1450,36 +1450,41 @@ def roulette_cmd(message):
             bot.reply_to(message, f"❌ Недостатньо ваги! У тебе {hryak['weight']} кг")
             return
 
-        # Шанс на перемогу 30%
-        win_chance = 0.30
-        
-        # Terchizz має 50% шанс
-        username = message.from_user.username or ''
-        if username == 'terchizz':
-            win_chance = 0.50
-        
-        # Визначаємо результат (30% шанс на перемогу)
-        is_win = random.random() < win_chance
-        
-        # Крутимо рулетку (для вигляду)
+        # Крутимо рулетку
         result_number = random.randint(0, 14)
         result_color = ROULETTE_NUMBERS[result_number]
 
-        win = is_win
+        win = False
         win_amount = 0
 
-        # Перевіряємо виграш (тепер 30% шанс)
-        if win:
-            if choice in ['red', 'black']:
+        # Перевіряємо виграш ЗАЛЕЖНО ВІД РЕЗУЛЬТАТУ
+        if choice in ['red', 'black']:
+            if result_color == choice:
+                win = True
                 win_amount = amount * 2
-            elif choice in ['even', 'odd']:
+        elif choice in ['even', 'odd']:
+            if result_number == 0:
+                win = False  # 0 програш для парне/непарне
+            elif (choice == 'even' and result_number % 2 == 0) or (choice == 'odd' and result_number % 2 == 1):
+                win = True
                 win_amount = amount * 2
-            elif choice == 'number':
-                win_amount = amount * 14
-            elif choice in ['over', 'under']:
+        elif choice == 'number':
+            if len(parts) > 3:
+                try:
+                    num = int(parts[3])
+                    if num == result_number:
+                        win = True
+                        win_amount = amount * 14
+                except:
+                    pass
+        elif choice in ['over', 'under']:
+            if result_number == 0:
+                win = False  # 0 програш для більше/менше
+            elif (choice == 'over' and result_number > 7) or (choice == 'under' and result_number < 7):
+                win = True
                 win_amount = amount * 2
-        else:
-            win_amount = 0
+            elif result_number == 7:
+                win_amount = amount  # Повернення при 7
 
         # Оновлюємо вагу
         if win:
