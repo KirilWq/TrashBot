@@ -7892,15 +7892,18 @@ def casino_cmd(message):
     """Інформація про казино"""
     chat_id = message.chat.id
     user_id = message.from_user.id
-    
+
     try:
         casino = get_user_casino(user_id, chat_id)
-        
+
         if not casino:
-            bot.reply_to(message, "🎰 **КАЗИНО**\n\nУ тебе ще немає казино!\n\nСтвори: /casino_create <назва>")
+            bot.reply_to(message, "🎰 КАЗИНО\n\nУ тебе ще немає казино!\n\nСтвори: /casino_create <назва>")
             return
-        
-        text = f"""🎰 **КАЗИНО:** {casino['name']}
+
+        # Екрануємо спеціальні символи в назві
+        casino_name = casino['name'].replace('_', '\\_').replace('*', '\\*').replace('`', '\\`')
+
+        text = f"""🎰 КАЗИНО: {casino_name}
 
 💰 Монети в казино: {casino['casino_coins']}
 🎲 Ставки:
@@ -7908,15 +7911,15 @@ def casino_cmd(message):
    Макс: {casino['max_bet']} монет
 🎯 Шанс виграшу: {casino['win_chance'] * 100:.1f}%
 
-**Команди:**
+Команди:
 /casino_deposit <сума> - внести монети
 /casino_withdraw <сума> - вивести монети
 /casino_limits - налаштувати
 /casino_play <сума> - грати
 /casino_stats - статистика"""
-        
-        bot.reply_to(message, text, parse_mode="Markdown")
-        
+
+        bot.reply_to(message, text)
+
     except Exception as e:
         logger.error(f"❌ Помилка /casino: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
@@ -8134,7 +8137,7 @@ def casino_play_cmd(message):
             new_coins = currency['coins'] - bet_amount + result['amount']
             update_user_currency(user_id, chat_id, coins=new_coins)
 
-            text = f"""🎰 **ГРА В КАЗИНО**
+            text = f"""🎰 ГРА В КАЗИНО
 
 Ставка: {bet_amount} монет
 {result['result']}
@@ -8143,13 +8146,13 @@ def casino_play_cmd(message):
             new_coins = currency['coins'] - bet_amount
             update_user_currency(user_id, chat_id, coins=new_coins)
 
-            text = f"""🎰 **ГРА В КАЗИНО**
+            text = f"""🎰 ГРА В КАЗИНО
 
 Ставка: {bet_amount} монет
 {result['result']}
 💸 Програш: -{bet_amount} монет"""
 
-        bot.reply_to(message, text, parse_mode="Markdown")
+        bot.reply_to(message, text)
 
     except ValueError:
         bot.reply_to(message, "❌ Невірна ставка!")
