@@ -127,6 +127,12 @@ bot.enable_save_next_step_handlers()
 
 logger.info(f"✅ Бот ініціалізований з токеном: {BOT_TOKEN[:20]}...")
 
+# Обробник ВСІХ повідомлень для тесту
+@bot.message_handler(func=lambda message: True)
+def log_all_messages(message):
+    """Логує всі повідомлення для тесту"""
+    logger.info(f"📨 Отримано повідомлення: {message.text} від {message.from_user.id} ({message.from_user.username})")
+
 
 
 # ============================================
