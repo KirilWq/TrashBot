@@ -10318,14 +10318,20 @@ ADMIN_ID: {ADMIN_ID}"""
 def admin_help(message):
     """Допомога по адмін командам"""
     try:
+        # Детальне логування
+        user_id = message.from_user.id
+        admin_id = ADMIN_ID
+        
+        logger.info(f"🛡️ Admin command: user_id={user_id}, ADMIN_ID={admin_id}")
+        logger.info(f"is_admin check: {user_id} == {admin_id} = {user_id == admin_id}")
+        
         # Перевірка адміна всередині функції
-        if not is_admin(message.from_user.id):
-            bot.reply_to(message, "❌ Доступ заборонено! Тільки адмін.")
+        if user_id != admin_id:
+            logger.warning(f"❌ ACCESS DENIED: user {user_id} != admin {admin_id}")
+            bot.reply_to(message, f"❌ Доступ заборонено! Тільки адмін.\n\nВаш ID: {user_id}\nAdmin ID: {admin_id}")
             return
         
-        logger.info(f"🛡️ Admin command called by user {message.from_user.id} (ADMIN_ID={ADMIN_ID})")
-        logger.info(f"Is admin? {is_admin(message.from_user.id)}")
-        logger.info(f"message.from_user.id == ADMIN_ID: {message.from_user.id == ADMIN_ID}")
+        logger.info(f"✅ ACCESS GRANTED: user {user_id} == admin {admin_id}")
         
         text = f"""🛡️ АДМІН КОМАНДИ
 
@@ -10344,8 +10350,8 @@ def admin_help(message):
 /admin_stats - статистика бота
 /admin_help - ця довідка
 
-**Твій ID:** {message.from_user.id}
-**ADMIN_ID:** {ADMIN_ID}"""
+**Твій ID:** {user_id}
+**ADMIN_ID:** {admin_id}"""
         
         bot.reply_to(message, text)
     except Exception as e:
