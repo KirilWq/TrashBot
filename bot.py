@@ -10119,14 +10119,23 @@ def test_admin_cmd(message):
     """Тест адмін команди"""
     logger.info(f"🧪 TEST ADMIN COMMAND called by {message.from_user.id}")
     logger.info(f"ADMIN_ID={ADMIN_ID}, is_admin={is_admin(message.from_user.id)}")
+    
+    if not is_admin(message.from_user.id):
+        bot.reply_to(message, "❌ Доступ заборонено! Тільки адмін.")
+        return
+    
     bot.reply_to(message, f"✅ TEST OK!\nADMIN_ID={ADMIN_ID}\nYour ID={message.from_user.id}\nIs Admin={is_admin(message.from_user.id)}")
 
 
-@admin_only
 @bot.message_handler(commands=['admin_weight'])
 def admin_set_weight(message):
     """Змінити вагу хряка користувача"""
     try:
+        # Перевірка адміна
+        if not is_admin(message.from_user.id):
+            bot.reply_to(message, "❌ Доступ заборонено! Тільки адмін.")
+            return
+        
         parts = message.text.split()
         if len(parts) < 3:
             bot.reply_to(message, "❌ Використання: /admin_weight <user_id> <вага>")
@@ -10154,11 +10163,14 @@ def admin_set_weight(message):
         bot.reply_to(message, f"❌ Помилка: {e}")
 
 
-@admin_only
 @bot.message_handler(commands=['admin_addweight'])
 def admin_add_weight(message):
     """Додати вагу хряку"""
     try:
+        if not is_admin(message.from_user.id):
+            bot.reply_to(message, "❌ Доступ заборонено! Тільки адмін.")
+            return
+        
         parts = message.text.split()
         if len(parts) < 3:
             bot.reply_to(message, "❌ Використання: /admin_addweight <user_id> <кг>")
@@ -10187,11 +10199,14 @@ def admin_add_weight(message):
         bot.reply_to(message, f"❌ Помилка: {e}")
 
 
-@admin_only
 @bot.message_handler(commands=['admin_addcoins'])
 def admin_add_coins(message):
     """Додати монети користувачу"""
     try:
+        if not is_admin(message.from_user.id):
+            bot.reply_to(message, "❌ Доступ заборонено! Тільки адмін.")
+            return
+        
         parts = message.text.split()
         if len(parts) < 3:
             bot.reply_to(message, "❌ Використання: /admin_addcoins <user_id> <сума>")
@@ -10216,11 +10231,14 @@ def admin_add_coins(message):
         bot.reply_to(message, f"❌ Помилка: {e}")
 
 
-@admin_only
 @bot.message_handler(commands=['admin_addxp'])
 def admin_add_xp(message):
     """Додати XP користувачу"""
     try:
+        if not is_admin(message.from_user.id):
+            bot.reply_to(message, "❌ Доступ заборонено! Тільки адмін.")
+            return
+        
         parts = message.text.split()
         if len(parts) < 3:
             bot.reply_to(message, "❌ Використання: /admin_addxp <user_id> <сума>")
@@ -10245,11 +10263,14 @@ def admin_add_xp(message):
         bot.reply_to(message, f"❌ Помилка: {e}")
 
 
-@admin_only
 @bot.message_handler(commands=['admin_additem'])
 def admin_add_item(message):
     """Додати предмет користувачу"""
     try:
+        if not is_admin(message.from_user.id):
+            bot.reply_to(message, "❌ Доступ заборонено! Тільки адмін.")
+            return
+        
         parts = message.text.split()
         if len(parts) < 4:
             bot.reply_to(message, "❌ Використання: /admin_additem <user_id> <предмет> <кількість>")
@@ -10271,11 +10292,14 @@ def admin_add_item(message):
         bot.reply_to(message, f"❌ Помилка: {e}")
 
 
-@admin_only
 @bot.message_handler(commands=['admin_stats'])
 def admin_stats(message):
     """Статистика бота"""
     try:
+        if not is_admin(message.from_user.id):
+            bot.reply_to(message, "❌ Доступ заборонено! Тільки адмін.")
+            return
+        
         # Рахуємо користувачів
         total_users = len(stats_data)
         total_hryaky = len(hryaky_data)
@@ -10295,13 +10319,18 @@ ADMIN_ID: {ADMIN_ID}"""
         bot.reply_to(message, f"❌ Помилка: {e}")
 
 
-@admin_only
 @bot.message_handler(commands=['admin_help'])
 def admin_help(message):
     """Допомога по адмін командам"""
     try:
+        # Перевірка адміна всередині функції
+        if not is_admin(message.from_user.id):
+            bot.reply_to(message, "❌ Доступ заборонено! Тільки адмін.")
+            return
+        
         logger.info(f"🛡️ Admin command called by user {message.from_user.id} (ADMIN_ID={ADMIN_ID})")
         logger.info(f"Is admin? {is_admin(message.from_user.id)}")
+        logger.info(f"message.from_user.id == ADMIN_ID: {message.from_user.id == ADMIN_ID}")
         
         text = f"""🛡️ АДМІН КОМАНДИ
 
