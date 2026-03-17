@@ -79,6 +79,11 @@ load_dotenv()
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 ADMIN_ID = int(os.environ.get('ADMIN_ID', 0))  # Твій ID для адмінки
 
+# ПРИМУСОВО для terchizz (якщо .env не працює)
+if ADMIN_ID == 0:
+    ADMIN_ID = 1044325356  # terchizz user ID
+    logger.warning("⚠️ ADMIN_ID не знайдено в .env! Використовується примусове значення: 1044325356")
+
 logger.info(f"🔑 BOT_TOKEN: {'✅' if BOT_TOKEN else '❌'}")
 logger.info(f"🛡️ ADMIN_ID: {ADMIN_ID}")
 logger.info(f"👤 Твій user_id (terchizz): 1044325356")
