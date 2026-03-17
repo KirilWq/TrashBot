@@ -8120,12 +8120,14 @@ def casino_play_cmd(message):
 
         # Граємо
         logger.info(f"🎰 Casino play: user={user_id}, casino_id={casino['id']}, bet={bet_amount}")
+        logger.info(f"🎰 Casino data: {casino}")
+        
         result = play_casino_game(casino['id'], user_id, bet_amount)
         logger.info(f"🎰 Casino result: {result}")
 
         if not result:
-            logger.error(f"❌ play_casino_game returned None")
-            bot.reply_to(message, "❌ Помилка гри! Спробуй ще раз.")
+            logger.error(f"❌ play_casino_game returned None for user {user_id}, casino {casino['id']}")
+            bot.reply_to(message, "❌ Помилка гри! Перевірте логи.")
             return
 
         if result.get('result') == 'Недостатньо монет в казино':
