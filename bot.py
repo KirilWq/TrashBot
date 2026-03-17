@@ -10083,33 +10083,6 @@ def keep_alive():
 keep_alive_thread = Thread(target=keep_alive, daemon=True)
 keep_alive_thread.start()
 
-# Запускаємо бота з retry logic
-def run_bot_with_retry():
-    """Запускає бота з автоматичним перезапуском при помилках"""
-    max_retries = 5
-    retry_delay = 5
-    
-    for attempt in range(max_retries):
-        try:
-            logger.info(f"🤖 Запуск бота (спроба {attempt + 1}/{max_retries})...")
-            bot.polling(none_stop=True, interval=5, timeout=60)
-            break
-        except Exception as e:
-            error_msg = str(e)
-            if "terminated by other getUpdates request" in error_msg:
-                logger.error("❌ Бот вже запущений в іншому місці! Зупинка...")
-                break
-            logger.error(f"❌ Помилка бота: {e}")
-            if attempt < max_retries - 1:
-                logger.info(f"⏳ Перезапуск через {retry_delay} сек...")
-                time.sleep(retry_delay)
-            else:
-                logger.error("❌ Максимальна кіль��ість с�����об вичерпана")
-                raise
-
-run_bot_with_retry()
-
-
 # ============================================
 # АДМІН ПАНЕЛЬ - ТІЛЬКИ ДЛЯ ТЕБЕ
 # ============================================
@@ -10315,6 +10288,33 @@ def admin_help(message):
     except Exception as e:
         logger.error(f"❌ Помилка /admin_help: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+# Запускаємо бота з retry logic
+def run_bot_with_retry():
+    """Запускає бота з автоматичним перезапуском при помилках"""
+    max_retries = 5
+    retry_delay = 5
+    
+    for attempt in range(max_retries):
+        try:
+            logger.info(f"🤖 Запуск бота (спроба {attempt + 1}/{max_retries})...")
+            bot.polling(none_stop=True, interval=5, timeout=60)
+            break
+        except Exception as e:
+            error_msg = str(e)
+            if "terminated by other getUpdates request" in error_msg:
+                logger.error("❌ Бот вже запущений в іншому місці! Зупинка...")
+                break
+            logger.error(f"❌ Помилка бота: {e}")
+            if attempt < max_retries - 1:
+                logger.info(f"⏳ Перезапуск через {retry_delay} сек...")
+                time.sleep(retry_delay)
+            else:
+                logger.error("❌ Максимальна кіль��ість с�����об вичерпана")
+                raise
+
+run_bot_with_retry()
 
 
 # ============================================

@@ -3668,7 +3668,7 @@ def attack_boss(boss_id, user_id, chat_id, damage):
                     defeated_by_user_id = %s,
                     defeat_count = COALESCE(defeat_count, 0) + 1,
                     level = COALESCE(level, 1) + 1,
-                    health = 0  # Примусово ставимо 0 HP
+                    health = 0
                 WHERE id = %s
             ''', (now, user_id, boss_id))
             conn.commit()
