@@ -10113,6 +10113,15 @@ keep_alive_thread.start()
 # АДМІН ПАНЕЛЬ - ТІЛЬКИ ДЛЯ ТЕБЕ
 # ============================================
 
+# Тестова команда для перевірки чи працюють команди
+@bot.message_handler(commands=['test_admin'])
+def test_admin_cmd(message):
+    """Тест адмін команди"""
+    logger.info(f"🧪 TEST ADMIN COMMAND called by {message.from_user.id}")
+    logger.info(f"ADMIN_ID={ADMIN_ID}, is_admin={is_admin(message.from_user.id)}")
+    bot.reply_to(message, f"✅ TEST OK!\nADMIN_ID={ADMIN_ID}\nYour ID={message.from_user.id}\nIs Admin={is_admin(message.from_user.id)}")
+
+
 @admin_only
 @bot.message_handler(commands=['admin_weight'])
 def admin_set_weight(message):
