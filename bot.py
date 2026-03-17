@@ -98,8 +98,8 @@ def admin_only(func):
     def wrapper(message, *args, **kwargs):
         if not is_admin(message.from_user.id):
             bot.reply_to(message, "❌ Доступ заборонено! Тільки адмін.")
-            return
-        return func(message, *args, **kwargs)
+            return None  # Додав повернення
+        return func(message, *args, **kwargs)  # Додав повернення результату
     return wrapper
 
 # Ініціалізація бази даних
@@ -8793,7 +8793,7 @@ def boss_cmd(message):
                     defeated_by = result.get('defeated_by_user_id') if result else None
                     winner_hryak = get_hryak(defeated_by or user_id, chat_id)
                     winner_name = winner_hryak['name'] if winner_hryak else "Невідомо"
-                    
+
                     # Знаходимо топ 3 гравців за уроном
                     sorted_participants = sorted(participants, key=lambda x: x['damage_dealt'], reverse=True)[:3]
                     top_text = ""
@@ -8801,6 +8801,18 @@ def boss_cmd(message):
                         medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉"
                         damage_percent = (p['damage_dealt'] / total_damage * 100) if total_damage > 0 else 0
                         top_text += f"{medal} {i} місце: {damage_percent:.1f}% урону\n"
+
+                    # Спавн нового боса який стає сильнішим!
+                    new_boss_level = boss.get('level', 1) + 1
+                    new_boss_health = boss.get('max_health', 1000) + (new_boss_level * 500)
+                    new_boss_damage = boss.get('damage', 50) + (new_boss_level * 25)
+                    
+                    logger.info(f"🐲 Спавн нового боса: рівень {new_boss_level}, HP {new_boss_health}, шкода {new_boss_damage}")
+                    
+                    new_boss_id = spawn_boss(f"🐲 {boss['name']} #{new_boss_level}", new_boss_level, new_boss_health, new_boss_damage, 500, 250)
+                    
+                    if new_boss_id:
+                        logger.info(f"✅ Новий бос створений: ID {new_boss_id}")
 
                     bot.reply_to(message, f"""🎉 БОСА ПЕРЕМОЖЕНО!
 
@@ -8812,7 +8824,12 @@ def boss_cmd(message):
 💰 Загальний пул: {TOTAL_COINS_POOL} монет, {TOTAL_XP_POOL} XP
 📊 Нагороди розподілено за % урону!
 
-⏰ Наступний бос з'явиться через 24 години!""")
+🐲 НОВИЙ БОС:
+Рівень: {new_boss_level}
+Здоров'я: {new_boss_health}
+Шкода: {new_boss_damage}
+
+⏰ Наступна атака через 2 години!""")
                 elif result and not result.get('defeated'):
                     # Бос ще жив - отримуємо АКТУАЛЬНІ дані з БД
                     updated_boss = get_active_boss()
