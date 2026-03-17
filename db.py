@@ -3581,24 +3581,28 @@ def spawn_boss(name, level, health, damage, reward_coins, reward_xp):
 
 def attack_boss(boss_id, user_id, chat_id, damage):
     """Атакує боса"""
-    logger.info(f"🗡️ Атака боса: boss_id={boss_id}, user_id={user_id}, damage={damage}")
+    logger.info(f"🗡️ Атака боса: boss_id={boss_id}, user_id={user_id}, chat_id={chat_id}, damage={damage}")
     
-    conn = get_connection()
-    if not conn:
-        logger.error("❌ Не вдалося підключитися до БД в attack_boss")
-        return None
-
-    cursor = conn.cursor()
+    conn = None
+    cursor = None
     try:
+        conn = get_connection()
+        if not conn:
+            logger.error("❌ Не вдалося підключитися до БД в attack_boss")
+            return {'error': 'DB connection failed'}
+
+        cursor = conn.cursor()
         now = int(time.time())
 
         # Отримуємо поточне здоров'я боса ПЕРЕД будь-яких дій
+        logger.info(f"SELECT health, max_health, is_active FROM bosses WHERE id = {boss_id}")
         cursor.execute('SELECT health, max_health, is_active FROM bosses WHERE id = %s', (boss_id,))
         boss_row = cursor.fetchone()
+        logger.info(f"Boss row: {boss_row}")
 
         if not boss_row:
             logger.error(f"❌ Бос {boss_id} не знайдений в БД!")
-            return None
+            return {'error': 'Boss not found'}
 
         current_health = int(boss_row[0]) if boss_row[0] else 0
         max_health = int(boss_row[1]) if boss_row[1] else 1000
@@ -3636,6 +3640,7 @@ def attack_boss(boss_id, user_id, chat_id, damage):
         logger.info(f"💥 Нове HP боса: {current_health} - {actual_damage} = {new_health}")
 
         # Додаємо шкоду до учасника (оновлюємо joined_at для кулдауну)
+        logger.info(f"INSERT/UPDATE boss_battle_participants")
         cursor.execute('''
             INSERT INTO boss_battle_participants (boss_id, user_id, chat_id, damage_dealt, joined_at)
             VALUES (%s, %s, %s, %s, %s)
@@ -3646,6 +3651,7 @@ def attack_boss(boss_id, user_id, chat_id, damage):
         logger.info(f"✅ Додано шкоду в boss_battle_participants")
 
         # Оновлюємо здоров'я боса
+        logger.info(f"UPDATE bosses SET health = {new_health} WHERE id = {boss_id}")
         cursor.execute('''
             UPDATE bosses SET health = %s WHERE id = %s
         ''', (new_health, boss_id))
@@ -3666,18 +3672,22 @@ def attack_boss(boss_id, user_id, chat_id, damage):
                 WHERE id = %s
             ''', (now, user_id, boss_id))
             conn.commit()
+            logger.info(f"✅ Бос переможений, повертаємо result")
             return {'defeated': True, 'boss_id': boss_id, 'defeated_by_user_id': user_id}
 
         conn.commit()
-        logger.info(f"✅ Атака успішна, бос живий: {new_health} HP")
+        logger.info(f"✅ Атака успішна, бос живий: {new_health} HP, повертаємо result")
         return {'defeated': False, 'boss_id': boss_id, 'remaining_health': new_health, 'max_health': max_health}
     except Exception as e:
         logger.error(f"❌ Помилка атаки боса: {e}", exc_info=True)
-        conn.rollback()
-        return None
+        if conn:
+            conn.rollback()
+        return {'error': str(e)}
     finally:
-        cursor.close()
-        conn.close()
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 def get_boss_participants(boss_id):
     """Отримує учасників бою з босом"""

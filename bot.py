@@ -8681,26 +8681,23 @@ def boss_cmd(message):
                 total_damage = max(1, int((base_damage + random_damage) * (1 + skin_bonus / 100) * terchizz_bonus))
 
                 logger.info(f"User {user_id} attacking boss {boss['id']} with {total_damage} damage (hryak weight: {hryak['weight']})")
+                logger.info(f"Boss info: id={boss['id']}, health={boss['health']}, max_health={boss['max_health']}, is_active={boss.get('is_active', True)}")
 
                 # Атакуємо
                 try:
+                    logger.info(f"Calling attack_boss with boss_id={boss['id']}, user_id={user_id}, chat_id={chat_id}, damage={total_damage}")
                     result = attack_boss(boss['id'], user_id, chat_id, total_damage)
+                    logger.info(f"attack_boss returned: {result}")
 
                     if not result:
-                        # Перевіряємо чи бос ще активний
-                        updated_boss = get_active_boss()
-                        if not updated_boss or not updated_boss.get('is_active', True):
-                            bot.reply_to(message, "🐲 Бос вже переможений!\n\nНаступний з'явиться через 24 години.")
-                        else:
-                            logger.error(f"❌ attack_boss повернув None для user {user_id}, бос активний: {updated_boss}")
-                            bot.reply_to(message, """❌ **ПОМИЛКА АТАКИ!**
-
-Бос ще живий, але сталася помилка.
-
-**Спробуйте:**
-1. Зачекайте 1-2 хвилини
-2. Перевірте /boss info
-3. Спробуйте ще раз""")
+                        logger.error(f"❌ attack_boss повернув None для user {user_id}")
+                        bot.reply_to(message, "❌ Помилка: attack_boss повернув None")
+                        return
+                    
+                    # Перевіряємо чи сталася помилка
+                    if result.get('error'):
+                        logger.error(f"❌ Помилка від attack_boss: {result.get('error')}")
+                        bot.reply_to(message, f"❌ Помилка: {result.get('error')}")
                         return
                     
                     # Перевіряємо чи бос вже був переможений
@@ -8718,7 +8715,7 @@ def boss_cmd(message):
                         
                 except Exception as e:
                     logger.error(f"❌ Exception during attack_boss: {e}", exc_info=True)
-                    bot.reply_to(message, "❌ Помилка атаки! Спробуй ще раз.")
+                    bot.reply_to(message, f"❌ Деталі помилки: {str(e)}")
                     return
 
                 # Успішна атака
