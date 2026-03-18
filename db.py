@@ -572,6 +572,22 @@ def init_db():
         ''')
         logger.info("✅ Таблиця item_trades створена")
 
+        # Таблиця трейдів скінами
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS skin_trades (
+                id SERIAL PRIMARY KEY,
+                sender_id BIGINT,
+                receiver_id BIGINT,
+                chat_id BIGINT,
+                sender_skins_json TEXT,
+                receiver_skins_json TEXT,
+                status TEXT DEFAULT 'pending',
+                created_at BIGINT,
+                completed_at BIGINT
+            )
+        ''')
+        logger.info("✅ Таблиця skin_trades створена")
+
         # Таблиця історії битв за території
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS territory_battles (
@@ -6208,6 +6224,159 @@ def get_pending_item_trades(user_id):
         return trades
     except Exception as e:
         logger.error(f"❌ Помилка отримання трейдів: {e}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ============================================
+# ТРЕЙДИ СКІНАМИ - НОВІ ФУНКЦІЇ
+# ============================================
+
+def create_skin_trade(sender_id, receiver_id, chat_id, sender_skins=None, receiver_skins=None):
+    """Створює трейд скінами між гравцями"""
+    conn = get_connection()
+    if not conn:
+        return None
+
+    cursor = conn.cursor()
+    try:
+        now = int(time.time())
+        import json
+        sender_skins_json = json.dumps(sender_skins) if sender_skins else '[]'
+        receiver_skins_json = json.dumps(receiver_skins) if receiver_skins else '[]'
+        
+        cursor.execute('''
+            INSERT INTO skin_trades (sender_id, receiver_id, chat_id,
+                                    sender_skins_json, receiver_skins_json,
+                                    status, created_at)
+            VALUES (%s, %s, %s, %s, %s, 'pending', %s)
+            RETURNING id
+        ''', (sender_id, receiver_id, chat_id, 
+              sender_skins_json, receiver_skins_json, now))
+        
+        trade_id = cursor.fetchone()[0]
+        conn.commit()
+        return trade_id
+    except Exception as e:
+        logger.error(f"❌ Помилка створення трейду скінами: {e}")
+        conn.rollback()
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_skin_trade(trade_id):
+    """Отримує інформацію про трейд скінами"""
+    conn = get_connection()
+    if not conn:
+        return None
+
+    cursor = conn.cursor()
+    try:
+        import json
+        cursor.execute('SELECT * FROM skin_trades WHERE id = %s', (trade_id,))
+        row = cursor.fetchone()
+        
+        if not row:
+            return None
+        
+        return {
+            'id': int(row[0]),
+            'sender_id': int(row[1]),
+            'receiver_id': int(row[2]),
+            'chat_id': int(row[3]),
+            'sender_skins': json.loads(row[4]) if row[4] else [],
+            'receiver_skins': json.loads(row[5]) if row[5] else [],
+            'status': row[6],
+            'created_at': int(row[7]) if row[7] else 0,
+            'completed_at': int(row[8]) if row[8] else 0
+        }
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання трейду скінами: {e}")
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def accept_skin_trade(trade_id):
+    """Приймає трейд скінами"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        now = int(time.time())
+        cursor.execute('''
+            UPDATE skin_trades SET status = 'accepted', completed_at = %s
+            WHERE id = %s
+        ''', (now, trade_id))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка прийняття трейду скінами: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def cancel_skin_trade(trade_id):
+    """Скасовує трейд скінами"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            UPDATE skin_trades SET status = 'cancelled'
+            WHERE id = %s
+        ''', (trade_id,))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка скасування трейду скінами: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_pending_skin_trades(user_id):
+    """Отримує активні трейди скінами користувача"""
+    conn = get_connection()
+    if not conn:
+        return []
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT * FROM skin_trades
+            WHERE (sender_id = %s OR receiver_id = %s) AND status = 'pending'
+            ORDER BY created_at DESC
+        ''', (user_id, user_id))
+        rows = cursor.fetchall()
+
+        trades = []
+        for row in rows:
+            trades.append({
+                'id': int(row[0]),
+                'sender_id': int(row[1]),
+                'receiver_id': int(row[2]),
+                'chat_id': int(row[3]),
+                'status': row[6],
+                'created_at': int(row[7]) if row[7] else 0
+            })
+        return trades
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання трейдів скінами: {e}")
         return []
     finally:
         cursor.close()

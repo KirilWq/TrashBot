@@ -7638,54 +7638,70 @@ def item_trade_cmd(message):
     """Створити трейд предметами"""
     chat_id = message.chat.id
     sender_id = message.from_user.id
-    
+
     try:
         parts = message.text.split()
-        
+
         if len(parts) < 3 or not message.reply_to_message:
-            bot.reply_to(message, """💱 **ТРЕЙД ПРЕДМЕТАМИ**
+            bot.reply_to(message, """💱 ТРЕЙД ПРЕДМЕТАМИ
 
 Використання: /item_trade <предмет> <кількість> (у відповідь на повідомлення)
 
 Приклад:
 1. Відповідь на повідомлення отримувача
-2. /item_trade Меч 1
+2. /item_trade vitamins 5
 
-**Команди:**
+Команди:
 /item_trade <предмет> <кількість> - створити трейд
 /item_trades - показати активні трейди
 /item_accept <id> - прийняти
-/item_cancel <id> - скасувати""")
+/item_cancel <id> - скасувати
+
+Примітка: Скіни не можна трейдити через цю команду!""")
             return
-        
+
         item_name = parts[1]
         quantity = int(parts[2]) if len(parts) > 2 else 1
-        
+
         # Отримуємо отримувача
         receiver_id = message.reply_to_message.from_user.id
-        
+
         if receiver_id == sender_id:
             bot.reply_to(message, "❌ Не можна торгувати з самим собою!")
             return
-        
-        # Перевіряємо чи є предмет
+
+        # Перевіряємо чи є предмет (предмети)
         items = get_user_items(sender_id, chat_id)
-        has_item = False
+        has_the_item = False
         for item in items:
             if item['item_name'].lower() == item_name.lower() and item['quantity'] >= quantity:
-                has_item = True
+                has_the_item = True
                 break
         
-        if not has_item:
+        # Перевіряємо чи є предмет (скіни) - але скіни не можна трейдити
+        if not has_the_item:
+            # Перевіряємо чи це скін
+            from db import get_user_skins
+            skins = get_user_skins(sender_id, chat_id)
+            for skin in skins:
+                if skin['name'].lower() == item_name.lower():
+                    bot.reply_to(message, f"""❌ Скіни не можна трейдити через /item_trade!
+
+Для скінів використовуйте:
+/equipskin {skin['name']} - одягнути
+/buyskin {skin['name']} - купити іншому""")
+                    return
+
+        if not has_the_item:
             bot.reply_to(message, f"❌ У тебе немає предмета '{item_name}' в такій кількості!")
             return
-        
+
         # Створюємо трейд
         sender_items = [{'name': item_name, 'quantity': quantity}]
         trade_id = create_item_trade(sender_id, receiver_id, chat_id, sender_items=sender_items)
-        
+
         if trade_id:
-            bot.reply_to(message, f"""💱 **ТРЕЙД СТВОРЕНО!**
+            bot.reply_to(message, f"""💱 ТРЕЙД СТВОРЕНО!
 
 Отримувач: ID {receiver_id}
 Предмет: {item_name} x{quantity}
@@ -7695,11 +7711,236 @@ def item_trade_cmd(message):
 ⏰ Трейд дійсний 24 години.""")
         else:
             bot.reply_to(message, "❌ Помилка створення трейду!")
-            
+
     except ValueError:
         bot.reply_to(message, "❌ Невірна кількість!")
     except Exception as e:
         logger.error(f"❌ Помилка /item_trade: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['skintrade'])
+def skin_trade_cmd(message):
+    """Створити трейд скінами"""
+    chat_id = message.chat.id
+    sender_id = message.from_user.id
+
+    try:
+        parts = message.text.split()
+
+        if len(parts) < 2 or not message.reply_to_message:
+            bot.reply_to(message, """💱 ТРЕЙД СКІНАМИ
+
+Використання: /skintrade <скін> (у відповідь на повідомлення)
+
+Приклад:
+1. Відповідь на повідомлення отримувача
+2. /skintrade wild
+
+Команди:
+/skintrade <скін> - створити трейд скіном
+/skintrades - показати активні трейди скінів
+/skinaccept <id> - прийняти трейд скіном
+/skincancel <id> - скасувати трейд скіном""")
+            return
+
+        skin_name = parts[1].lower()
+        quantity = 1  # Скіни трейдяться по 1
+
+        # Отримуємо отримувача
+        receiver_id = message.reply_to_message.from_user.id
+
+        if receiver_id == sender_id:
+            bot.reply_to(message, "❌ Не можна торгувати з самим собою!")
+            return
+
+        # Перевіряємо чи є скін
+        from db import get_user_skins
+        skins = get_user_skins(sender_id, chat_id)
+        has_skin = False
+        skin_to_trade = None
+        
+        for skin in skins:
+            if skin['name'].lower() == skin_name and not skin['equipped']:
+                has_skin = True
+                skin_to_trade = skin
+                break
+        
+        if not has_skin:
+            if skin_to_trade is None:
+                skin_list = '\n'.join([f"{s['icon']} {s['display_name']} (/{s['name']})" for s in skins])
+                bot.reply_to(message, f"""❌ У тебе немає скіну '{skin_name}'!
+
+Твої скіни:
+{skin_list}
+
+Примітка: Не можна трейдити одягнутий скін!""")
+            else:
+                bot.reply_to(message, "❌ Цей скін одягнутий! Зніми його перед трейдом:\n/equipskin classic")
+            return
+
+        # Створюємо трейд
+        sender_skins = [{'name': skin_name, 'quantity': 1, 'skin_id': skin_to_trade['id']}]
+        
+        # Імпортуємо функцію для трейду скінів
+        from db import create_skin_trade
+        trade_id = create_skin_trade(sender_id, receiver_id, chat_id, sender_skins=sender_skins)
+
+        if trade_id:
+            bot.reply_to(message, f"""💱 ТРЕЙД СКІНОМ СТВОРЕНО!
+
+Отримувач: ID {receiver_id}
+Скін: {skin_to_trade['icon']} {skin_to_trade['display_name']}
+
+Отримувач має написати /skinaccept {trade_id} щоб прийняти трейд.
+
+⏰ Трейд дійсний 24 години.""")
+        else:
+            bot.reply_to(message, "❌ Помилка створення трейду!")
+
+    except ValueError:
+        bot.reply_to(message, "❌ Невірна кількість!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /skintrade: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['skintrades'])
+def skin_trades_cmd(message):
+    """Показати активні трейди скінами"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        from db import get_pending_skin_trades
+        trades = get_pending_skin_trades(user_id)
+
+        if not trades:
+            bot.reply_to(message, "📭 Немає активних трейдів скінами!")
+            return
+
+        text = "💱 Активні трейди скінами:\n\n"
+
+        for trade in trades:
+            sender = "Ви" if trade['sender_id'] == user_id else f"ID {trade['sender_id']}"
+            receiver = "Ви" if trade['receiver_id'] == user_id else f"ID {trade['receiver_id']}"
+            
+            text += f"ID: `{trade['id']}`\n"
+            text += f"Від: {sender} → До: {receiver}\n"
+            text += f"Створено: {time.strftime('%d.%m %H:%M', time.localtime(trade['created_at']))}\n\n"
+
+        text += "Команди:\n"
+        text += "/skinaccept <id> - прийняти\n"
+        text += "/skincancel <id> - скасувати"
+
+        bot.reply_to(message, text, parse_mode="Markdown")
+
+    except Exception as e:
+        logger.error(f"❌ Помилка /skintrades: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['skinaccept'])
+def skin_accept_cmd(message):
+    """Прийняти трейд скінами"""
+    chat_id = message.chat.id
+    receiver_id = message.from_user.id
+
+    try:
+        parts = message.text.split()
+
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Використання: /skinaccept <ID трейду>")
+            return
+
+        trade_id = int(parts[1])
+
+        from db import get_skin_trade, accept_skin_trade, transfer_skin
+        trade = get_skin_trade(trade_id)
+
+        if not trade:
+            bot.reply_to(message, "❌ Трейд не знайдено!")
+            return
+
+        # Перевіряємо чи це отримувач
+        if trade['receiver_id'] != receiver_id:
+            bot.reply_to(message, "❌ Це не ваш трейд!")
+            return
+
+        if trade['status'] != 'pending':
+            bot.reply_to(message, "❌ Трейд вже оброблено!")
+            return
+
+        # Приймаємо трейд
+        if accept_skin_trade(trade_id):
+            # Передаємо скіни
+            for skin_data in trade.get('sender_skins', []):
+                skin_id = skin_data.get('skin_id')
+                # Отримуємо скін з БД
+                from db import get_connection
+                conn = get_connection()
+                cursor = conn.cursor()
+                # Змінюємо власника скіну
+                cursor.execute('''
+                    UPDATE user_skins SET user_id = %s, chat_id = %s
+                    WHERE id = %s AND user_id = %s AND chat_id = %s
+                ''', (receiver_id, chat_id, skin_id, trade['sender_id'], chat_id))
+                conn.commit()
+                cursor.close()
+                conn.close()
+
+            bot.reply_to(message, f"✅ Трейд {trade_id} прийнято!\n\nСкіни передано!")
+        else:
+            bot.reply_to(message, "❌ Помилка прийняття трейду!")
+
+    except ValueError:
+        bot.reply_to(message, "❌ Невірний ID!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /skinaccept: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['skincancel'])
+def skin_cancel_cmd(message):
+    """Скасувати трейд скінами"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        parts = message.text.split()
+
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Використання: /skincancel <ID трейду>")
+            return
+
+        trade_id = int(parts[1])
+
+        from db import get_skin_trade, cancel_skin_trade
+        trade = get_skin_trade(trade_id)
+
+        if not trade:
+            bot.reply_to(message, "❌ Трейд не знайдено!")
+            return
+
+        # Перевіряємо чи це відправник
+        if trade['sender_id'] != user_id:
+            bot.reply_to(message, "❌ Це не ваш трейд!")
+            return
+
+        if trade['status'] != 'pending':
+            bot.reply_to(message, "❌ Трейд вже оброблено!")
+            return
+
+        # Скасовуємо трейд
+        if cancel_skin_trade(trade_id):
+            bot.reply_to(message, f"✅ Трейд {trade_id} скасовано!")
+        else:
+            bot.reply_to(message, "❌ Помилка скасування трейду!")
+
+    except ValueError:
+        bot.reply_to(message, "❌ Невірний ID!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /skincancel: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
 
 
