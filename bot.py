@@ -7325,50 +7325,84 @@ def guild_buy_warrior_cmd(message):
     """Купити воїнів"""
     chat_id = message.chat.id
     user_id = message.from_user.id
-    
+
     try:
         parts = message.text.split()
         if len(parts) < 3:
             bot.reply_to(message, "❌ Використання: /guild_buy_warrior <тип> <кількість>\n\nТипи: regular, matochnik, elite, legendary")
             return
-        
+
         warrior_type = parts[1].lower()
         quantity = int(parts[2])
-        
+
         if warrior_type not in WARRIOR_TYPES:
             bot.reply_to(message, f"❌ Невірний тип! Доступні: {', '.join(WARRIOR_TYPES.keys())}")
             return
-        
+
         if quantity <= 0 or quantity > 1000:
             bot.reply_to(message, "❌ Кількість має бути від 1 до 1000!")
             return
-        
+
         user_guild = get_user_guild(user_id, chat_id)
         if not user_guild:
             bot.reply_to(message, "❌ Ви не в гільдії!")
             return
-        
+
+        # Перевірка прав (тільки owner/officer)
+        from db import get_guild_members
+        members = get_guild_members(user_guild['id'])
+        user_role = None
+        for m in members:
+            if m['user_id'] == user_id:
+                user_role = m['role']
+                break
+
+        if user_role not in ['owner', 'officer']:
+            bot.reply_to(message, "❌ Тільки власник або офіцер можуть купувати воїнів!")
+            return
+
         # Розрахунок вартості
         warrior_data = WARRIOR_TYPES.get(warrior_type, {})
         total_cost = warrior_data.get('cost', 100) * quantity
-        
-        # Перевірка балансу
-        currency = get_user_currency(user_id, chat_id)
-        if currency.get('coins', 0) < total_cost:
-            bot.reply_to(message, f"❌ Недостатньо монет! Потрібно {total_cost} монет.")
+
+        # Перевірка балансу гільдії
+        from db import get_connection
+        conn = get_connection()
+        if not conn:
+            bot.reply_to(message, "❌ Помилка БД!")
             return
         
-        # Списуємо монети
-        update_user_currency(user_id, chat_id, coins=currency['coins'] - total_cost)
-        
+        cursor = conn.cursor()
+        cursor.execute('SELECT coins FROM guilds WHERE id = %s', (user_guild['id'],))
+        row = cursor.fetchone()
+        guild_coins = int(row[0]) if row else 0
+
+        if guild_coins < total_cost:
+            bot.reply_to(message, f"❌ Недостатньо монет в гільдії! Потрібно {total_cost} монет.\nВ гільдії: {guild_coins} монет")
+            cursor.close()
+            conn.close()
+            return
+
+        # Списуємо монети з гільдії
+        cursor.execute('''
+            UPDATE guilds SET coins = coins - %s WHERE id = %s
+        ''', (total_cost, user_guild['id']))
+        conn.commit()
+        cursor.close()
+        conn.close()
+
         # Купуємо воїнів
         if buy_warrior(user_guild['id'], warrior_type, quantity):
             emoji = warrior_data.get('emoji', '🐷')
             name = warrior_data.get('name', 'Свинар')
-            bot.reply_to(message, f"✅ Куплено {quantity} x {emoji} {name}!\n\nВитрачено: {total_cost} монет")
+            bot.reply_to(message, f"""✅ Куплено воїнів!
+
+{quantity} x {emoji} {name}
+💰 Витрачено: {total_cost} монет (з гільдії)
+💵 Залишок гільдії: {guild_coins - total_cost} монет""")
         else:
             bot.reply_to(message, "❌ Помилка купівлі!")
-            
+
     except ValueError:
         bot.reply_to(message, "❌ Невірна кількість!")
     except Exception as e:
