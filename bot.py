@@ -2814,6 +2814,49 @@ def userinfo_cmd(message):
         bot.reply_to(message, f"❌ Помилка: {e}")
 
 
+@bot.message_handler(commands=['id'])
+def get_id_cmd(message):
+    """Отримати ID користувача"""
+    try:
+        user_id = message.from_user.id
+        username = f"@{message.from_user.username}" if message.from_user.username else message.from_user.first_name
+        
+        # Якщо є reply - показуємо ID іншого користувача
+        if message.reply_to_message:
+            reply_user = message.reply_to_message.from_user
+            reply_id = reply_user.id
+            reply_username = f"@{reply_user.username}" if reply_user.username else reply_user.first_name
+            
+            text = f"""🆔 ID КОРИСТУВАЧІВ
+
+**Ваш ID:**
+ID: `{user_id}`
+Юзернейм: {username}
+
+**ID користувача з reply:**
+ID: `{reply_id}`
+Юзернейм: {reply_username}
+
+**Команди:**
+/id - дізнатися свій ID
+/id (у відповідь) - дізнатися ID іншого"""
+        else:
+            text = f"""🆔 ВАШ ID
+
+**ID:** `{user_id}`
+**Юзернейм:** {username}
+
+**Команди:**
+/id - дізнатися свій ID
+/id (у відповідь) - дізнатися ID іншого
+/userinfo <ID> - інформація про користувача"""
+        
+        bot.reply_to(message, text, parse_mode="Markdown")
+    except Exception as e:
+        logger.error(f"❌ Помилка /id: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
 @bot.message_handler(commands=['clearcache'])
 def clear_cache(message):
     """Очистити кеш учасників"""
@@ -10702,6 +10745,394 @@ def admin_help(message):
         bot.reply_to(message, text)
     except Exception as e:
         logger.error(f"❌ Помилка /admin_help: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+# ============================================
+# НОВІ АДМІН КОМАНДИ - РОЗШИРЕНІ
+# ============================================
+
+@admin_only
+@bot.message_handler(commands=['admin_removecoins'])
+def admin_remove_coins(message):
+    """Відняти монети у гравця"""
+    try:
+        parts = message.text.split()
+        if len(parts) < 3:
+            bot.reply_to(message, "❌ Використання: /admin_removecoins <user_id> <сума>")
+            return
+        
+        user_id = int(parts[1])
+        amount = int(parts[2])
+        
+        if amount <= 0:
+            bot.reply_to(message, "❌ Сума має бути додатною!")
+            return
+        
+        currency = get_user_currency(user_id, message.chat.id)
+        old_coins = currency.get('coins', 0)
+        
+        if old_coins < amount:
+            bot.reply_to(message, f"❌ У гравця недостатньо монет! Є: {old_coins}")
+            return
+        
+        new_coins = old_coins - amount
+        update_user_currency(user_id, message.chat.id, coins=new_coins)
+        
+        bot.reply_to(message, f"""✅ Віднято монети!
+
+Гравець: {user_id}
+Було: {old_coins} монет
+Віднято: -{amount} монет
+Стало: {new_coins} монет""")
+    except Exception as e:
+        logger.error(f"❌ Помилка /admin_removecoins: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@admin_only
+@bot.message_handler(commands=['admin_removexp'])
+def admin_remove_xp(message):
+    """Відняти XP у гравця"""
+    try:
+        parts = message.text.split()
+        if len(parts) < 3:
+            bot.reply_to(message, "❌ Використання: /admin_removexp <user_id> <сума>")
+            return
+        
+        user_id = int(parts[1])
+        amount = int(parts[2])
+        
+        if amount <= 0:
+            bot.reply_to(message, "❌ Сума має бути додатною!")
+            return
+        
+        currency = get_user_currency(user_id, message.chat.id)
+        old_xp = currency.get('xp', 0)
+        
+        if old_xp < amount:
+            bot.reply_to(message, f"❌ У гравця недостатньо XP! Є: {old_xp}")
+            return
+        
+        new_xp = old_xp - amount
+        update_user_currency(user_id, message.chat.id, xp=new_xp)
+        
+        bot.reply_to(message, f"""✅ Віднято XP!
+
+Гравець: {user_id}
+Було: {old_xp} XP
+Віднято: -{amount} XP
+Стало: {new_xp} XP""")
+    except Exception as e:
+        logger.error(f"❌ Помилка /admin_removexp: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@admin_only
+@bot.message_handler(commands=['admin_removeweight'])
+def admin_remove_weight(message):
+    """Відняти вагу хряка"""
+    try:
+        parts = message.text.split()
+        if len(parts) < 3:
+            bot.reply_to(message, "❌ Використання: /admin_removeweight <user_id> <кг>")
+            return
+        
+        user_id = int(parts[1])
+        remove_kg = int(parts[2])
+        
+        if remove_kg <= 0:
+            bot.reply_to(message, "❌ Кількість має бути додатною!")
+            return
+        
+        hryak = get_hryak(user_id, message.chat.id)
+        if not hryak:
+            bot.reply_to(message, f"❌ У гравця {user_id} немає хряка!")
+            return
+        
+        old_weight = hryak['weight']
+        new_weight = max(1, old_weight - remove_kg)
+        hryak['weight'] = new_weight
+        save_hryaky()
+        
+        bot.reply_to(message, f"""✅ Віднято вагу!
+
+Гравець: {user_id}
+Було: {old_weight} кг
+Віднято: -{remove_kg} кг
+Стало: {new_weight} кг""")
+    except Exception as e:
+        logger.error(f"❌ Помилка /admin_removeweight: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@admin_only
+@bot.message_handler(commands=['admin_removeitem'])
+def admin_remove_item(message):
+    """Видалити предмет у гравця"""
+    try:
+        parts = message.text.split()
+        if len(parts) < 3:
+            bot.reply_to(message, "❌ Використання: /admin_removeitem <user_id> <предмет> [кількість]")
+            return
+        
+        user_id = int(parts[1])
+        item_name = parts[2]
+        quantity = int(parts[3]) if len(parts) > 3 else 1
+        
+        if quantity <= 0:
+            bot.reply_to(message, "❌ Кількість має бути додатною!")
+            return
+        
+        chat_id = message.chat.id
+        from db import remove_user_item
+        if remove_user_item(user_id, chat_id, item_name, quantity):
+            bot.reply_to(message, f"""✅ Видалено предмет!
+
+Гравець: {user_id}
+Предмет: {item_name}
+Кількість: -{quantity}""")
+        else:
+            bot.reply_to(message, f"❌ У гравця немає предмета '{item_name}'!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /admin_removeitem: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@admin_only
+@bot.message_handler(commands=['admin_clearinventory'])
+def admin_clear_inventory(message):
+    """Очистити інвентар гравця"""
+    try:
+        parts = message.text.split()
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Використання: /admin_clearinventory <user_id>")
+            return
+        
+        user_id = int(parts[1])
+        chat_id = message.chat.id
+        
+        from db import get_user_items, remove_user_item
+        items = get_user_items(user_id, chat_id)
+        
+        if not items:
+            bot.reply_to(message, f"✅ Інвентар гравця {user_id} і так пустий!")
+            return
+        
+        removed_count = 0
+        for item in items:
+            if remove_user_item(user_id, chat_id, item['item_name'], item['quantity']):
+                removed_count += 1
+        
+        bot.reply_to(message, f"""✅ Інвентар очищено!
+
+Гравець: {user_id}
+Видалено предметів: {removed_count}""")
+    except Exception as e:
+        logger.error(f"❌ Помилка /admin_clearinventory: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@admin_only
+@bot.message_handler(commands=['admin_addskin'])
+def admin_add_skin(message):
+    """Додати скін гравцю"""
+    try:
+        parts = message.text.split()
+        if len(parts) < 3:
+            bot.reply_to(message, "❌ Використання: /admin_addskin <user_id> <скін>")
+            return
+        
+        user_id = int(parts[1])
+        skin_name = parts[2]
+        chat_id = message.chat.id
+        
+        from db import get_skin_by_name, buy_skin
+        skin = get_skin_by_name(skin_name)
+        
+        if not skin:
+            bot.reply_to(message, f"❌ Скін '{skin_name}' не знайдено!")
+            return
+        
+        if buy_skin(user_id, chat_id, skin['id']):
+            bot.reply_to(message, f"""✅ Додано скін!
+
+Гравець: {user_id}
+Скін: {skin['display_name']}
+ID скіну: {skin['id']}""")
+        else:
+            bot.reply_to(message, "❌ Помилка додавання скіну!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /admin_addskin: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@admin_only
+@bot.message_handler(commands=['admin_removeskin'])
+def admin_remove_skin(message):
+    """Видалити скін у гравця"""
+    try:
+        parts = message.text.split()
+        if len(parts) < 3:
+            bot.reply_to(message, "❌ Використання: /admin_removeskin <user_id> <скін>")
+            return
+        
+        user_id = int(parts[1])
+        skin_name = parts[2]
+        chat_id = message.chat.id
+        
+        from db import get_skin_by_name, get_connection
+        skin = get_skin_by_name(skin_name)
+        
+        if not skin:
+            bot.reply_to(message, f"❌ Скін '{skin_name}' не знайдено!")
+            return
+        
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            DELETE FROM user_skins
+            WHERE user_id = %s AND chat_id = %s AND skin_id = %s
+        ''', (user_id, chat_id, skin['id']))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        bot.reply_to(message, f"""✅ Видалено скін!
+
+Гравець: {user_id}
+Скін: {skin['display_name']}""")
+    except Exception as e:
+        logger.error(f"❌ Помилка /admin_removeskin: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@admin_only
+@bot.message_handler(commands=['admin_addguildcoins'])
+def admin_add_guild_coins(message):
+    """Додати монети гільдії"""
+    try:
+        parts = message.text.split()
+        if len(parts) < 3:
+            bot.reply_to(message, "❌ Використання: /admin_addguildcoins <guild_id> <сума>")
+            return
+        
+        guild_id = int(parts[1])
+        amount = int(parts[2])
+        
+        if amount <= 0:
+            bot.reply_to(message, "❌ Сума має бути додатною!")
+            return
+        
+        from db import get_guild, get_connection
+        guild = get_guild(guild_id)
+        
+        if not guild:
+            bot.reply_to(message, f"❌ Гільдія {guild_id} не знайдена!")
+            return
+        
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE guilds SET coins = coins + %s WHERE id = %s
+        ''', (amount, guild_id))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        bot.reply_to(message, f"""✅ Додано монети гільдії!
+
+Гільдія: {guild['name']} (ID: {guild_id})
+Додано: +{amount} монет
+Було: {guild['coins']} монет
+Стало: {guild['coins'] + amount} монет""")
+    except Exception as e:
+        logger.error(f"❌ Помилка /admin_addguildcoins: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@admin_only
+@bot.message_handler(commands=['admin_removeguildcoins'])
+def admin_remove_guild_coins(message):
+    """Відняти монети гільдії"""
+    try:
+        parts = message.text.split()
+        if len(parts) < 3:
+            bot.reply_to(message, "❌ Використання: /admin_removeguildcoins <guild_id> <сума>")
+            return
+        
+        guild_id = int(parts[1])
+        amount = int(parts[2])
+        
+        if amount <= 0:
+            bot.reply_to(message, "❌ Сума має бути додатною!")
+            return
+        
+        from db import get_guild, get_connection
+        guild = get_guild(guild_id)
+        
+        if not guild:
+            bot.reply_to(message, f"❌ Гільдія {guild_id} не знайдена!")
+            return
+        
+        if guild['coins'] < amount:
+            bot.reply_to(message, f"❌ У гільдії недостатньо монет! Є: {guild['coins']}")
+            return
+        
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE guilds SET coins = coins - %s WHERE id = %s
+        ''', (amount, guild_id))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        bot.reply_to(message, f"""✅ Віднято монети гільдії!
+
+Гільдія: {guild['name']} (ID: {guild_id})
+Віднято: -{amount} монет
+Було: {guild['coins']} монет
+Стало: {guild['coins'] - amount} монет""")
+    except Exception as e:
+        logger.error(f"❌ Помилка /admin_removeguildcoins: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@admin_only
+@bot.message_handler(commands=['admin_addguildxp'])
+def admin_add_guild_xp(message):
+    """Додати XP гільдії"""
+    try:
+        parts = message.text.split()
+        if len(parts) < 3:
+            bot.reply_to(message, "❌ Використання: /admin_addguildxp <guild_id> <сума>")
+            return
+        
+        guild_id = int(parts[1])
+        amount = int(parts[2])
+        
+        if amount <= 0:
+            bot.reply_to(message, "❌ Сума має бути додатною!")
+            return
+        
+        from db import get_guild, update_guild_xp
+        guild = get_guild(guild_id)
+        
+        if not guild:
+            bot.reply_to(message, f"❌ Гільдія {guild_id} не знайдена!")
+            return
+        
+        update_guild_xp(guild_id, amount)
+        
+        bot.reply_to(message, f"""✅ Додано XP гільдії!
+
+Гільдія: {guild['name']} (ID: {guild_id})
+Додано: +{amount} XP
+Було: {guild['xp']} XP
+Стало: {guild['xp'] + amount} XP""")
+    except Exception as e:
+        logger.error(f"❌ Помилка /admin_addguildxp: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
 
 

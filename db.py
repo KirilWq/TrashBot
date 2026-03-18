@@ -6019,6 +6019,46 @@ def get_user_items(user_id, chat_id):
         conn.close()
 
 
+def remove_user_item(user_id, chat_id, item_name, quantity=1):
+    """Видаляє предмет у користувача"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        # Перевіряємо наявність
+        cursor.execute('''
+            SELECT quantity FROM user_items
+            WHERE user_id = %s AND chat_id = %s AND item_name = %s
+        ''', (user_id, chat_id, item_name))
+        row = cursor.fetchone()
+        
+        if not row or row[0] < quantity:
+            return False
+        
+        if quantity >= row[0]:
+            cursor.execute('''
+                DELETE FROM user_items
+                WHERE user_id = %s AND chat_id = %s AND item_name = %s
+            ''', (user_id, chat_id, item_name))
+        else:
+            cursor.execute('''
+                UPDATE user_items SET quantity = quantity - %s
+                WHERE user_id = %s AND chat_id = %s AND item_name = %s
+            ''', (quantity, user_id, chat_id, item_name))
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка видалення предмета: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
 def get_user_total_bonuses(user_id, chat_id):
     """Отримує загальні бонуси від всіх предметів користувача"""
     items = get_user_items(user_id, chat_id)
