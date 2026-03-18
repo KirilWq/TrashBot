@@ -7874,22 +7874,52 @@ def skin_accept_cmd(message):
         # Приймаємо трейд
         if accept_skin_trade(trade_id):
             # Передаємо скіни
+            transferred_skins = []
             for skin_data in trade.get('sender_skins', []):
-                skin_id = skin_data.get('skin_id')
-                # Отримуємо скін з БД
+                skin_name = skin_data.get('name')  # Наприклад 'wild'
+                
+                # Знаходимо ID скіну в таблиці skins
+                from db import get_skin_by_name
+                skin = get_skin_by_name(skin_name)
+                if not skin:
+                    logger.error(f"❌ Скін '{skin_name}' не знайдено!")
+                    continue
+                
+                skin_def_id = skin['id']  # ID з таблиці skins
+                
+                # Знаходимо запис в user_skins
                 from db import get_connection
                 conn = get_connection()
                 cursor = conn.cursor()
-                # Змінюємо власника скіну
+                
+                # Шукаємо скін у відправника (не одягнутий)
                 cursor.execute('''
-                    UPDATE user_skins SET user_id = %s, chat_id = %s
-                    WHERE id = %s AND user_id = %s AND chat_id = %s
-                ''', (receiver_id, chat_id, skin_id, trade['sender_id'], chat_id))
-                conn.commit()
+                    SELECT id FROM user_skins
+                    WHERE user_id = %s AND chat_id = %s AND skin_id = %s AND equipped = FALSE
+                    ORDER BY id DESC LIMIT 1
+                ''', (trade['sender_id'], chat_id, skin_def_id))
+                user_skin_row = cursor.fetchone()
+                
+                if user_skin_row:
+                    user_skin_id = int(user_skin_row[0])
+                    # Змінюємо власника
+                    cursor.execute('''
+                        UPDATE user_skins SET user_id = %s, equipped = FALSE
+                        WHERE id = %s
+                    ''', (receiver_id, user_skin_id))
+                    conn.commit()
+                    transferred_skins.append(skin_name)
+                    logger.info(f"✅ Скін {skin_name} (ID: {user_skin_id}) передано!")
+                else:
+                    logger.error(f"❌ Скін {skin_name} не знайдено у відправника!")
+                
                 cursor.close()
                 conn.close()
 
-            bot.reply_to(message, f"✅ Трейд {trade_id} прийнято!\n\nСкіни передано!")
+            if transferred_skins:
+                bot.reply_to(message, f"✅ Трейд {trade_id} прийнято!\n\nОтримано скіни: {', '.join(transferred_skins)}")
+            else:
+                bot.reply_to(message, f"❌ Трейд {trade_id} прийнято, але скіни не передано!")
         else:
             bot.reply_to(message, "❌ Помилка прийняття трейду!")
 
