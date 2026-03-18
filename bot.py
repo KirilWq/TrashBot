@@ -880,12 +880,12 @@ def my_hryak(message):
     """Показати свого хряка"""
     chat_id = message.chat.id
     user_id = message.from_user.id
-    
+
     logger.info(f"🐷 /my: chat_id={chat_id}, user_id={user_id}")
-    
+
     try:
         hryak = get_hryak(user_id, chat_id)
-        
+
         if not hryak:
             bot.reply_to(message, "❌ У тебе ще немає хряка! Введи /grow")
             return
@@ -904,7 +904,10 @@ def my_hryak(message):
                 minutes = int((time_left % 3600) / 60)
                 feed_status = f"⏳ Ще {hours} год {minutes} хв"
 
-        text = f"""🐷 **{hryak['name']}**
+        # Екрануємо спеціальні символи в імені
+        hryak_name = hryak['name'].replace('_', '\\_').replace('*', '\\*').replace('`', '\\`')
+
+        text = f"""🐷 {hryak_name}
 
 ⚖️ Вага: {hryak['weight']} кг
 🏆 Максимальна: {hryak['max_weight']} кг
@@ -913,8 +916,8 @@ def my_hryak(message):
 
 /feed - нагодувати (раз на 12 год)
 /name - змінити ім'я"""
-        
-        bot.reply_to(message, text, parse_mode="Markdown")
+
+        bot.reply_to(message, text)
     except Exception as e:
         logger.error(f"❌ Помилка /my: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
@@ -3438,13 +3441,16 @@ def inventory_cmd(message):
             text += "Скіни:\n"
             for skin in skins:
                 equipped = "(Одягнуто)" if skin['equipped'] else ""
-                text += f"{skin['icon']} {skin['display_name']} {equipped}\n"
+                # Додаємо назву для equipskin
+                skin_name = skin['name']  # Це name для команди (наприклад 'classic')
+                display_name = skin['display_name']  # Це відображувана назва
+                text += f"{skin['icon']} {display_name} {equipped} (/{skin_name})\n"
             text += "\n"
 
         text += "Команди:\n"
         text += "/use <item_id> - використати предмет\n"
         text += "/equipskin <назва> - одягнути скін\n\n"
-        text += "Приклад: /use vitamins"
+        text += "Приклад: /equipskin classic"
 
         bot.reply_to(message, text)
     except Exception as e:
@@ -6691,49 +6697,58 @@ def guild_items_cmd(message):
     """Показати предмети гільдії"""
     chat_id = message.chat.id
     user_id = message.from_user.id
-    
+
     try:
+        # Оновлюємо username користувача
+        username = message.from_user.username or message.from_user.first_name or str(user_id)
+        from db import update_user_username
+        update_user_username(user_id, username)
+
         user_guild = get_user_guild(user_id, chat_id)
         if not user_guild:
             bot.reply_to(message, "❌ Ви не в гільдії!")
             return
-        
+
         # Отримуємо предмети з нової таблиці guild_items
         from db import get_connection
         conn = get_connection()
         if not conn:
             bot.reply_to(message, "❌ Помилка БД!")
             return
-        
+
         cursor = conn.cursor()
+        # Тепер JOIN працює оскільки додано колонку username в user_languages
         cursor.execute('''
-            SELECT gi.*, u.username as donor_name
+            SELECT gi.id, gi.guild_id, gi.item_type, gi.item_name, gi.rarity,
+                   gi.bonus_type, gi.bonus_value, gi.quantity,
+                   gi.donated_by_user_id, gi.donated_at,
+                   u.username as donor_name
             FROM guild_items gi
             LEFT JOIN user_languages u ON gi.donated_by_user_id = u.user_id
             WHERE gi.guild_id = %s
-            ORDER BY 
-                CASE gi.rarity 
-                    WHEN 'mythic' THEN 1 
-                    WHEN 'legendary' THEN 2 
-                    WHEN 'epic' THEN 3 
-                    WHEN 'rare' THEN 4 
-                    ELSE 5 
+            ORDER BY
+                CASE gi.rarity
+                    WHEN 'mythic' THEN 1
+                    WHEN 'legendary' THEN 2
+                    WHEN 'epic' THEN 3
+                    WHEN 'rare' THEN 4
+                    ELSE 5
                 END,
                 gi.bonus_value DESC
         ''', (user_guild['id'],))
         rows = cursor.fetchall()
         cursor.close()
         conn.close()
-        
+
         if not rows:
-            bot.reply_to(message, "🎒 **ПРЕДМЕТИ ГІЛЬДІЇ**\n\nНемає предметів!\n\nВнеси предмети: /guild_donate_item")
+            bot.reply_to(message, "🎒 ПРЕДМЕТИ ГІЛЬДІЇ\n\nНемає предметів!\n\nВнеси предмети: /guild_donate_item")
             return
-        
-        text = f"🎒 **ПРЕДМЕТИ ГІЛЬДІЇ** {user_guild['name']}\n\n"
-        
+
+        text = f"🎒 ПРЕДМЕТИ ГІЛЬДІЇ {user_guild['name']}\n\n"
+
         rarity_emojis = {'mythic': '🔴', 'legendary': '🟡', 'epic': '🟣', 'rare': '🔵', 'common': '⚪'}
         type_names = {'weapon': 'Зброя', 'armor': 'Броня', 'accessory': 'Аксесуар', 'consumable': 'Споживне', 'special': 'Особливе'}
-        
+
         for i, row in enumerate(rows[:20], 1):
             item_id = int(row[0])
             item_name = row[3]
@@ -6741,27 +6756,28 @@ def guild_items_cmd(message):
             bonus_type = row[5]
             bonus_value = int(row[6]) if row[6] else 0
             quantity = int(row[7]) if row[7] else 0
-            donor = row[9] or 'Невідомо'
-            
+            donor_id = row[8]
+            donor_name = row[10] or f"ID {donor_id}"
+
             emoji = rarity_emojis.get(rarity, '⚪')
             type_name = type_names.get(row[2], row[2])
             bonus_text = f"+{bonus_value} {bonus_type}" if bonus_type else ""
-            
+
             text += f"{i}. {emoji} **{item_name}** ({type_name}) x{quantity}\n"
-            text += f"   ID: `{item_id}` | Вніс: {donor}\n"
+            text += f"   ID: `{item_id}` | Вніс: {donor_name}\n"
             if bonus_text:
                 text += f"   {bonus_text}\n"
             text += "\n"
-        
+
         if len(rows) > 20:
             text += f"... і ще {len(rows) - 20} предметів\n"
-        
-        text += "\n**Команди:**\n"
+
+        text += "\nКоманди:\n"
         text += "/guild_claim_item <ID> <кількість> - вивести в інвентар\n"
         text += "/guild_donate_item <предмет> <кількість> - внести"
-        
-        bot.reply_to(message, text, parse_mode="Markdown")
-        
+
+        bot.reply_to(message, text)
+
     except Exception as e:
         logger.error(f"❌ Помилка /guild_items: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
@@ -6857,30 +6873,31 @@ def guild_donate_cmd(message):
     """Внести предмет до скриньки"""
     chat_id = message.chat.id
     user_id = message.from_user.id
-    
+
     try:
         parts = message.text.split()
         if len(parts) < 3:
             bot.reply_to(message, "❌ Використання: /guild_donate <предмет> <кількість>")
             return
-        
+
         user_guild = get_user_guild(user_id, chat_id)
         if not user_guild:
             bot.reply_to(message, "❌ Ви не в гільдії!")
             return
-        
+
         item_name = parts[1]
         quantity = int(parts[2])
-        
+
         if quantity <= 0:
             bot.reply_to(message, "❌ Кількість має бути додатною!")
             return
-        
-        if donate_to_chest(user_guild['id'], user_id, 'item', item_name, quantity):
+
+        username = message.from_user.username or message.from_user.first_name or str(user_id)
+        if donate_to_chest(user_guild['id'], user_id, 'item', item_name, quantity, username):
             bot.reply_to(message, f"✅ Внесено {item_name} x{quantity} до скриньки!")
         else:
             bot.reply_to(message, "❌ Помилка внеску!")
-            
+
     except ValueError:
         bot.reply_to(message, "❌ Невірна кількість!")
     except Exception as e:

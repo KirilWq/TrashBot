@@ -778,10 +778,18 @@ def init_db():
             CREATE TABLE IF NOT EXISTS user_languages (
                 user_id BIGINT PRIMARY KEY,
                 language TEXT DEFAULT 'uk',
+                username TEXT,
                 updated_at BIGINT
             )
         ''')
         logger.info("✅ Таблиця user_languages створена")
+
+        # Додаємо колонку username якщо її немає
+        try:
+            cursor.execute('ALTER TABLE user_languages ADD COLUMN IF NOT EXISTS username TEXT')
+            logger.info("✅ Додано колонку username до user_languages")
+        except Exception as e:
+            logger.warning(f"⚠️ Можливо колонка username вже існує: {e}")
 
         # Додаємо тестовий івент (якщо не існують)
         now = int(time.time())
@@ -4453,6 +4461,36 @@ def get_user_language(user_id):
         cursor.close()
         conn.close()
 
+
+def update_user_username(user_id, username):
+    """Оновлює username користувача в user_languages"""
+    if not username:
+        return False
+    
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        now = int(time.time())
+        cursor.execute('''
+            INSERT INTO user_languages (user_id, username, updated_at)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (user_id) DO UPDATE SET
+                username = EXCLUDED.username,
+                updated_at = EXCLUDED.updated_at
+        ''', (user_id, username, now))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка оновлення username: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
 def get_level_bonuses(level):
     """Отримує бонуси за рівень"""
     return {
@@ -4462,7 +4500,7 @@ def get_level_bonuses(level):
         'duel_bonus': (level - 1) * 0.5  # +0.5% до дуелей за рівень
     }
 
-def set_user_language(user_id, language):
+def set_user_language(user_id, language, username=None):
     """Встановлює мову користувача"""
     conn = get_connection()
     if not conn:
@@ -4472,12 +4510,13 @@ def set_user_language(user_id, language):
     try:
         now = int(time.time())
         cursor.execute('''
-            INSERT INTO user_languages (user_id, language, updated_at)
-            VALUES (%s, %s, %s)
+            INSERT INTO user_languages (user_id, language, username, updated_at)
+            VALUES (%s, %s, %s, %s)
             ON CONFLICT (user_id) DO UPDATE SET
                 language = EXCLUDED.language,
+                username = COALESCE(EXCLUDED.username, user_languages.username),
                 updated_at = EXCLUDED.updated_at
-        ''', (user_id, language, now))
+        ''', (user_id, language, username, now))
         conn.commit()
         return True
     except Exception as e:
@@ -5052,7 +5091,7 @@ def collect_territory_income(guild_id):
 # ГІЛЬДІЙНІ СКРИНЬКИ
 # ============================================
 
-def donate_to_chest(guild_id, user_id, item_type, item_name, quantity=1):
+def donate_to_chest(guild_id, user_id, item_type, item_name, quantity=1, username=None):
     """Вносить предмет до гільдійної скриньки"""
     conn = get_connection()
     if not conn:
@@ -5061,14 +5100,24 @@ def donate_to_chest(guild_id, user_id, item_type, item_name, quantity=1):
     cursor = conn.cursor()
     try:
         now = int(time.time())
-        
+
+        # Оновлюємо username в user_languages якщо вказано
+        if username:
+            cursor.execute('''
+                INSERT INTO user_languages (user_id, username, updated_at)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (user_id) DO UPDATE SET
+                    username = EXCLUDED.username,
+                    updated_at = EXCLUDED.updated_at
+            ''', (user_id, username, now))
+
         # Перевіряємо чи вже є такий предмет
         cursor.execute('''
             SELECT id, quantity FROM guild_chests
             WHERE guild_id = %s AND item_type = %s AND item_name = %s
         ''', (guild_id, item_type, item_name))
         row = cursor.fetchone()
-        
+
         if row:
             # Оновлюємо кількість
             cursor.execute('''
@@ -5080,7 +5129,7 @@ def donate_to_chest(guild_id, user_id, item_type, item_name, quantity=1):
                 INSERT INTO guild_chests (guild_id, item_type, item_name, quantity, donated_by_user_id, donated_at)
                 VALUES (%s, %s, %s, %s, %s, %s)
             ''', (guild_id, item_type, item_name, quantity, user_id, now))
-        
+
         conn.commit()
         return True
     except Exception as e:
@@ -5101,14 +5150,15 @@ def get_guild_chest(guild_id):
     cursor = conn.cursor()
     try:
         cursor.execute('''
-            SELECT gc.*, u.username as donor_name
+            SELECT gc.id, gc.guild_id, gc.item_type, gc.item_name, gc.quantity,
+                   gc.donated_by_user_id, gc.donated_at, u.username as donor_name
             FROM guild_chests gc
             LEFT JOIN user_languages u ON gc.donated_by_user_id = u.user_id
             WHERE gc.guild_id = %s
             ORDER BY gc.quantity DESC
         ''', (guild_id,))
         rows = cursor.fetchall()
-        
+
         items = []
         for row in rows:
             items.append({
@@ -5118,8 +5168,8 @@ def get_guild_chest(guild_id):
                 'item_name': row[3],
                 'quantity': int(row[4]) if row[4] else 0,
                 'donated_by_user_id': int(row[5]) if row[5] else None,
-                'donor_name': row[6],
-                'donated_at': int(row[7]) if row[7] else 0
+                'donor_name': row[7],
+                'donated_at': int(row[6]) if row[6] else 0
             })
         return items
     except Exception as e:
