@@ -7855,7 +7855,7 @@ def skin_accept_cmd(message):
 
         trade_id = int(parts[1])
 
-        from db import get_skin_trade, accept_skin_trade, transfer_skin
+        from db import get_skin_trade, accept_skin_trade
         trade = get_skin_trade(trade_id)
 
         if not trade:
