@@ -3497,22 +3497,40 @@ def inventory_cmd(message):
     user_id = message.from_user.id
 
     try:
-        inventory = get_user_inventory(user_id, chat_id)
+        # Отримуємо предмети з обох систем
+        inventory = get_user_inventory(user_id, chat_id)  # Shop items
+        user_items = get_user_items(user_id, chat_id)  # Loot/traded items
         items = get_shop_items()
         items_dict = {i['item_id']: i for i in items}
-        
+
         # Get user's skins
         skins = get_user_skins(user_id, chat_id)
 
-        if not inventory and not skins:
+        if not inventory and not user_items and not skins:
             bot.reply_to(message, "🎒 ІНВЕНТАР\n\nПорожньо!")
             return
 
         text = "🎒 ІНВЕНТАР\n\n"
-        
-        # Show items
+
+        # Show user_items (loot/traded items)
+        if user_items:
+            text += "**Предмети:**\n"
+            rarity_emojis = {'mythic': '🔴', 'legendary': '🟡', 'epic': '🟣', 'rare': '🔵', 'common': '⚪'}
+            type_names = {'weapon': 'Зброя', 'armor': 'Броня', 'accessory': 'Аксесуар', 'consumable': 'Споживне', 'special': 'Особливе', 'item': 'Предмет'}
+            
+            for item in user_items[:20]:
+                rarity_emoji = rarity_emojis.get(item['rarity'], '⚪')
+                type_name = type_names.get(item['item_type'], item['item_type'])
+                bonus_text = f"+{item['bonus_value']} {item['bonus_type']}" if item['bonus_type'] else ""
+                
+                text += f"{rarity_emoji} **{item['item_name']}** ({type_name}) x{item['quantity']}\n"
+                if bonus_text:
+                    text += f"   {bonus_text}\n"
+            text += "\n"
+
+        # Show shop items
         if inventory:
-            text += "Предмети:\n"
+            text += "**Предмети з магазину:**\n"
             for inv_item in inventory:
                 item = items_dict.get(inv_item['item_id'])
                 if item:
@@ -3522,10 +3540,10 @@ def inventory_cmd(message):
                         hours = expires // 3600
                         text += f"  (Ще {hours} год)\n"
                     text += "\n"
-        
+
         # Show skins
         if skins:
-            text += "Скіни:\n"
+            text += "**Скіни:**\n"
             for skin in skins:
                 equipped = "(Одягнуто)" if skin['equipped'] else ""
                 # Додаємо назву для equipskin
@@ -3534,12 +3552,13 @@ def inventory_cmd(message):
                 text += f"{skin['icon']} {display_name} {equipped} (/{skin_name})\n"
             text += "\n"
 
-        text += "Команди:\n"
+        text += "**Команди:**\n"
         text += "/use <item_id> - використати предмет\n"
-        text += "/equipskin <назва> - одягнути скін\n\n"
+        text += "/equipskin <назва> - одягнути скін\n"
+        text += "/item_trade <предмет> <кількість> - трейд предметом\n\n"
         text += "Приклад: /equipskin classic"
 
-        bot.reply_to(message, text)
+        bot.reply_to(message, text, parse_mode="Markdown")
     except Exception as e:
         logger.error(f"❌ Помилка /inventory: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
@@ -7711,52 +7730,6 @@ def guild_attack_cmd(message):
 # ============================================
 # ПРЕДМЕТИ ТА ІНВЕНТАР - КОМАНДИ
 # ============================================
-
-@bot.message_handler(commands=['inventory'])
-def inventory_cmd(message):
-    """Показати інвентар предметів користувача"""
-    chat_id = message.chat.id
-    user_id = message.from_user.id
-    
-    try:
-        items = get_user_items(user_id, chat_id)
-        bonuses = get_user_total_bonuses(user_id, chat_id)
-        
-        if not items:
-            bot.reply_to(message, "🎒 **ІНВЕНТАР**\n\nУ тебе ще немає предметів!\n\nОтримай предмети з трейдів або івентів.")
-            return
-        
-        text = f"🎒 **ІНВЕНТАР**\n\n"
-        text += f"💪 Загальні бонуси:\n"
-        text += f"   ⚔️ Сила: +{bonuses.get('power', 0)}\n"
-        text += f"   🛡️ Захист: +{bonuses.get('defense', 0)}\n"
-        text += f"   🍀 Удача: +{bonuses.get('luck', 0)}\n\n"
-        
-        rarity_emojis = {'mythic': '🔴', 'legendary': '🟡', 'epic': '🟣', 'rare': '🔵', 'common': '⚪'}
-        type_names = {'weapon': 'Зброя', 'armor': 'Броня', 'accessory': 'Аксесуар', 'consumable': 'Споживне', 'special': 'Особливе'}
-        
-        for item in items[:20]:
-            rarity_emoji = rarity_emojis.get(item['rarity'], '⚪')
-            type_name = type_names.get(item['item_type'], item['item_type'])
-            bonus_text = f"+{item['bonus_value']} {item['bonus_type']}" if item['bonus_type'] else ""
-            
-            text += f"{rarity_emoji} **{item['item_name']}** ({type_name}) x{item['quantity']}\n"
-            if bonus_text:
-                text += f"   {bonus_text}\n"
-            text += "\n"
-        
-        if len(items) > 20:
-            text += f"... і ще {len(items) - 20} предметів\n"
-        
-        text += "\n**Команди:**\n"
-        text += "/item_trade @user <предмет> - трейд предметом"
-        
-        bot.reply_to(message, text, parse_mode="Markdown")
-        
-    except Exception as e:
-        logger.error(f"❌ Помилка /inventory: {e}", exc_info=True)
-        bot.reply_to(message, f"❌ Помилка: {e}")
-
 
 @bot.message_handler(commands=['item_trade'])
 def item_trade_cmd(message):
