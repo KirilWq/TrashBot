@@ -7795,14 +7795,15 @@ def item_trade_cmd(message):
             bot.reply_to(message, "❌ Не можна торгувати з самим собою!")
             return
 
-        # Перевіряємо чи є предмет (предмети)
+        # Перевіряємо чи є предмет (предмети) - сумуємо кількість всіх предметів з такою назвою
         items = get_user_items(sender_id, chat_id)
-        has_the_item = False
+        total_quantity = 0
         for item in items:
-            if item['item_name'].lower() == item_name.lower() and item['quantity'] >= quantity:
-                has_the_item = True
-                break
+            if item['item_name'].lower() == item_name.lower():
+                total_quantity += item['quantity']
         
+        has_the_item = total_quantity >= quantity
+
         # Перевіряємо чи є предмет (скіни) - але скіни не можна трейдити
         if not has_the_item:
             # Перевіряємо чи це скін
@@ -8166,13 +8167,22 @@ def item_accept_cmd(message):
         if accept_item_trade(trade_id):
             # Передаємо предмети
             for item in trade.get('sender_items', []):
+                # Додаємо предмети отримувачу
                 add_item_to_user(
                     user_id, chat_id,
                     'item', item['name'],
                     rarity='common',
                     quantity=item.get('quantity', 1)
                 )
-            
+                
+                # Видаляємо предмети у відправника
+                remove_user_item(
+                    trade['sender_id'], chat_id,
+                    item['name'],
+                    quantity=item.get('quantity', 1),
+                    item_type='item'
+                )
+
             bot.reply_to(message, f"✅ Трейд {trade_id} прийнято!\n\nПредмети додано до інвентарю!")
         else:
             bot.reply_to(message, "❌ Помилка прийняття трейду!")
