@@ -7795,12 +7795,19 @@ def item_trade_cmd(message):
             bot.reply_to(message, "❌ Не можна торгувати з самим собою!")
             return
 
-        # Перевіряємо чи є предмет (предмети) - сумуємо кількість всіх предметів з такою назвою
+        # Перевіряємо чи є предмет в user_items (предмети з івентів/рейду)
         items = get_user_items(sender_id, chat_id)
         total_quantity = 0
         for item in items:
             if item['item_name'].lower() == item_name.lower():
                 total_quantity += item['quantity']
+        
+        # Перевіряємо чи є предмет в user_inventory (предмети з магазину)
+        inventory = get_user_inventory(sender_id, chat_id)
+        for inv_item in inventory:
+            # Перевіряємо за item_id та name
+            if inv_item['item_id'].lower() == item_name.lower() or inv_item['name'].lower() == item_name.lower():
+                total_quantity += inv_item['quantity']
         
         has_the_item = total_quantity >= quantity
 
@@ -8167,21 +8174,33 @@ def item_accept_cmd(message):
         if accept_item_trade(trade_id):
             # Передаємо предмети
             for item in trade.get('sender_items', []):
-                # Додаємо предмети отримувачу
+                item_name = item['name']
+                item_quantity = item.get('quantity', 1)
+                
+                # Додаємо предмети отримувачу (в user_items)
                 add_item_to_user(
                     user_id, chat_id,
-                    'item', item['name'],
+                    'item', item_name,
                     rarity='common',
-                    quantity=item.get('quantity', 1)
+                    quantity=item_quantity
                 )
                 
                 # Видаляємо предмети у відправника
-                remove_user_item(
+                # Спочатку пробуємо видалити з user_items
+                removed = remove_user_item(
                     trade['sender_id'], chat_id,
-                    item['name'],
-                    quantity=item.get('quantity', 1),
+                    item_name,
+                    quantity=item_quantity,
                     item_type='item'
                 )
+                
+                # Якщо не видалено, пробуємо з user_inventory
+                if not removed:
+                    remove_from_inventory(
+                        trade['sender_id'], chat_id,
+                        item_name,
+                        quantity=item_quantity
+                    )
 
             bot.reply_to(message, f"✅ Трейд {trade_id} прийнято!\n\nПредмети додано до інвентарю!")
         else:
