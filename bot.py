@@ -591,13 +591,16 @@ def feed_hryak(user_id, chat_id):
     # Зміна ваги (від -20 до +20 кг)
     change = random.randint(-20, 20)
 
-    # Отримуємо бонус від скіну
+    # Отримуємо бонуси від скіну
     skin_weight_bonus = get_skin_bonus(user_id, chat_id, 'weight_bonus')
-    if skin_weight_bonus > 0 and change > 0:
+    skin_all_bonus = get_skin_bonus(user_id, chat_id, 'all_bonus')
+    total_bonus = skin_weight_bonus + skin_all_bonus
+    
+    if total_bonus > 0 and change > 0:
         # Додаємо бонус тільки до позитивної зміни ваги
-        bonus = int(change * skin_weight_bonus / 100)
+        bonus = int(change * total_bonus / 100)
         change += bonus
-        logger.info(f"🎨 Скін бонус: +{skin_weight_bonus}% = +{bonus} кг, итого change={change}")
+        logger.info(f"🎨 Скін бонус: weight={skin_weight_bonus}% + all={skin_all_bonus}% = +{bonus} кг, итого change={change}")
 
     # Баф для @terchizz - кращі шанси на набір ваги
     if user_id == 1044325356:  # terchizz user ID

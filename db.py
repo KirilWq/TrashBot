@@ -1217,11 +1217,26 @@ def add_coins(user_id, chat_id, amount):
     if current:
         update_user_currency(user_id, chat_id, coins=current['coins'] + amount)
 
-def add_xp(user_id, chat_id, amount):
-    """Додає XP"""
+def add_xp(user_id, chat_id, amount, apply_skin_bonus=True):
+    """Додає XP з урахуванням бонусів від скінів"""
+    # Отримуємо бонуси від скіну
+    xp_bonus = 0
+    all_bonus = 0
+    if apply_skin_bonus:
+        xp_bonus = get_skin_bonus(user_id, chat_id, 'xp_bonus')
+        all_bonus = get_skin_bonus(user_id, chat_id, 'all_bonus')
+    
+    # Розраховуємо загальний бонус
+    total_bonus = xp_bonus + all_bonus
+    final_amount = amount
+    
+    if total_bonus > 0:
+        bonus_xp = int(amount * total_bonus / 100)
+        final_amount = amount + bonus_xp
+    
     current = get_user_currency(user_id, chat_id)
     if current:
-        new_xp = current['xp'] + amount
+        new_xp = current['xp'] + final_amount
         # Level up кожні 100 XP
         new_level = current['level'] + (new_xp // 100)
         new_xp = new_xp % 100
