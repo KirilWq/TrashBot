@@ -1,0 +1,24 @@
+Metadata of photo_5319096806467638772_y
+
+The data shown is all the metadata we could automatically extract from your file. It may be neither complete nor adequate. Metadata could have been changed or deleted in the past. Please be aware that the metadata is provided without liability.
+
+ Checksum: 58f92bb05360d131dfcee7d23e238ff6
+ Filename: photo_5319096806467638772_y.jpg
+ Filesize: 86 kB
+ Filetype: JPEG
+ Filetypeextension: jpg
+ Mimetype: image/jpeg
+ Jfifversion: 1.01
+ Resolutionunit: None
+ Xresolution: 1
+ Yresolution: 1
+ Imagewidth: 588
+ Imageheight: 1280
+ Encodingprocess: Progressive DCT, Huffman coding
+ Bitspersample: 8
+ Colorcomponents: 3
+ Ycbcrsubsampling: YCbCr4:2:0 (2 2)
+ Imagesize: 588x1280
+ Megapixels: 0.753
+ Category: image
+ Raw Header: FF D8 FF E0 00 10 4A 46 49 46 00 01 01 00 00 01 00 01 00 00 FF DB 00 43 00 09 06 07 08 07 06 09 08 07 08 0A 0A 09 0B 0D 16 0F 0D 0C 0C 0D 1B 14 15 10 16 20 1D 22 22 20 1D 1F 1F 24 28 34 2C 24 26 31 27 1F 1F 2D 3D 2D 31 35 37 3A 3A 3A 23 2B 3F 44 3F 38 43 34 39 3A 37 FF DB 00 43 01 0A 0A 0A 0D 0C 0D 1A 0F 0F 1A 37 25 1F 25 37 37 37 37 37 37 37 37 37 37 37 37 37 37 37 37 37 37 37 37

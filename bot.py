@@ -113,6 +113,31 @@ def admin_only(func):
         return func(message, *args, **kwargs)  # Додав повернення результату
     return wrapper
 
+def escape_markdown(text):
+    """Екранує спеціальні символи Markdown в тексті"""
+    if not isinstance(text, str):
+        text = str(text)
+    # Екрануємо спеціальні символи Markdown
+    text = text.replace('_', '\\_')
+    text = text.replace('*', '\\*')
+    text = text.replace('`', '\\`')
+    text = text.replace('[', '\\[')
+    text = text.replace(']', '\\]')
+    text = text.replace('(', '\\(')
+    text = text.replace(')', '\\)')
+    text = text.replace('~', '\\~')
+    text = text.replace('>', '\\>')
+    text = text.replace('#', '\\#')
+    text = text.replace('+', '\\+')
+    text = text.replace('-', '\\-')
+    text = text.replace('=', '\\=')
+    text = text.replace('|', '\\|')
+    text = text.replace('{', '\\{')
+    text = text.replace('}', '\\}')
+    text = text.replace('.', '\\.')
+    text = text.replace('!', '\\!')
+    return text
+
 # Ініціалізація бази даних
 init_db()
 logger.info("✅ База даних підключена")
@@ -504,9 +529,11 @@ def grow_hryak(message):
         hryak = get_hryak(user_id, chat_id)
 
         if hryak:
+            # Екрануємо спеціальні символи в імені хряка
+            hryak_name = escape_markdown(hryak['name'])
             text = f"""🐷 **Вже маєш хряка!**
 
-Ім'я: {hryak['name']}
+Ім'я: {hryak_name}
 Вага: {hryak['weight']} кг
 Нагодовано: {hryak['feed_count']} разів
 
@@ -514,9 +541,11 @@ def grow_hryak(message):
         else:
             # Створюємо нового хряка
             hryak = create_hryak(user_id, chat_id, username)
+            # Екрануємо спеціальні символи в імені хряка
+            hryak_name = escape_markdown(hryak['name'])
             text = f"""🎉 **Ти отримав хряка!**
 
-🐷 {hryak['name']}
+🐷 {hryak_name}
 ⚖️ Вага: {hryak['weight']} кг
 
 Тепер ти можеш його годувати раз на 12 годин командою /feed
@@ -803,13 +832,16 @@ def feed_hryak_cmd(message):
             title = "**Вага не змінилась!**"
             text_change = "0 кг"
 
+        # Екрануємо спеціальні символи в імені хряка
+        hryak_name = escape_markdown(result['hryak']['name'])
+
         text = f"""{emoji} {title}
 
 Вага: {result['old_weight']} → {result['new_weight']} кг ({text_change})
 Всього нагодовано: {result['feed_count']} разів
 💰 Нагорода: +5 монет, +2 XP
 
-🐷 {result['hryak']['name']}"""
+🐷 {hryak_name}"""
 
         # Перевіряємо досягнення
         unlocked = []
@@ -1977,13 +2009,16 @@ def menu_callback(call):
                     add_coins(user_id, chat_id, 5)
                     add_xp(user_id, chat_id, 2)
 
+                    # Екрануємо спеціальні символи в імені хряка
+                    hryak_name = escape_markdown(result['hryak']['name'])
+
                     text = f"""{emoji} {title}
 
 Вага: {result['old_weight']} → {result['new_weight']} кг ({text_change})
 Всього нагодовано: {result['feed_count']} разів
 💰 Нагорода: +5 монет, +2 XP
 
-🐷 {result['hryak']['name']}"""
+🐷 {hryak_name}"""
                     
                     # Update quests
                     quests = get_daily_quests(user_id, chat_id)
@@ -2018,13 +2053,16 @@ def menu_callback(call):
                         add_coins(user_id, chat_id, 5)
                         add_xp(user_id, chat_id, 2)
 
+                        # Екрануємо спеціальні символи в імені хряка
+                        hryak_name = escape_markdown(result['hryak']['name'])
+
                         text = f"""{emoji} {title}
 
 Вага: {result['old_weight']} → {result['new_weight']} кг ({text_change})
 Всього нагодовано: {result['feed_count']} разів
 💰 Нагорода: +5 монет, +2 XP
 
-🐷 {result['hryak']['name']}"""
+🐷 {hryak_name}"""
                         
                         # Update quests
                         quests = get_daily_quests(user_id, chat_id)
@@ -2038,7 +2076,9 @@ def menu_callback(call):
                 else:
                     hours = int(time_left / 3600)
                     minutes = int((time_left % 3600) / 60)
-                    text = f"⏳ **Ще рано!**\n\nЗалишилось: {hours} год {minutes} хв\n\n🐷 {hryak['name']}"
+                    # Екрануємо спеціальні символи в імені хряка
+                    hryak_name = escape_markdown(hryak['name'])
+                    text = f"⏳ **Ще рано!**\n\nЗалишилось: {hours} год {minutes} хв\n\n🐷 {hryak_name}"
 
     elif command == 'my':
         hryak = get_hryak(user_id, chat_id)
@@ -2057,8 +2097,10 @@ def menu_callback(call):
                     hours = int(time_left / 3600)
                     minutes = int((time_left % 3600) / 60)
                     feed_status = f"⏳ Ще {hours} год {minutes} хв"
-            
-            text = f"""🐷 **{hryak['name']}**
+
+            # Екрануємо спеціальні символи в імені хряка
+            hryak_name = escape_markdown(hryak['name'])
+            text = f"""🐷 **{hryak_name}**
 
 ⚖️ Вага: {hryak['weight']} кг
 🏆 Максимальна: {hryak['max_weight']} кг
@@ -2075,7 +2117,9 @@ def menu_callback(call):
         else:
             text = "🏆 **ТОП ХРЯКІВ ЧАТУ**\n\n"
             for i, h in enumerate(chat_hryaky):
-                text += f"{i+1}. {h['name']} - {h['weight']} кг\n"
+                # Екрануємо спеціальні символи в імені хряка
+                hryak_name = escape_markdown(h['name'])
+                text += f"{i+1}. {hryak_name} - {h['weight']} кг\n"
 
     elif command == 'globaltop':
         # Завантажуємо всіх хряків з БД
@@ -4790,15 +4834,19 @@ def trachen_cmd(message):
         if hryak['weight'] > hryak['max_weight']:
             hryak['max_weight'] = hryak['weight']
         save_hryak_to_db(f"{chat_id}_{user_id}", hryak)
-        
+
         # Формуємо повідомлення
         emoji = "💕" if weight_change > 0 else "😔"
         pregnancy_emoji = "🤰" if is_pregnant else ""
-        
+
+        # Екрануємо спеціальні символи в іменах хряків
+        hryak_name = escape_markdown(hryak['name'])
+        partner_name = escape_markdown(partner_hryak['name'])
+
         text = f"""{emoji} **Трахензебітен відбувся!**
 
-🐷 Твій хряк: {hryak['name']}
-💑 Партнер: {partner_hryak['name']}
+🐷 Твій хряк: {hryak_name}
+💑 Партнер: {partner_name}
 ⚖️ Зміна ваги: {weight_change:+d} кг ({old_weight} → {hryak['weight']})
 💪 Витрачено енергії: {energy}
 
