@@ -572,7 +572,7 @@ def feed_hryak(user_id, chat_id):
         return None, "У тебе ще немає хряка! Введи /grow щоб отримати."
 
     now = time.time()
-    
+
     # Логуємо для дебагу
     logger.info(f"🔍 last_feed з БД: {hryak['last_feed']}, now: {now}, різниця: {now - hryak['last_feed']} сек")
 
@@ -585,11 +585,19 @@ def feed_hryak(user_id, chat_id):
     # Годуємо
     hryak['last_feed'] = now
     hryak['feed_count'] += 1
-    
+
     logger.info(f"💾 Оновлено last_feed={now} для {key}")
 
     # Зміна ваги (від -20 до +20 кг)
     change = random.randint(-20, 20)
+
+    # Отримуємо бонус від скіну
+    skin_weight_bonus = get_skin_bonus(user_id, chat_id, 'weight_bonus')
+    if skin_weight_bonus > 0 and change > 0:
+        # Додаємо бонус тільки до позитивної зміни ваги
+        bonus = int(change * skin_weight_bonus / 100)
+        change += bonus
+        logger.info(f"🎨 Скін бонус: +{skin_weight_bonus}% = +{bonus} кг, итого change={change}")
 
     # Баф для @terchizz - кращі шанси на набір ваги
     if user_id == 1044325356:  # terchizz user ID
@@ -605,7 +613,7 @@ def feed_hryak(user_id, chat_id):
         hryak['max_weight'] = hryak['weight']
 
     save_hryaky()
-    
+
     logger.info(f"✅ save_hryaky() викликано для {key}")
 
     result = {
