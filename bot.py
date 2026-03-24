@@ -3579,6 +3579,12 @@ def use_cmd(message):
         item_id = parts[1]
         
         if not has_item(user_id, chat_id, item_id):
+            # Перевіряємо також user_items (предмети з трейдів)
+            user_items = get_user_items(user_id, chat_id)
+            has_in_user_items = any(item['item_name'].lower() == item_id.lower() and item['quantity'] > 0 for item in user_items)
+            if not has_in_user_items:
+                bot.reply_to(message, "❌ У тебе немає цього предмету!")
+                return
             bot.reply_to(message, "❌ У тебе немає цього предмету!")
             return
         
@@ -3603,14 +3609,18 @@ def use_cmd(message):
             if hryak:
                 hryak['weight'] += item['effect_value']
                 save_hryak_to_db(f"{chat_id}_{user_id}", hryak)
-                text = f"🍎 **Вітаміни ��икористано!**\n\nВага збільшена на +{item['effect_value']} кг!"
+                text = f"🍎 **Вітаміни ��використано!**\n\nВага збільшена на +{item['effect_value']} кг!"
             else:
                 text = "❌ У тебе немає хряка!"
         else:
             text = f"✅ **{item['name']} використано!**\n\nЕфект: {item['desc']}"
         
         # Видаляємо предмет
-        remove_from_inventory(user_id, chat_id, item_id, 1)
+        # Видаляємо предмет з тієї системи де він був
+        if has_item(user_id, chat_id, item_id):
+            remove_from_inventory(user_id, chat_id, item_id, 1)
+        else:
+            remove_user_item(user_id, chat_id, item_id, 1, item_type='item')
         
         bot.reply_to(message, text, parse_mode="Markdown")
     except Exception as e:
