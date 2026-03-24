@@ -6104,37 +6104,6 @@ def get_user_total_bonuses(user_id, chat_id):
     return bonuses
 
 
-def remove_user_item(user_id, chat_id, item_id, quantity=1):
-    """Видаляє предмет у користувача"""
-    conn = get_connection()
-    if not conn:
-        return False
-
-    cursor = conn.cursor()
-    try:
-        cursor.execute('SELECT quantity FROM user_items WHERE id = %s AND user_id = %s AND chat_id = %s',
-                      (item_id, user_id, chat_id))
-        row = cursor.fetchone()
-        
-        if not row or row[0] < quantity:
-            return False
-        
-        if quantity == row[0]:
-            cursor.execute('DELETE FROM user_items WHERE id = %s', (item_id,))
-        else:
-            cursor.execute('UPDATE user_items SET quantity = quantity - %s WHERE id = %s', (quantity, item_id))
-        
-        conn.commit()
-        return True
-    except Exception as e:
-        logger.error(f"❌ Помилка видалення предмета: {e}")
-        conn.rollback()
-        return False
-    finally:
-        cursor.close()
-        conn.close()
-
-
 # ============================================
 # ТРЕЙДИ ПРЕДМЕТАМИ - НОВІ ФУНКЦІЇ
 # ============================================
