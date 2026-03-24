@@ -3585,9 +3585,7 @@ def use_cmd(message):
             if not has_in_user_items:
                 bot.reply_to(message, "❌ У тебе немає цього предмету!")
                 return
-            bot.reply_to(message, "❌ У тебе немає цього предмету!")
-            return
-        
+
         item = get_item(item_id)
         if not item:
             bot.reply_to(message, "❌ Предмет не знайдено!")
