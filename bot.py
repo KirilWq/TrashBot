@@ -4182,13 +4182,13 @@ def trade_cmd(message):
 
         # Знаходимо отримувача по username в статистиці
         receiver_id = None
-        
+
         # Спочатку шукаємо в stats_data
         for key, data in stats_data.items():
             if data.get('username', '').lower() == receiver_username and data.get('chat_id') == chat_id:
                 receiver_id = data.get('user_id')
                 break
-        
+
         # Якщо не знайшли, шукаємо в chat_members_cache
         if not receiver_id and chat_id in chat_members_cache:
             for member in chat_members_cache[chat_id]:
@@ -4201,7 +4201,18 @@ def trade_cmd(message):
                             break
                     if receiver_id:
                         break
-        
+
+        # Якщо все ще не знайшли, пробуємо отримати через Telegram API
+        if not receiver_id:
+            try:
+                # Шукаємо учасника чату через API
+                chat_member = bot.get_chat_member(chat_id, receiver_username)
+                if chat_member and chat_member.user:
+                    receiver_id = chat_member.user.id
+                    print(f"✅ Знайдено користувача {receiver_username} через API, ID: {receiver_id}")
+            except Exception as e:
+                print(f"⚠️ Не вдалося знайти користувача {receiver_username} через API: {e}")
+
         # Якщо все ще не знайшли, шукаємо в manual_users
         if not receiver_id:
             manual_key = f"{chat_id}"
