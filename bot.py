@@ -115,10 +115,11 @@ def admin_only(func):
     return wrapper
 
 def escape_markdown(text):
-    """Екранує спеціальні символи Markdown в тексті"""
+    """Екранує спеціальні символи MarkdownV2 в тексті"""
     if not isinstance(text, str):
         text = str(text)
-    # Екрануємо спеціальні символи Markdown
+    # Екрануємо спеціальні символи MarkdownV2
+    # Повний список: _ * [ ] ( ) ~ > # + - = | { } . \ !
     text = text.replace('_', '\\_')
     text = text.replace('*', '\\*')
     text = text.replace('`', '\\`')
@@ -136,6 +137,7 @@ def escape_markdown(text):
     text = text.replace('{', '\\{')
     text = text.replace('}', '\\}')
     text = text.replace('.', '\\.')
+    text = text.replace('\\', '\\\\')
     text = text.replace('!', '\\!')
     return text
 
@@ -5862,7 +5864,7 @@ def children_cmd(message):
             bot.reply_to(message, f"👶 У тебе ще немає дітей!\n\nЗаведи дітей через /trachen або /breed\n\n📊 Ліміт: {children_count}/10")
             return
 
-        text = f"👶 **Твої діти:** ({children_count}/10)\n\n"
+        text = f"👶 *Твої діти:* ({children_count}/10)\n\n"
 
         for i, child in enumerate(children_list, 1):
             born_date = time.strftime('%d.%m.%Y', time.localtime(child['born_at']))
@@ -5893,27 +5895,27 @@ def children_cmd(message):
                     raid_status = f" ✅ Готовий до claim! (/childclaim {active_raid['id']})"
 
             # Екрануємо спеціальні символи в тексті
-            child_name = child['name'].replace('_', '\\_').replace('*', '\\*').replace('`', '\\`')
-            inherited_trait = (child['inherited_trait'] or 'Немає').replace('_', '\\_').replace('*', '\\*').replace('`', '\\`')
+            child_name = escape_markdown(child['name'])
+            inherited_trait = escape_markdown(child['inherited_trait'] or 'Немає')
 
-            text += f"{i}. `{child['id']}` - **{child_name}** {rarity_emoji}{ownership}{raid_status}\n"
+            text += f"{i}\\. `{child['id']}` - *{child_name}* {rarity_emoji}{ownership}{raid_status}\n"
             text += f"   ⚖️ Вага: {child['weight']} кг\n"
             text += f"   🎂 Народжений: {born_date}\n"
             text += f"   🧬 Особливість: {inherited_trait}\n\n"
 
-        text += f"\n**Команди:**\n"
-        text += "/childinfo <ID> - інформація\n"
-        text += "/renamechild <ID> <ім'я> - перейменувати\n"
-        text += "/sacrificechild <ID> - жертва\n"
-        text += "/childmarry <ID1> <ID2> - одружити\n"
-        text += "/childtrain <ID> - тренувати\n"
-        text += "/childraid <ID> [тип] - рейд\n"
-        text += "/childclaim <ID рейду> - отримати нагороду\n"
-        text += "/childstamina_upgrade - покращити витривалість\n"
-        text += "/genes - гени твого хряка\n\n"
-        text += "**Приклад:** `/childinfo 123`"
+        text += f"\n*Команди:*\n"
+        text += "/childinfo <ID> \\- інформація\n"
+        text += "/renamechild <ID> <ім'я> \\- перейменувати\n"
+        text += "/sacrificechild <ID> \\- жертва\n"
+        text += "/childmarry <ID1> <ID2> \\- одружити\n"
+        text += "/childtrain <ID> \\- тренувати\n"
+        text += "/childraid <ID> [тип] \\- рейд\n"
+        text += "/childclaim <ID рейду> \\- отримати нагороду\n"
+        text += "/childstamina\\_upgrade \\- покращити витривалість\n"
+        text += "/genes \\- гени твого хряка\n\n"
+        text += "*Приклад:* `/childinfo 123`"
 
-        bot.reply_to(message, text, parse_mode="Markdown")
+        bot.reply_to(message, text, parse_mode="MarkdownV2")
 
     except Exception as e:
         logger.error(f"❌ Помилка /children: {e}", exc_info=True)
@@ -5946,53 +5948,53 @@ def child_info_cmd(message):
             return
 
         born_date = time.strftime('%d.%m.%Y %H:%M', time.localtime(child['born_at']))
-        
+
         # Отримуємо гени дитини
         child_genes = get_hryak_genes(child['user_id'], chat_id)
         rarity_emoji = "⚪"
         color_emoji = "🐷"
-        
+
         if child_genes:
             rarity_emoji = GENE_RARITIES.get(child_genes.get('gene_rarity', 'C'), {}).get('color', '⚪')
             color_emoji = COLOR_TYPES.get(child_genes.get('color_type', 'normal'), {}).get('emoji', '🐷')
 
         # Екрануємо спеціальні символи
-        child_name = child['name'].replace('_', '\\_').replace('*', '\\*').replace('`', '\\`')
-        inherited_trait = (child['inherited_trait'] or 'Немає').replace('_', '\\_').replace('*', '\\*').replace('`', '\\`')
+        child_name = escape_markdown(child['name'])
+        inherited_trait = escape_markdown(child['inherited_trait'] or 'Немає')
 
-        text = f"""👶 **ІНФОРМАЦІЯ ПРО ДИТИНУ** {rarity_emoji}
+        text = f"""👶 *ІНФОРМАЦІЯ ПРО ДИТИНУ* {rarity_emoji}
 
-{color_emoji} **Ім'я:** {child_name}
-⚖️ **Вага:** {child['weight']} кг
-🧬 **Особливість:** {inherited_trait}
+{color_emoji} *Ім'я:* {child_name}
+⚖️ *Вага:* {child['weight']} кг
+🧬 *Особливість:* {inherited_trait}
 
-**Батьки:**
+*Батьки:*
 👨 Батько: ID {child['father_user_id']}
 👩 Мати: ID {child['mother_user_id']}
 
-**Народжений:** {born_date}
-**Вік:** {int((time.time() - child['born_at']) / 86400)} дн.
+*Народжений:* {born_date}
+*Вік:* {int((time.time() - child['born_at']) / 86400)} дн.
 
 """
         if child_genes:
             rarity_name = GENE_RARITIES.get(child_genes.get('gene_rarity', 'C'), {}).get('name', 'Звичайний')
             color_name = COLOR_TYPES.get(child_genes.get('color_type', 'normal'), {}).get('name', 'Звичайний')
-            text += f"**Гени:**\n"
+            text += f"*Гени:*\n"
             text += f"• Рідкість: {rarity_name} {rarity_emoji}\n"
             text += f"• Колір: {color_name} {color_emoji}\n"
-            
+
             if child_genes.get('bonus_type'):
                 bonus_name = BONUS_TYPES.get(child_genes['bonus_type'], {}).get('name', 'Бонус')
                 text += f"• Бонус: +{child_genes['bonus_value']}% {bonus_name}\n"
-            
+
             text += f"• Шанс мутації: {child_genes.get('mutation_chance', 0.05) * 100:.1f}%\n"
 
         text += f"""
-**Команди:**
-/renamechild {child_id} <нове ім'я> - перейменувати
-/sacrificechild {child_id} - жертва (монети + XP)"""
+*Команди:*
+/renamechild {child_id} <нове ім'я> \\- перейменувати
+/sacrificechild {child_id} \\- жертва \\(монети \\+ XP\\)"""
 
-        bot.reply_to(message, text, parse_mode="Markdown")
+        bot.reply_to(message, text, parse_mode="MarkdownV2")
 
     except ValueError:
         bot.reply_to(message, "❌ Невірний ID дитини!")
