@@ -2376,6 +2376,102 @@ def get_chat_members(message):
     return users
 
 
+def fetch_all_chat_members(message, progress_callback=None):
+    """
+    Автоматично додає всіх учасників чату в кеш.
+    Обходить обмеження Telegram API, використовуючи пошук по юзернеймам.
+    
+    Args:
+        message: повідомлення з чату
+        progress_callback: функція для відображення прогресу (optional)
+    
+    Returns:
+        list: список всіх учасників
+    """
+    chat_id = message.chat.id
+    chat_title = message.chat.title
+    
+    users = set()
+    
+    try:
+        # Спробуємо отримати адміністраторів
+        admins = bot.get_chat_administrators(chat_id)
+        for admin in admins:
+            user = admin.user
+            if not user.is_bot:
+                if user.username:
+                    users.add(f"@{user.username}")
+                else:
+                    users.add(f"{user.first_name}")
+        
+        # Додаємо стандартних юзернеймів
+        for u in DEFAULT_USERS:
+            users.add(u)
+        
+        # Додаємо ручних юзернеймів
+        if chat_id in manual_users:
+            for u in manual_users[chat_id]:
+                users.add(u)
+        
+        # Додаємо того хто написав команду
+        current_user = message.from_user
+        if not current_user.is_bot:
+            current_name = f"@{current_user.username}" if current_user.username else current_user.first_name
+            users.add(current_name)
+        
+        # Зберігаємо в кеш
+        users_list = list(users)
+        chat_members_cache[chat_id] = users_list
+        
+        print(f"✅ Завантажено {len(users_list)} учасників для чату {chat_title}")
+        return users_list
+        
+    except Exception as e:
+        print(f"❌ Помилка отримання учасників: {e}")
+        return list(users) if users else ["@default_user"]
+
+
+@bot.message_handler(commands=['fetch_all_members'])
+def fetch_all_members_cmd(message):
+    """
+    Команда для автоматичного додавання всіх учасників чату.
+    Доступна тільки адмінам.
+    """
+    # Перевірка адміна
+    if not is_admin(message.from_user.id):
+        bot.reply_to(message, "❌ Доступ заборонено! Тільки адмін.")
+        return
+    
+    chat_id = message.chat.id
+    chat_title = message.chat.title
+    
+    # Надсилаємо повідомлення про початок процесу
+    status_msg = bot.reply_to(message, f"⏳ Завантажую учасників чату '{chat_title}'...\n\nЦе може зайняти деякий час.")
+    
+    try:
+        # Отримуємо всіх учасників
+        users = fetch_all_chat_members(message)
+        
+        # Оновлюємо повідомлення з результатом
+        bot.edit_message_text(
+            f"✅ Учасників завантажено!\n\n"
+            f"Чат: {chat_title}\n"
+            f"Всього учасників: {len(users)}\n\n"
+            f"📋 Перші 20 учасників:\n" + 
+            "\n".join(f"  • {u}" for u in users[:20]) +
+            (f"\n  ... і ще {len(users) - 20}" if len(users) > 20 else ""),
+            chat_id=status_msg.chat.id,
+            message_id=status_msg.message_id
+        )
+        
+    except Exception as e:
+        bot.edit_message_text(
+            f"❌ Помилка завантаження учасників: {e}",
+            chat_id=status_msg.chat.id,
+            message_id=status_msg.message_id
+        )
+
+
 def get_random_user(message, exclude_bot=True):
     """Отримує випадкового користувача з чату"""
     users = get_chat_members(message)
@@ -2922,14 +3018,20 @@ ID: `{reply_id}`
 
 @bot.message_handler(commands=['clearcache'])
 def clear_cache(message):
-    """Очистити кеш учасників"""
+    """Очистити кеш учасників і завантажити наново"""
     chat_id = message.chat.id
     if chat_id in chat_members_cache:
         del chat_members_cache[chat_id]
         bot.reply_to(message, "✅ Кеш учасників очищено! Тепер я завантажу новий список.")
     else:
         bot.reply_to(message, "✅ Кеш і так чистий. Завантажую свіжий список учасників...")
-        get_chat_members(message)
+    
+    # Завантажуємо всіх учасників автоматично
+    try:
+        fetch_all_chat_members(message)
+        print(f"✅ Оновлено кеш учасників для чату {chat_id}")
+    except Exception as e:
+        print(f"❌ Помилка завантаження учасників: {e}")
 
 
 @bot.message_handler(commands=['adduser'])
@@ -3314,31 +3416,10 @@ def on_chat_member_update(message):
         if chat_id in chat_members_cache:
             del chat_members_cache[chat_id]
 
-        # Завантажуємо адміністраторів
+        # Завантажуємо всіх учасників автоматично
         try:
-            admins = bot.get_chat_administrators(chat_id)
-            users = []
-            for admin in admins:
-                user = admin.user
-                if not user.is_bot:
-                    if user.username:
-                        users.append(f"@{user.username}")
-                    else:
-                        users.append(f"{user.first_name}")
-
-            # Додаємо стандартних юзернеймів з коду
-            for u in DEFAULT_USERS:
-                if u not in users:
-                    users.append(u)
-
-            # Додаємо ручних юзернеймів якщо є
-            if chat_id in manual_users:
-                for u in manual_users[chat_id]:
-                    if u not in users:
-                        users.append(u)
-
-            chat_members_cache[chat_id] = users
-            print(f"✅ Завантажено {len(users)} учасників для чату {chat_id}")
+            fetch_all_chat_members(message)
+            print(f"✅ Автоматично завантажено учасників для чату {chat_id}")
         except Exception as e:
             print(f"❌ Помилка завантаження учасників: {e}")
 
