@@ -32,7 +32,7 @@ from db import (
     promote_guild_member, demote_guild_member,
     get_all_skins, get_skin, get_skin_by_name, get_user_skins, get_user_equipped_skin, get_user_inventory,
     buy_skin, equip_skin, has_skin, get_skin_bonus,
-    get_active_boss, spawn_boss, attack_boss, get_boss_participants, get_user_boss_stats, get_last_boss_attack_time, save_boss_attack_time, get_last_boss, get_boss_defeat_time,
+    get_active_boss, spawn_boss, attack_boss, get_boss_participants, get_user_boss_stats, get_last_boss_attack_time, save_boss_attack_time, get_last_boss, get_boss_defeat_time, get_random_boss_variety,
     get_active_events, get_all_events, get_user_event_progress, update_event_progress, claim_event_reward, cleanup_duplicate_events,
     rename_child, get_child, get_top_children, sacrifice_child, marry_children,
     get_crypto_balance, convert_game_to_crypto, get_conversion_info, CONVERSION_RATE, MIN_CONVERT, MAX_DAILY_WITHDRAW,
@@ -9528,7 +9528,13 @@ def boss_cmd(message):
                     
                     logger.info(f"🐲 Спавн нового боса: рівень {new_boss_level}, HP {new_boss_health}, шкода {new_boss_damage}")
                     
-                    new_boss_id = spawn_boss(f"🐲 {boss['name']} #{new_boss_level}", new_boss_level, new_boss_health, new_boss_damage, 500, 250)
+                    # Отримуємо випадкову назву боса з варіативності
+                    boss_variety_name, _ = get_random_boss_variety(new_boss_level)
+                    full_boss_name = f"🐲 {boss_variety_name}"
+
+                    logger.info(f"🐲 Спавн нового боса: рівень {new_boss_level}, HP {new_boss_health}, школа {new_boss_damage}, назва: {full_boss_name}")
+
+                    new_boss_id = spawn_boss(full_boss_name, new_boss_level, new_boss_health, new_boss_damage, 500, 250)
                     
                     if new_boss_id:
                         logger.info(f"✅ Новий бос створений: ID {new_boss_id}")

@@ -3621,6 +3621,48 @@ def get_last_boss():
         cursor.close()
         conn.close()
 
+# ============================================
+# БОСИ - РІЗНОВИДИ
+# ============================================
+
+BOSS_VARIETIES = [
+    # Егоша
+    ("Синок Егоши", 1),
+    ("Егоша", 2),
+    # Фіталь
+    ("Синок Фіталя", 1),
+    ("Фіталь", 2),
+    # Кліктор
+    ("Синок Кліктора", 1),
+    ("Кліктор", 2),
+    # Пастор
+    ("Синок Пастора", 1),
+    ("Пастор", 2),
+]
+
+def get_random_boss_variety(base_level=1):
+    """
+    Отримує випадкову назву боса з варіативності.
+    
+    Args:
+        base_level: базовий рівень боса
+    
+    Returns:
+        tuple: (назва, модифікатор_рівня)
+    """
+    import random
+    boss_name, level_mod = random.choice(BOSS_VARIETIES)
+    
+    # Додаємо рівень до назви якщо бос вже не перший
+    if base_level > 1:
+        full_name = f"{boss_name} #{base_level}"
+    else:
+        full_name = boss_name
+    
+    return full_name, level_mod
+
+# ============================================
+
 def spawn_boss(name, level, health, damage, reward_coins, reward_xp):
     """Створює нового боса"""
     conn = get_connection()
