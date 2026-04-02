@@ -22,7 +22,7 @@ from db import (
     get_shop_items, get_item, add_to_inventory, remove_from_inventory, has_item, get_item_effect,
     get_trachen_stats, get_last_trachen_time, add_trachen_record,
     get_pregnancy, create_pregnancy, claim_pregnancy,
-    get_children, add_child, get_all_pregnancies,
+    get_children, add_child, get_all_pregnancies, get_children_count,
     create_tournament, get_tournament, get_active_tournament, join_tournament,
     get_tournament_participants, update_tournament_status, eliminate_participant,
     get_user_tournament_stats,
@@ -4967,19 +4967,33 @@ def trachen_cmd(message):
     """Трахензебітен - спарювання хряків"""
     chat_id = message.chat.id
     user_id = message.from_user.id
-    
+
     try:
         # Перевіряємо чи є хряк
         hryak = get_hryak(user_id, chat_id)
         if not hryak:
             bot.reply_to(message, "❌ У тебе ще немає хряка! Введи /grow")
             return
-        
+
+        # Перевірка ліміту дітей (максимум 10)
+        children_count = get_children_count(user_id, chat_id)
+        if children_count >= 10:
+            bot.reply_to(message, f"""❌ **ДОСЯГНУТО ЛІМІТ ДІТЕЙ!**
+
+У тебе вже {children_count}/10 дітей.
+
+**Що робити:**
+• /sacrificechild - жертва дитини
+• /childmarry - одружити дітей (створення онуків)
+
+Після звільнення місця зможеш знову мати дітей!""")
+            return
+
         # Перевіряємо кулдаун
         last_trachen_time = get_last_trachen_time(user_id, chat_id)
         now = int(time.time())
         time_since_last = now - last_trachen_time
-        
+
         if last_trachen_time > 0 and time_since_last < TRACHEN_COOLDOWN:
             hours_left = int((TRACHEN_COOLDOWN - time_since_last) / 3600)
             minutes_left = int(((TRACHEN_COOLDOWN - time_since_last) % 3600) / 60)
@@ -5096,6 +5110,20 @@ def breed_cmd(message):
         father_hryak = get_hryak(user_id, chat_id)
         if not father_hryak:
             bot.reply_to(message, "❌ У тебе ще немає хряка! Введи /grow")
+            return
+
+        # Перевірка ліміту дітей (максимум 10)
+        children_count = get_children_count(user_id, chat_id)
+        if children_count >= 10:
+            bot.reply_to(message, f"""❌ **ДОСЯГНУТО ЛІМІТ ДІТЕЙ!**
+
+У тебе вже {children_count}/10 дітей.
+
+**Що робити:**
+• /sacrificechild - жертва дитини
+• /childmarry - одружити дітей (створення онуків)
+
+Після звільнення місця зможеш знову мати дітей!""")
             return
 
         # Перевіряємо кулдаун (24 години)
@@ -5765,12 +5793,13 @@ def children_cmd(message):
 
     try:
         children_list = get_children(user_id, chat_id)
+        children_count = get_children_count(user_id, chat_id)
 
         if not children_list:
-            bot.reply_to(message, "👶 У тебе ще немає дітей!\n\nЗаведи дітей через /trachen або /breed")
+            bot.reply_to(message, f"👶 У тебе ще немає дітей!\n\nЗаведи дітей через /trachen або /breed\n\n📊 Ліміт: {children_count}/10")
             return
 
-        text = "👶 **Твої діти:**\n\n"
+        text = f"👶 **Твої діти:** ({children_count}/10)\n\n"
 
         for i, child in enumerate(children_list, 1):
             born_date = time.strftime('%d.%m.%Y', time.localtime(child['born_at']))

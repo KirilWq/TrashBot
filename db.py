@@ -2404,13 +2404,25 @@ def get_children(user_id, chat_id):
         conn.close()
 
 def add_child(user_id, chat_id, father_user_id, mother_user_id, name, weight, inherited_trait='', co_owner_id=None):
-    """Додає дитину"""
+    """Додає дитину (з обмеженням 10 дітей на гравця)"""
     conn = get_connection()
     if not conn:
         return False
 
     cursor = conn.cursor()
     try:
+        # Перевірка кількості дітей у гравця (максимум 10)
+        cursor.execute('''
+            SELECT COUNT(*) FROM children
+            WHERE user_id = %s AND chat_id = %s
+        ''', (user_id, chat_id))
+        
+        current_children = cursor.fetchone()[0]
+        
+        if current_children >= 10:
+            logger.warning(f"⚠️ Гравець {user_id} досяг ліміту дітей (10)")
+            return {'error': 'limit', 'current': current_children, 'max': 10}
+        
         cursor.execute('''
             INSERT INTO children (user_id, chat_id, father_user_id, mother_user_id, name, weight, inherited_trait, born_at, co_owner_id)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
@@ -2421,6 +2433,29 @@ def add_child(user_id, chat_id, father_user_id, mother_user_id, name, weight, in
         logger.error(f"❌ Помилка додавання дитини: {e}")
         conn.rollback()
         return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_children_count(user_id, chat_id):
+    """Отримує кількість дітей гравця"""
+    conn = get_connection()
+    if not conn:
+        return 0
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT COUNT(*) FROM children
+            WHERE user_id = %s AND chat_id = %s
+        ''', (user_id, chat_id))
+        
+        count = cursor.fetchone()[0]
+        return int(count)
+    except Exception as e:
+        logger.error(f"❌ Помилка підрахунку дітей: {e}")
+        return 0
     finally:
         cursor.close()
         conn.close()
