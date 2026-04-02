@@ -325,6 +325,34 @@ def init_db():
         ''')
         logger.info("✅ Таблиця children створена")
         
+        # Таблиця активних рейдів дітей
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS child_raids (
+                id SERIAL PRIMARY KEY,
+                child_id BIGINT,
+                user_id BIGINT,
+                chat_id BIGINT,
+                raid_type TEXT,
+                reward INTEGER,
+                start_time BIGINT,
+                end_time BIGINT,
+                claimed BOOLEAN DEFAULT FALSE
+            )
+        ''')
+        logger.info("✅ Таблиця child_raids створена")
+        
+        # Таблиця витривалості дітей (спільна для всіх дітей користувача)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS child_stamina (
+                user_id BIGINT,
+                chat_id BIGINT,
+                stamina_level INTEGER DEFAULT 1,
+                last_raid_time BIGINT DEFAULT 0,
+                PRIMARY KEY (user_id, chat_id)
+            )
+        ''')
+        logger.info("✅ Таблиця child_stamina створена")
+        
         # Додаємо co_owner_id якщо колонка відсутня (для існуючих баз)
         try:
             cursor.execute('ALTER TABLE children ADD COLUMN IF NOT EXISTS co_owner_id BIGINT DEFAULT NULL')
@@ -4284,7 +4312,7 @@ def send_child_on_raid(child_id, user_id, chat_id, raid_type='coins'):
     """
     Відправляє дитину в рейд за ресурсами
     raid_type: 'coins', 'xp', 'items'
-    Повертає: {'success': bool, 'reward': int, 'time': int}
+    Повертає: {'success': bool, 'reward': int, 'time': int, 'raid_id': int}
     """
     import random
     conn = get_connection()
@@ -4295,7 +4323,7 @@ def send_child_on_raid(child_id, user_id, chat_id, raid_type='coins'):
     try:
         # Отримуємо дитину (доступно власнику або співвласнику)
         cursor.execute('''
-            SELECT * FROM children 
+            SELECT * FROM children
             WHERE id = %s AND (user_id = %s OR co_owner_id = %s) AND chat_id = %s
         ''', (child_id, user_id, user_id, chat_id))
         child = cursor.fetchone()
@@ -4304,23 +4332,251 @@ def send_child_on_raid(child_id, user_id, chat_id, raid_type='coins'):
             return None
 
         weight = int(child[6]) if child[6] else 0
+        
+        # Отримуємо витривалість
+        stamina = get_child_stamina(user_id, chat_id)
+        stamina_level = stamina['stamina_level']
+        
+        # Перевірка кулдауну (4 години)
+        now = int(time.time())
+        last_raid = stamina['last_raid_time']
+        cooldown = 14400  # 4 години
+        
+        if last_raid > 0 and (now - last_raid) < cooldown:
+            return {'error': 'cooldown', 'cooldown_left': cooldown - (now - last_raid)}
 
-        # Розрахунок нагороди
-        base_reward = weight * 5
+        # Розрахунок нагороди (ЗМЕНШЕНО в 10 разів)
+        base_reward = weight  # Було: weight * 5
         reward = random.randint(int(base_reward * 0.8), int(base_reward * 1.2))
 
-        # Час рейду в секундах (залежить від ваги)
-        raid_time = max(300, 3600 - (weight * 10))  # 5 хв - 1 год
+        # Час рейду: залежить від витривалості (5 хв за рівень, макс 2 години)
+        max_raid_time = min(120, stamina_level * 5) * 60  # в секундах
+        raid_time = max_raid_time  # Використовуємо максимальний доступний час
+        
+        end_time = now + raid_time
+        
+        # Зберігаємо рейд в БД
+        cursor.execute('''
+            INSERT INTO child_raids (child_id, user_id, chat_id, raid_type, reward, start_time, end_time)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        ''', (child_id, user_id, chat_id, raid_type, reward, now, end_time))
+        
+        raid_id = cursor.fetchone()[0]
+        
+        # Оновлюємо час останнього рейду
+        update_child_raid_time(user_id, chat_id, now)
+        
+        conn.commit()
 
         return {
             'success': True,
             'reward': reward,
             'raid_time': raid_time,
-            'raid_type': raid_type
+            'raid_type': raid_type,
+            'raid_id': raid_id,
+            'end_time': end_time,
+            'max_raid_time': max_raid_time,
+            'stamina_level': stamina_level
         }
     except Exception as e:
         logger.error(f"❌ Помилка рейду дитини: {e}")
+        conn.rollback()
         return None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_active_child_raid(child_id, chat_id):
+    """Отримує активний рейд дитини"""
+    conn = get_connection()
+    if not conn:
+        return None
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT * FROM child_raids
+            WHERE child_id = %s AND chat_id = %s AND claimed = FALSE
+            ORDER BY end_time DESC
+            LIMIT 1
+        ''', (child_id, chat_id))
+        
+        row = cursor.fetchone()
+        if not row:
+            return None
+        
+        return {
+            'id': int(row[0]),
+            'child_id': int(row[1]),
+            'user_id': int(row[2]),
+            'chat_id': int(row[3]),
+            'raid_type': row[4],
+            'reward': int(row[5]),
+            'start_time': int(row[6]),
+            'end_time': int(row[7]),
+            'claimed': bool(row[8])
+        }
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання рейду: {e}")
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def claim_child_raid(raid_id, user_id, chat_id):
+    """
+    Отримує нагороду за рейд
+    Повертає: {'success': bool, 'reward': int, 'raid_type': str}
+    """
+    conn = get_connection()
+    if not conn:
+        return None
+
+    cursor = conn.cursor()
+    try:
+        now = int(time.time())
+        
+        # Отримуємо рейд
+        cursor.execute('''
+            SELECT * FROM child_raids
+            WHERE id = %s AND user_id = %s AND chat_id = %s AND claimed = FALSE
+        ''', (raid_id, user_id, chat_id))
+        
+        raid = cursor.fetchone()
+        if not raid:
+            return None
+        
+        end_time = int(raid[7])
+        
+        # Перевіряємо чи рейд завершився
+        if now < end_time:
+            return {'error': ' Рейд ще не завершився', 'end_time': end_time}
+        
+        # Позначаємо як отриманий
+        cursor.execute('''
+            UPDATE child_raids SET claimed = TRUE WHERE id = %s
+        ''', (raid_id,))
+        
+        conn.commit()
+        
+        return {
+            'success': True,
+            'reward': int(raid[5]),
+            'raid_type': raid[4],
+            'child_id': int(raid[1])
+        }
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання нагороди: {e}")
+        conn.rollback()
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_child_stamina(user_id, chat_id):
+    """Отримує витривалість користувача"""
+    conn = get_connection()
+    if not conn:
+        return {'stamina_level': 1, 'last_raid_time': 0}
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT stamina_level, last_raid_time FROM child_stamina
+            WHERE user_id = %s AND chat_id = %s
+        ''', (user_id, chat_id))
+        
+        row = cursor.fetchone()
+        if not row:
+            # Створюємо новий запис
+            cursor.execute('''
+                INSERT INTO child_stamina (user_id, chat_id, stamina_level, last_raid_time)
+                VALUES (%s, %s, 1, 0)
+            ''', (user_id, chat_id))
+            conn.commit()
+            return {'stamina_level': 1, 'last_raid_time': 0}
+        
+        return {
+            'stamina_level': int(row[0]),
+            'last_raid_time': int(row[1])
+        }
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання витривалості: {e}")
+        return {'stamina_level': 1, 'last_raid_time': 0}
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def upgrade_child_stamina(user_id, chat_id):
+    """
+    Покращує рівень витривалості
+    Повертає: {'success': bool, 'new_level': int, 'cost': int}
+    """
+    conn = get_connection()
+    if not conn:
+        return None
+
+    cursor = conn.cursor()
+    try:
+        stamina = get_child_stamina(user_id, chat_id)
+        current_level = stamina['stamina_level']
+        
+        # Формула вартості: 100 × 2^(рівень-1)
+        upgrade_cost = int(100 * (2 ** (current_level - 1)))
+        
+        # Оновлюємо рівень
+        cursor.execute('''
+            INSERT INTO child_stamina (user_id, chat_id, stamina_level, last_raid_time)
+            VALUES (%s, %s, %s, 0)
+            ON CONFLICT (user_id, chat_id) DO UPDATE SET
+                stamina_level = child_stamina.stamina_level + 1
+            RETURNING stamina_level
+        ''', (user_id, chat_id, current_level + 1))
+        
+        new_level = cursor.fetchone()[0]
+        conn.commit()
+        
+        return {
+            'success': True,
+            'new_level': new_level,
+            'cost': upgrade_cost,
+            'max_raid_time': min(120, new_level * 5)  # 5 хв за рівень, макс 2 години
+        }
+    except Exception as e:
+        logger.error(f"❌ Помилка покращення витривалості: {e}")
+        conn.rollback()
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def update_child_raid_time(user_id, chat_id, timestamp):
+    """Оновлює час останнього рейду"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            INSERT INTO child_stamina (user_id, chat_id, stamina_level, last_raid_time)
+            VALUES (%s, %s, 1, %s)
+            ON CONFLICT (user_id, chat_id) DO UPDATE SET
+                last_raid_time = %s
+        ''', (user_id, chat_id, timestamp, timestamp))
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка оновлення часу рейду: {e}")
+        conn.rollback()
+        return False
     finally:
         cursor.close()
         conn.close()

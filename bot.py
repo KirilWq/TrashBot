@@ -40,7 +40,7 @@ from db import (
     create_trade, accept_trade, cancel_trade, get_pending_trades,
     get_user_quiz_progress, record_quiz_answer, get_quiz_stats,
     get_hryak_genes, create_hryak_genes, breed_hryaks, get_genetic_compatibility,
-    get_children_bonuses, train_child, send_child_on_raid, get_child_power,
+    get_children_bonuses, train_child, send_child_on_raid, get_child_power, get_active_child_raid, claim_child_raid, get_child_stamina, upgrade_child_stamina,
     # Guild wars functions
     create_territory, get_all_territories, get_territory, capture_territory, collect_territory_income,
     donate_to_chest, get_guild_chest, withdraw_from_chest,
@@ -5484,6 +5484,17 @@ def child_raid_cmd(message):
             bot.reply_to(message, "❌ Ця дитина не знайдена!")
             return
 
+        # Перевіряємо чи є активний рейд
+        active_raid = get_active_child_raid(child_id, chat_id)
+        if active_raid:
+            end_time = active_raid['end_time']
+            now = int(time.time())
+            if now < end_time:
+                time_left = end_time - now
+                minutes_left = int(time_left / 60)
+                bot.reply_to(message, f"⏰ **Дитина вже в рейді!**\n\nЗалишилося: {minutes_left} хв.\n\nОтримати нагороду: /childclaim {active_raid['id']}")
+                return
+
         # Відправляємо в рейд
         result = send_child_on_raid(child_id, user_id, chat_id, raid_type)
 
@@ -5493,25 +5504,161 @@ def child_raid_cmd(message):
 
         raid_time_minutes = int(result['raid_time'] / 60)
         reward_type = {'coins': '💰 монет', 'xp': '⭐ XP', 'items': '🎁 предметів'}.get(raid_type, '💰 монет')
+        
+        # Застосовуємо бонус від дітей
+        bonuses = get_children_bonuses(user_id, chat_id)
+        bonus_mult = 1 + (bonuses.get('total_bonus', 0) / 100)
+        final_reward = int(result['reward'] * bonus_mult)
 
         text = f"""🗡️ **РЕЙД ВІДПРАВЛЕНО!**
 
 Дитина: {child['name']}
 Тип рейду: {raid_type.upper()}
-Очікувана нагорода: {result['reward']} {reward_type}
+Очікувана нагорода: {final_reward} {reward_type}
+(Бонус: +{bonuses.get('total_bonus', 0):.1f}%)
 Час рейду: {raid_time_minutes} хв.
 
-**По завершенню рейду:**
-Нагорода буде автоматично додана!
-Через {raid_time_minutes} хв. введи /childclaim {child_id}"""
+**ID рейду:** `{result['raid_id']}`
+**По завершенню:**
+Введи /childclaim {result['raid_id']} щоб отримати нагороду!"""
 
-        # TODO: Додати таймер для claim
         bot.reply_to(message, text, parse_mode="Markdown")
 
     except ValueError:
         bot.reply_to(message, "❌ Невірний ID дитини!")
     except Exception as e:
         logger.error(f"❌ Помилка /childraid: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['childclaim'])
+def child_claim_cmd(message):
+    """Отримати нагороду за рейд"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        parts = message.text.split()
+
+        if len(parts) < 2:
+            bot.reply_to(message, """❌ **Використання:** /childclaim <ID рейду>
+
+**Перевірити активні рейди:**
+/children - показує всіх дітей
+Якщо дитина в рейді, буде індикатор
+
+**Приклад:** `/childclaim 123`""")
+            return
+
+        raid_id = int(parts[1])
+
+        # Отримуємо нагороду
+        result = claim_child_raid(raid_id, user_id, chat_id)
+
+        if not result:
+            bot.reply_to(message, "❌ Рейд не знайдено або ви не маєте прав!")
+            return
+
+        if result.get('error'):
+            if 'ще не завершився' in result['error']:
+                end_time = result.get('end_time', 0)
+                now = int(time.time())
+                time_left = end_time - now
+                minutes_left = int(time_left / 60)
+                bot.reply_to(message, f"⏰ **Рейд ще не завершився!**\n\nЗалишилося: {minutes_left} хв.\n\nСпробуйте пізніше.")
+                return
+            bot.reply_to(message, f"❌ Помилка: {result['error']}")
+            return
+
+        # Отримуємо нагороду
+        reward = result['reward']
+        raid_type = result['raid_type']
+        child_id = result['child_id']
+
+        # Застосовуємо бонус від дітей
+        bonuses = get_children_bonuses(user_id, chat_id)
+        bonus_mult = 1 + (bonuses.get('total_bonus', 0) / 100)
+        final_reward = int(reward * bonus_mult)
+
+        # Видаємо нагороду
+        if raid_type == 'coins':
+            add_coins(user_id, chat_id, final_reward)
+            reward_text = f"💰 {final_reward} монет"
+        elif raid_type == 'xp':
+            add_xp(user_id, chat_id, final_reward)
+            reward_text = f"⭐ {final_reward} XP"
+        elif raid_type == 'items':
+            # TODO: Реалізувати предмети
+            add_coins(user_id, chat_id, final_reward)
+            reward_text = f"💰 {final_reward} монет (предмети незабаром)"
+
+        # Отримуємо дитину
+        children = get_children(user_id, chat_id)
+        child = next((c for c in children if c['id'] == child_id), None)
+        child_name = child['name'] if child else f"ID {child_id}"
+
+        bot.reply_to(message, f"""✅ **РЕЙД ЗАВЕРШЕНО!**
+
+Дитина: {child_name}
+Нагорода: {reward_text}
+Бонус: +{bonuses.get('total_bonus', 0):.1f}%
+
+Дитина тепер може знову відправитись в рейд!
+/childraid {child_id}""")
+
+    except ValueError:
+        bot.reply_to(message, "❌ Невірний ID рейду!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /childclaim: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['childstamina_upgrade'])
+def child_stamina_upgrade_cmd(message):
+    """Покращити витривалість дітей"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        # Отримуємо поточну витривалість
+        stamina = get_child_stamina(user_id, chat_id)
+        current_level = stamina['stamina_level']
+        
+        # Розрахунок вартості
+        upgrade_cost = int(100 * (2 ** (current_level - 1)))
+        new_max_time = min(120, (current_level + 1) * 5)
+        
+        # Перевірка балансу
+        currency = get_user_currency(user_id, chat_id)
+        if currency['coins'] < upgrade_cost:
+            bot.reply_to(message, f"""❌ **Недостатньо монет!**
+
+Вартість покращення: {upgrade_cost} монет
+У вас: {currency['coins']} монет
+
+Заробіть більше монет в рейдах!""")
+            return
+        
+        # Списуємо монети
+        update_user_currency(user_id, chat_id, coins=currency['coins'] - upgrade_cost)
+        
+        # Покращуємо витривалість
+        result = upgrade_child_stamina(user_id, chat_id)
+        
+        if not result:
+            bot.reply_to(message, "❌ Помилка покращення!")
+            return
+        
+        bot.reply_to(message, f"""✅ **ВИТРИВАЛІСТЬ ПОКРАЩЕНО!**
+
+Рівень: {current_level} → {result['new_level']}
+Макс. час рейду: {min(120, current_level * 5)} → {new_max_time} хв
+Вартість: {upgrade_cost} монет
+
+Наступне покращення: {int(100 * (2 ** (result['new_level'] - 1)))} монет""")
+
+    except Exception as e:
+        logger.error(f"❌ Помилка /childstamina_upgrade: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
 
 
@@ -5641,7 +5788,19 @@ def children_cmd(message):
             elif child.get('user_id') != user_id:
                 ownership = " 👥 Ви співвласник"
 
-            text += f"{i}. `{child['id']}` - **{child['name']}** {rarity_emoji}{ownership}\n"
+            # Перевіряємо чи дитина в рейді
+            raid_status = ""
+            active_raid = get_active_child_raid(child['id'], chat_id)
+            if active_raid and not active_raid.get('claimed', True):
+                now = int(time.time())
+                if now < active_raid['end_time']:
+                    time_left = active_raid['end_time'] - now
+                    minutes_left = int(time_left / 60)
+                    raid_status = f" 🗡️ В рейді ({minutes_left} хв)"
+                else:
+                    raid_status = f" ✅ Готовий до claim! (/childclaim {active_raid['id']})"
+
+            text += f"{i}. `{child['id']}` - **{child['name']}** {rarity_emoji}{ownership}{raid_status}\n"
             text += f"   ⚖️ Вага: {child['weight']} кг\n"
             text += f"   🎂 Народжений: {born_date}\n"
             text += f"   🧬 Особливість: {child['inherited_trait'] or 'Немає'}\n\n"
@@ -5652,7 +5811,9 @@ def children_cmd(message):
         text += "/sacrificechild <ID> - жертва\n"
         text += "/childmarry <ID1> <ID2> - одружити\n"
         text += "/childtrain <ID> - тренувати\n"
-        text += "/childraid <ID> - рейд\n"
+        text += "/childraid <ID> [тип] - рейд\n"
+        text += "/childclaim <ID рейду> - отримати нагороду\n"
+        text += "/childstamina_upgrade - покращити витривалість\n"
         text += "/genes - гени твого хряка\n\n"
         text += "**Приклад:** `/childinfo 123`"
 
