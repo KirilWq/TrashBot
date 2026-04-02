@@ -5226,13 +5226,17 @@ def breed_cmd(message):
         rarity_emoji = GENE_RARITIES.get(child['gene_rarity'], {}).get('color', '⚪')
         color_emoji = COLOR_TYPES.get(child['color_type'], {}).get('emoji', '🐷')
 
+        # Екрануємо ім'я дитини та особливість
+        child_name_safe = child['name'].replace('_', '\\_').replace('*', '\\*').replace('`', '\\`')
+        inherited_trait_safe = (child.get('inherited_trait') or '').replace('_', '\\_').replace('*', '\\*').replace('`', '\\`')
+
         text = f"""🎉 **ПОТОМСТВО СТВОРЕНО!**
 
 👨 Батько: {father_hryak['name']} (ID: {user_id})
 👩 Мати: {mother_hryak['name']} (ID: {partner_id})
 
 👶 **Дитина:**
-{color_emoji} Ім'я: {child['name']}
+{color_emoji} Ім'я: {child_name_safe}
 ⚖️ Вага: {child['weight']} кг
 {rarity_emoji} Рідкість: {GENE_RARITIES[child['gene_rarity']]['name']}
 
@@ -5240,8 +5244,8 @@ def breed_cmd(message):
 
         if child['has_mutation']:
             text += "\n🔴 **МУТАЦІЯ!** Унікальна здібність!"
-        elif child['inherited_trait']:
-            text += f"\n✨ {child['inherited_trait']}"
+        elif child.get('inherited_trait'):
+            text += f"\n✨ {inherited_trait_safe}"
         else:
             text += "\n⚪ Без особливих ознак"
 
@@ -5454,9 +5458,12 @@ def child_train_cmd(message):
             cursor.close()
             conn.close()
 
+        # Екрануємо ім'я дитини
+        child_name_safe = child['name'].replace('_', '\\_').replace('*', '\\*').replace('`', '\\`')
+
         bot.reply_to(message, f"""💪 **ТРЕНУВАННЯ ВІДБУЛОСЯ!**
 
-Дитина: {child['name']}
+Дитина: {child_name_safe}
 Вага: {child['weight']} → {new_weight} кг (+5)
 
 💰 Витрачено: 50 монет""")
@@ -5585,9 +5592,12 @@ def child_raid_cmd(message):
         bonus_mult = 1 + (bonuses.get('total_bonus', 0) / 100)
         final_reward = int(result['reward'] * bonus_mult)
 
+        # Екрануємо ім'я дитини
+        child_name_safe = child['name'].replace('_', '\\_').replace('*', '\\*').replace('`', '\\`')
+
         text = f"""🗡️ **РЕЙД ВІДПРАВЛЕНО!**
 
-Дитина: {child['name']}
+Дитина: {child_name_safe}
 Тип рейду: {raid_type.upper()}
 Очікувана нагорода: {final_reward} {reward_type}
 (Бонус: +{bonuses.get('total_bonus', 0):.1f}%)
@@ -5670,7 +5680,7 @@ def child_claim_cmd(message):
         # Отримуємо дитину
         children = get_children(user_id, chat_id)
         child = next((c for c in children if c['id'] == child_id), None)
-        child_name = child['name'] if child else f"ID {child_id}"
+        child_name = child['name'].replace('_', '\\_').replace('*', '\\*').replace('`', '\\`') if child else f"ID {child_id}"
 
         bot.reply_to(message, f"""✅ **РЕЙД ЗАВЕРШЕНО!**
 
@@ -5797,9 +5807,12 @@ def child_duel_cmd(message):
             weight_gain = int(opponent_child['weight'] * 0.5)
             coins_reward = 100
             xp_reward = 50
+            # Екрануємо імена дітей
+            my_child_name = my_child['name'].replace('_', '\\_').replace('*', '\\*').replace('`', '\\`')
+            opponent_child_name = opponent_child['name'].replace('_', '\\_').replace('*', '\\*').replace('`', '\\`')
             text = f"""🏆 **ПЕРЕМОГА!**
 
-Твоя дитина **{my_child['name']}** перемогла!
+Твоя дитина **{my_child_name}** перемогла!
 ⚖️ +{weight_gain} кг до ваги
 💰 +{coins_reward} монет
 ⭐ +{xp_reward} XP"""
@@ -5818,9 +5831,12 @@ def child_duel_cmd(message):
             add_xp(user_id, chat_id, xp_reward)
 
         else:
+            # Екрануємо імена дітей
+            my_child_name = my_child['name'].replace('_', '\\_').replace('*', '\\*').replace('`', '\\`')
+            opponent_child_name = opponent_child['name'].replace('_', '\\_').replace('*', '\\*').replace('`', '\\`')
             text = f"""💀 **ПОРАЗКА!**
 
-Твоя дитина **{my_child['name']}** програла дитині **{opponent_child['name']}**.
+Твоя дитина **{my_child_name}** програла дитині **{opponent_child_name}**.
 Наступного разу пощастить!"""
 
         bot.reply_to(message, text, parse_mode="Markdown")
@@ -5876,10 +5892,14 @@ def children_cmd(message):
                 else:
                     raid_status = f" ✅ Готовий до claim! (/childclaim {active_raid['id']})"
 
-            text += f"{i}. `{child['id']}` - **{child['name']}** {rarity_emoji}{ownership}{raid_status}\n"
+            # Екрануємо спеціальні символи в тексті
+            child_name = child['name'].replace('_', '\\_').replace('*', '\\*').replace('`', '\\`')
+            inherited_trait = (child['inherited_trait'] or 'Немає').replace('_', '\\_').replace('*', '\\*').replace('`', '\\`')
+
+            text += f"{i}. `{child['id']}` - **{child_name}** {rarity_emoji}{ownership}{raid_status}\n"
             text += f"   ⚖️ Вага: {child['weight']} кг\n"
             text += f"   🎂 Народжений: {born_date}\n"
-            text += f"   🧬 Особливість: {child['inherited_trait'] or 'Немає'}\n\n"
+            text += f"   🧬 Особливість: {inherited_trait}\n\n"
 
         text += f"\n**Команди:**\n"
         text += "/childinfo <ID> - інформація\n"
@@ -5936,11 +5956,15 @@ def child_info_cmd(message):
             rarity_emoji = GENE_RARITIES.get(child_genes.get('gene_rarity', 'C'), {}).get('color', '⚪')
             color_emoji = COLOR_TYPES.get(child_genes.get('color_type', 'normal'), {}).get('emoji', '🐷')
 
+        # Екрануємо спеціальні символи
+        child_name = child['name'].replace('_', '\\_').replace('*', '\\*').replace('`', '\\`')
+        inherited_trait = (child['inherited_trait'] or 'Немає').replace('_', '\\_').replace('*', '\\*').replace('`', '\\`')
+
         text = f"""👶 **ІНФОРМАЦІЯ ПРО ДИТИНУ** {rarity_emoji}
 
-{color_emoji} **Ім'я:** {child['name']}
+{color_emoji} **Ім'я:** {child_name}
 ⚖️ **Вага:** {child['weight']} кг
-🧬 **Особливість:** {child['inherited_trait'] or 'Немає'}
+🧬 **Особливість:** {inherited_trait}
 
 **Батьки:**
 👨 Батько: ID {child['father_user_id']}
@@ -6079,10 +6103,13 @@ def sacrifice_child_cmd(message):
         if result:
             add_coins(user_id, chat_id, result['coins'])
             add_xp(user_id, chat_id, result['xp'])
-            
+
+            # Екрануємо ім'я дитини
+            child_name_safe = child['name'].replace('_', '\\_').replace('*', '\\*').replace('`', '\\`')
+
             bot.reply_to(message, f"""🔥 **ЖЕРТВА ПРИЙНЯТА!**
 
-Дитина **{child['name']}** пожертвована!
+Дитина **{child_name_safe}** пожертвована!
 
 💰 Отримано: +{result['coins']} монет
 ⭐ Отримано: +{result['xp']} XP
@@ -6216,19 +6243,21 @@ def claim_children_cmd(message):
         
         father_hryak = get_hryak(pregnancy['father_user_id'], chat_id)
         father_name = father_hryak['name'] if father_hryak else "Невідомий"
-        
+
         children_names = []
         for i in range(pregnancy['children_count']):
             # Генеруємо ім'я дитини
             child_name = f"{hryak['name'][:3]}-{father_name[:3]}-{i+1}"
+            # Екрануємо спеціальні символи
+            child_name = child_name.replace('_', '\\_').replace('*', '\\*').replace('`', '\\`')
             # Вага дитини (середнє між батьками + рандом)
             father_weight = father_hryak['weight'] if father_hryak else 10
             child_weight = max(1, int((hryak['weight'] + father_weight) / 2) + random.randint(-5, 5))
-            
+
             # Спадкова ознака
             traits = ['Швидкий', 'Сильний', 'Розумний', 'Хитрий', 'Великий', 'Малий']
             inherited_trait = random.choice(traits) if random.random() < 0.3 else ''
-            
+
             # Додаємо дитину
             add_child(
                 user_id, chat_id,
