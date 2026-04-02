@@ -1,0 +1,161 @@
+start - Start working with the bot
+help - Help and all commands
+menu - Main menu
+members - Chat members
+userinfo - User info
+id - Show user ID
+top - Top players
+grow - Get your pig
+feed - Feed your pig
+my - My pig
+name - Rename pig
+hryaketop - Pig top in chat
+globaltop - Global pig top
+achievements - Achievements
+duel - Pig duel
+duelteambattle - Team duel
+balance - Coin balance
+daily - Daily bonus
+shop - Item shop
+buy - Buy item
+inventory - Your inventory
+use - Use item
+roulette - Roulette game
+lottery - Lottery
+casino_create - Create casino
+casino - Casino info
+casino_play - Play casino
+casino_deposit - Deposit to casino
+casino_withdraw - Withdraw from casino
+casino_limits - Casino limits
+casino_stats - Casino statistics
+trade - Create trade
+trades - Active trades
+accept - Accept trade
+cancel - Cancel trade
+quiz - Start quiz
+quizstats - Quiz statistics
+mystats - My statistics
+stats - Chat statistics
+leaderboard - Leaderboard
+activity - Activity
+trachen - Pig breeding
+breed - Breeding with genetics
+genes - Pig genes
+children - My children
+childinfo - Child info
+childbonus - Children bonuses
+childtrain - Train child
+childraid - Child raid
+childduel - Child duel
+renamechild - Rename child
+childtop - Children top
+sacrificechild - Sacrifice child
+childmarry - Marry children
+pregnancies - Pregnancies
+claimchildren - Claim children
+tournament - Tournaments
+createguild - Create guild
+guild - Guild info
+guildjoin - Join guild
+guildleave - Leave guild
+guildtop - Guild top
+contribute - Contribute to guild
+promote - Promote member
+demote - Demote officer
+transferguild - Transfer guild
+deleteguild - Delete guild
+guild_territories - Territory map
+guild_capture - Capture territory
+guild_income - Collect income
+guild_attack - Attack territory
+guild_defend - Defend territory
+guild_defense_info - Defense info
+guild_war_declare - Declare war
+guild_war_join - Join war
+guild_war_battle - War battle
+guild_war_status - War status
+guild_boss_spawn - Spawn boss
+guild_boss_attack - Attack boss
+guild_boss_info - Boss info
+guild_warriors - Guild warriors
+guild_buy_warrior - Buy warrior
+guild_chest - Guild chest
+guild_items - Guild items
+guild_donate - Donate item
+guild_withdraw - Withdraw item
+guild_claim_item - Claim item
+guild_withdraw_coins - Withdraw coins
+item_trade - Item trade
+item_trades - Item trades
+item_accept - Accept trade
+item_cancel - Cancel trade
+skintrade - Skin trade
+skintrades - Skin trades
+skinaccept - Accept skin trade
+skincancel - Cancel skin trade
+skins - Skins
+buyskin - Buy skin
+equipskin - Equip skin
+boss - Boss duel
+events - Events
+eventsclaim - Claim reward
+eventjoin - Join event
+eventprogress - Event progress
+pidor - Who is pidor
+roast - Roast player
+insult - Insult player
+hardinsult - Hard insult
+slap - Slap player
+fortune - Fortune telling
+whosgay - Who is gay
+rate - Rate player
+fact - Random fact
+choose - Choose random
+такні - Yes/No game
+random - Random user
+kickme - Leave chat
+mute - Mute user
+unmute - Unmute user
+provin - Punish user
+unprovin - Forgive user
+provinlist - Punishment list
+ban - Ban user
+unban - Unban user
+warn - Warn user
+warnings - User warnings
+clearwarns - Clear warnings
+del - Delete message
+pin - Pin message
+unpin - Unpin message
+spam - Check spam
+test_admin - Test admin access
+admin_weight - Set pig weight
+admin_addweight - Add weight
+admin_addcoins - Add coins
+admin_addxp - Add XP
+admin_additem - Add item
+admin_stats - Admin stats
+admin_help - Admin help
+admin_removecoins - Remove coins
+admin_removexp - Remove XP
+admin_removeweight - Remove weight
+admin_removeitem - Remove item
+admin_clearinventory - Clear inventory
+admin_addskin - Add skin
+admin_removeskin - Remove skin
+admin_addguildcoins - Add guild coins
+admin_removeguildcoins - Remove guild coins
+admin_addguildxp - Add guild XP
+guild_menu - Guild menu
+warriors_menu - Warriors menu
+items_menu - Items menu
+genetics_menu - Genetics menu
+trade_menu - Trade menu
+clearcache - Clear cache
+adduser - Add username
+removeuser - Remove username
+dbstatus - Database status
+resetdb - Reset database
+cleanevents - Clean events
+webapp - Web app

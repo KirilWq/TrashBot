@@ -57,6 +57,7 @@ from db import (
     # Private casinos
     create_casino, get_casino, get_user_casino, deposit_to_casino, withdraw_from_casino,
     set_casino_limits, play_casino_game, get_casino_stats,
+    get_all_casinos_in_chat, get_casino_by_id,
     ITEM_RARITIES, ITEM_TYPES,
     GENE_RARITIES, BONUS_TYPES, COLOR_TYPES, TERRITORY_TYPES
 )
@@ -8535,22 +8536,76 @@ def casino_play_cmd(message):
     user_id = message.from_user.id
 
     try:
-        parts = message.text.split()
+        parts = message.text.split(maxsplit=2)
 
         if len(parts) < 2:
-            bot.reply_to(message, "❌ Використання: /casino_play <сума>")
+            bot.reply_to(message, """🎰 **КАЗИНО**
+
+Використання: /casino_play <сума> [ID казино]
+
+**Доступні казино в чаті:**""")
+            # Показуємо доступні казино
+            casinos = get_all_casinos_in_chat(chat_id)
+            if casinos:
+                text = ""
+                for casino in casinos:
+                    owner_name = f"ID {casino['owner_user_id']}"
+                    text += f"\n🏦 **{casino['name']}** (ID: {casino['id']})"
+                    text += f"\n  Власник: {owner_name}"
+                    text += f"\n  Баланс: {casino['casino_coins']} монет"
+                    text += f"\n  Мін/Макс: {casino['min_bet']}-{casino['max_bet']} монет"
+                    text += f"\n  Шанс виграшу: {int(casino['win_chance'] * 100)}%"
+                text += "\n\n**Приклад:** `/casino_play 100 5` - грати 100 монет в казино ID 5"
+                bot.reply_to(message, text, parse_mode="Markdown")
+            else:
+                bot.reply_to(message, "❌ В цьому чаті ще немає казино!\nСтвори своє: /casino_create")
             return
 
-        bet_amount = int(parts[1])
+        # Парсимо ставку та опціонально ID казино
+        try:
+            bet_amount = int(parts[1])
+        except ValueError:
+            bot.reply_to(message, "❌ Ставка має бути числом!")
+            return
 
         if bet_amount <= 0:
             bot.reply_to(message, "❌ Ставка має бути додатною!")
             return
 
-        casino = get_user_casino(user_id, chat_id)
+        # Визначаємо в якому казино грати
+        casino = None
+        if len(parts) > 2:
+            # Гравець вказав ID казино
+            try:
+                casino_id = int(parts[2])
+                casino = get_casino_by_id(casino_id)
+                if not casino or casino['chat_id'] != chat_id:
+                    bot.reply_to(message, f"❌ Казино з ID {casino_id} не знайдено в цьому чаті!")
+                    return
+            except ValueError:
+                bot.reply_to(message, "❌ Невірний ID казино!")
+                return
+        else:
+            # Гравець не вказав ID - шукаємо його власне казино
+            casino = get_user_casino(user_id, chat_id)
+            if not casino:
+                # Якщо немає власного казино, пропонуємо вибрати з доступних
+                casinos = get_all_casinos_in_chat(chat_id)
+                if not casinos:
+                    bot.reply_to(message, "❌ У тебе немає казино і в чаті немає інших казино!\nСтвори: /casino_create")
+                    return
+                else:
+                    # Автоматично обираємо казино з найбільшим балансом
+                    casino = casinos[0]
+                    bot.reply_to(message, f"ℹ️ У тебе немає казино. Граєш в казино '{casino['name']}' (найбільший джекпот)")
 
-        if not casino:
-            bot.reply_to(message, "❌ У тебе немає казино! Створи: /casino_create")
+        # Перевірка обмежень казино
+        if bet_amount < casino['min_bet']:
+            bot.reply_to(message, f"❌ Мінімальна ставка: {casino['min_bet']} монет")
+            return
+
+        if bet_amount > casino['max_bet']:
+            bot.reply_to(message, f"❌ Максимальна ставка: {casino['max_bet']} монет")
             return
 
         # Перевірка балансу гравця
@@ -8559,11 +8614,15 @@ def casino_play_cmd(message):
             bot.reply_to(message, "❌ Недостатньо монет!")
             return
 
+        # Отримуємо бонус удачі від скіну (впливає на шанс виграшу)
+        luck_bonus = get_skin_bonus(user_id, chat_id, 'luck_bonus')
+        all_bonus = get_skin_bonus(user_id, chat_id, 'all_bonus')
+        total_luck = luck_bonus + all_bonus
+
         # Граємо
-        logger.info(f"🎰 Casino play: user={user_id}, casino_id={casino['id']}, bet={bet_amount}")
-        logger.info(f"🎰 Casino data: {casino}")
-        
-        result = play_casino_game(casino['id'], user_id, bet_amount)
+        logger.info(f"🎰 Casino play: user={user_id}, casino_id={casino['id']}, bet={bet_amount}, luck_bonus={total_luck}%")
+
+        result = play_casino_game(casino['id'], user_id, bet_amount, total_luck)
         logger.info(f"🎰 Casino result: {result}")
 
         if not result:
@@ -8572,7 +8631,7 @@ def casino_play_cmd(message):
             return
 
         if result.get('result') == 'Недостатньо монет в казино':
-            bot.reply_to(message, "❌ В казино недостатньо монет для виплати!")
+            bot.reply_to(message, "❌ В казино недостатньо монет для виплати!\nПоповни казино: /casino_deposit")
             return
 
         # Оновлюємо баланс гравця
@@ -8582,18 +8641,35 @@ def casino_play_cmd(message):
 
             text = f"""🎰 ГРА В КАЗИНО
 
+🏦 Казино: {casino['name']}
 Ставка: {bet_amount} монет
 {result['result']}
-💰 Виграш: +{result['amount']} монет!"""
+💰 Виграш: +{result['amount']} монет!
+🍀 Бонус удачі: +{total_luck}%"""
+
+            # Власник казино отримує прибуток (якщо гравець програв - казино забирає)
+            # Але тут гравець виграв, тому казино виплачує
+            owner_id = casino['owner_user_id']
+            if owner_id != user_id:  # Якщо гравець не власник
+                # Власник нічого не отримує, гравець виграв з казино
+                pass
         else:
             new_coins = currency['coins'] - bet_amount
             update_user_currency(user_id, chat_id, coins=new_coins)
 
             text = f"""🎰 ГРА В КАЗИНО
 
+🏦 Казино: {casino['name']}
 Ставка: {bet_amount} монет
 {result['result']}
-💸 Програш: -{bet_amount} монет"""
+💸 Програш: -{bet_amount} монет
+🍀 Бонус удачі: +{total_luck}%"""
+
+            # Якщо гравець програв і він не власник - власник отримує прибуток
+            owner_id = casino['owner_user_id']
+            if owner_id != user_id:
+                # Казино вже отримало монети в play_casino_game
+                pass
 
         bot.reply_to(message, text)
 

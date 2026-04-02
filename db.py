@@ -3500,22 +3500,42 @@ def has_skin(user_id, chat_id, skin_id):
         conn.close()
 
 def get_skin_bonus(user_id, chat_id, bonus_type):
-    """Отримує бонус від скіну"""
+    """
+    Отримує бонус від скіну
+    Враховує як прямі бонуси, так і all_bonus
+    """
     conn = get_connection()
     if not conn:
         return 0
 
     cursor = conn.cursor()
     try:
+        # Спочатку шукаємо прямий бонус
         cursor.execute('''
             SELECT s.bonus_value FROM user_skins us
             JOIN skins s ON us.skin_id = s.id
-            WHERE us.user_id = %s AND us.chat_id = %s 
-            AND us.equipped = TRUE 
-            AND (s.bonus_type = %s OR s.bonus_type = 'all_bonus')
+            WHERE us.user_id = %s AND us.chat_id = %s
+            AND us.equipped = TRUE
+            AND s.bonus_type = %s
         ''', (user_id, chat_id, bonus_type))
         row = cursor.fetchone()
-        return int(row[0]) if row else 0
+        direct_bonus = int(row[0]) if row else 0
+
+        # Тепер шукаємо all_bonus (універсальний бонус)
+        cursor.execute('''
+            SELECT s.bonus_value FROM user_skins us
+            JOIN skins s ON us.skin_id = s.id
+            WHERE us.user_id = %s AND us.chat_id = %s
+            AND us.equipped = TRUE
+            AND s.bonus_type = 'all_bonus'
+        ''', (user_id, chat_id))
+        row = cursor.fetchone()
+        all_bonus = int(row[0]) if row else 0
+
+        # Повертаємо суму бонусів
+        total_bonus = direct_bonus + all_bonus
+        logger.debug(f"🎨 Skin bonus for {user_id}/{chat_id} [{bonus_type}]: direct={direct_bonus}%, all={all_bonus}%, total={total_bonus}%")
+        return total_bonus
     except Exception as e:
         logger.error(f"❌ Помилка отримання бонусу скіну: {e}")
         return 0
@@ -6509,10 +6529,82 @@ def get_user_casino(user_id, chat_id):
             ORDER BY id DESC LIMIT 1
         ''', (user_id, chat_id))
         row = cursor.fetchone()
-        
+
         if not row:
             return None
-        
+
+        return {
+            'id': int(row[0]),
+            'owner_user_id': int(row[1]),
+            'chat_id': int(row[2]),
+            'name': row[3],
+            'casino_coins': int(row[4]) if row[4] else 0,
+            'min_bet': int(row[5]) if row[5] else 10,
+            'max_bet': int(row[6]) if row[6] else 1000,
+            'win_chance': float(row[7]) if row[7] else 0.3,
+            'created_at': int(row[8]) if row[8] else 0,
+            'is_active': bool(row[9])
+        }
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання казино: {e}")
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_all_casinos_in_chat(chat_id):
+    """Отримує всі казино в чаті"""
+    conn = get_connection()
+    if not conn:
+        return []
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT * FROM private_casinos
+            WHERE chat_id = %s AND is_active = TRUE
+            ORDER BY casino_coins DESC
+        ''', (chat_id,))
+        rows = cursor.fetchall()
+
+        casinos = []
+        for row in rows:
+            casinos.append({
+                'id': int(row[0]),
+                'owner_user_id': int(row[1]),
+                'chat_id': int(row[2]),
+                'name': row[3],
+                'casino_coins': int(row[4]) if row[4] else 0,
+                'min_bet': int(row[5]) if row[5] else 10,
+                'max_bet': int(row[6]) if row[6] else 1000,
+                'win_chance': float(row[7]) if row[7] else 0.3,
+                'created_at': int(row[8]) if row[8] else 0,
+                'is_active': bool(row[9])
+            })
+        return casinos
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання казино: {e}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_casino_by_id(casino_id):
+    """Отримує казино за ID"""
+    conn = get_connection()
+    if not conn:
+        return None
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('SELECT * FROM private_casinos WHERE id = %s', (casino_id,))
+        row = cursor.fetchone()
+
+        if not row:
+            return None
+
         return {
             'id': int(row[0]),
             'owner_user_id': int(row[1]),
@@ -6628,15 +6720,16 @@ def set_casino_limits(casino_id, min_bet=None, max_bet=None, win_chance=None):
         conn.close()
 
 
-def play_casino_game(casino_id, player_user_id, bet_amount):
+def play_casino_game(casino_id, player_user_id, bet_amount, luck_bonus=0):
     """
     Гра в казино
     Повертає: {'win': bool, 'amount': int, 'result': str, 'actual_chance': float}
-    
+
     МЕХАНІКА:
     - Власник казино отримує прибуток завдяки математиці
     - Гравці бачать чесні результати
     - Шанс виграшу трохи нижчий за заявлений (це нормально для казино)
+    - Бонус удачі збільшує шанс виграшу
     """
     conn = get_connection()
     if not conn:
@@ -6649,23 +6742,30 @@ def play_casino_game(casino_id, player_user_id, bet_amount):
             SELECT win_chance, casino_coins FROM private_casinos WHERE id = %s
         ''', (casino_id,))
         row = cursor.fetchone()
-        
+
         if not row:
             return None
-        
+
         win_chance = float(row[0]) if row[0] else 0.3
         casino_coins = int(row[1]) if row[1] else 0
-        
+
         # Перевірка чи вистачає монет в казино
         if casino_coins < bet_amount * 2:
             return {'win': False, 'amount': 0, 'result': 'Недостатньо монет в казино', 'actual_chance': win_chance}
-        
+
         # Визначаємо результат
         # Реальний шанс = заявлений шанс * 0.85 (15% перевага казино)
         # Це стандартна практика для всіх казино світу
-        actual_win_chance = win_chance * 0.85
-        is_win = random.random() < actual_win_chance
+        base_win_chance = win_chance * 0.85
         
+        # Додаємо бонус удачі (кожен % удачі = 0.5% реального шансу)
+        luck_bonus_effect = luck_bonus * 0.5
+        actual_win_chance = min(0.9, base_win_chance + (luck_bonus_effect / 100))
+        
+        logger.info(f"🎰 Casino game: base_chance={base_win_chance:.2%}, luck_bonus={luck_bonus}%, luck_effect={luck_bonus_effect:.2%}, final_chance={actual_win_chance:.2%}")
+        
+        is_win = random.random() < actual_win_chance
+
         # Генеруємо результат гри
         if is_win:
             win_amount = bet_amount * 2
@@ -6681,7 +6781,7 @@ def play_casino_game(casino_id, player_user_id, bet_amount):
                 result = f"Випало {result_num} - МАЙЖЕ! Спробуй ще!"
             else:
                 result = f"Випало {result_num} - ПРОГРАШ"
-        
+
         # Оновлюємо баланс казино
         if is_win:
             cursor.execute('''
@@ -6691,16 +6791,16 @@ def play_casino_game(casino_id, player_user_id, bet_amount):
             cursor.execute('''
                 UPDATE private_casinos SET casino_coins = casino_coins + %s WHERE id = %s
             ''', (bet_amount, casino_id))
-        
+
         # Записуємо гру в історію
         now = int(time.time())
         cursor.execute('''
             INSERT INTO casino_games (casino_id, player_user_id, bet_amount, win_amount, is_win, game_result, played_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
         ''', (casino_id, player_user_id, bet_amount, win_amount, is_win, result, now))
-        
+
         conn.commit()
-        
+
         return {
             'win': is_win,
             'amount': win_amount,
