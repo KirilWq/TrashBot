@@ -174,6 +174,9 @@ DEFAULT_USERS = [
 # Кеш учасників чату
 chat_members_cache = {}
 
+# Кеш user_id для учасників чату {chat_id: {username: user_id}}
+chat_member_ids = {}
+
 # Ручний список юзернеймів для кожного чату (можна додавати командами)
 manual_users = {}
 
@@ -2379,7 +2382,7 @@ def get_chat_members(message):
 def fetch_all_chat_members(message, progress_callback=None):
     """
     Автоматично додає всіх учасників чату в кеш.
-    Обходить обмеження Telegram API, використовуючи пошук по юзернеймам.
+    Отримує адміністраторів та зберігає їхні user_id.
     
     Args:
         message: повідомлення з чату
@@ -2392,17 +2395,21 @@ def fetch_all_chat_members(message, progress_callback=None):
     chat_title = message.chat.title
     
     users = set()
+    user_ids = {}  # Додатково зберігаємо user_id для адміністраторів
     
     try:
-        # Спробуємо отримати адміністраторів
+        # Отримуємо адміністраторів - це єдині кого можемо отримати через API
         admins = bot.get_chat_administrators(chat_id)
         for admin in admins:
             user = admin.user
             if not user.is_bot:
                 if user.username:
-                    users.add(f"@{user.username}")
+                    username = f"@{user.username}"
+                    users.add(username)
+                    user_ids[username.lower()] = user.id  # Зберігаємо user_id
                 else:
-                    users.add(f"{user.first_name}")
+                    username = f"{user.first_name}"
+                    users.add(username)
         
         # Додаємо стандартних юзернеймів
         for u in DEFAULT_USERS:
@@ -2418,12 +2425,20 @@ def fetch_all_chat_members(message, progress_callback=None):
         if not current_user.is_bot:
             current_name = f"@{current_user.username}" if current_user.username else current_user.first_name
             users.add(current_name)
+            if current_user.username:
+                user_ids[f"@{current_user.username}".lower()] = current_user.id
         
         # Зберігаємо в кеш
         users_list = list(users)
         chat_members_cache[chat_id] = users_list
         
+        # Зберігаємо user_id в окремий кеш для швидкого доступу
+        if chat_id not in chat_member_ids:
+            chat_member_ids[chat_id] = {}
+        chat_member_ids[chat_id].update(user_ids)
+        
         print(f"✅ Завантажено {len(users_list)} учасників для чату {chat_title}")
+        print(f"   Збережено {len(user_ids)} user_id: {list(user_ids.items())[:5]}...")
         return users_list
         
     except Exception as e:
@@ -3022,16 +3037,56 @@ def clear_cache(message):
     chat_id = message.chat.id
     if chat_id in chat_members_cache:
         del chat_members_cache[chat_id]
+        if chat_id in chat_member_ids:
+            del chat_member_ids[chat_id]
         bot.reply_to(message, "✅ Кеш учасників очищено! Тепер я завантажу новий список.")
     else:
         bot.reply_to(message, "✅ Кеш і так чистий. Завантажую свіжий список учасників...")
-    
+
     # Завантажуємо всіх учасників автоматично
     try:
         fetch_all_chat_members(message)
         print(f"✅ Оновлено кеш учасників для чату {chat_id}")
     except Exception as e:
         print(f"❌ Помилка завантаження учасників: {e}")
+
+
+@bot.message_handler(commands=['debug_cache'])
+def debug_cache_cmd(message):
+    """Показати вміст кешу для діагностики (адмін)"""
+    if not is_admin(message.from_user.id):
+        bot.reply_to(message, "❌ Доступ заборонено! Тільки адмін.")
+        return
+    
+    chat_id = message.chat.id
+    
+    text = f"🔍 **Кеш для чату {chat_id}**:\n\n"
+    
+    # Показуємо chat_members_cache
+    if chat_id in chat_members_cache:
+        members = chat_members_cache[chat_id]
+        text += f"👥 Учасники ({len(members)}):\n"
+        for m in members[:10]:
+            text += f"  • {m}\n"
+        if len(members) > 10:
+            text += f"  ... і ще {len(members) - 10}\n"
+    else:
+        text += "❌ Учасники не завантажені\n"
+    
+    text += "\n"
+    
+    # Показуємо chat_member_ids
+    if chat_id in chat_member_ids:
+        ids = chat_member_ids[chat_id]
+        text += f"🆔 User IDs ({len(ids)}):\n"
+        for username, uid in list(ids.items())[:10]:
+            text += f"  • {username}: `{uid}`\n"
+        if len(ids) > 10:
+            text += f"  ... і ще {len(ids) - 10}\n"
+    else:
+        text += "❌ User IDs не збережені\n"
+    
+    bot.reply_to(message, text, parse_mode="Markdown")
 
 
 @bot.message_handler(commands=['adduser'])
@@ -4180,6 +4235,13 @@ def trade_cmd(message):
             bot.reply_to(message, f"❌ Недостатньо монет! У тебе: {currency['coins']}")
             return
 
+        # DEBUG: Логуємо пошук користувача
+        print(f"🔍 Пошук користувача {receiver_username} в чаті {chat_id}")
+        print(f"   chat_members_cache: {chat_id in chat_members_cache}")
+        print(f"   chat_member_ids: {chat_id in chat_member_ids}")
+        if chat_id in chat_member_ids:
+            print(f"   Доступні user_id: {list(chat_member_ids[chat_id].keys())}")
+
         # Знаходимо отримувача по username в статистиці
         receiver_id = None
 
@@ -4189,7 +4251,13 @@ def trade_cmd(message):
                 receiver_id = data.get('user_id')
                 break
 
-        # Якщо не знайшли, шукаємо в chat_members_cache
+        # Якщо не знайшли в stats_data, шукаємо в chat_member_ids (зберігається при fetch_all_members)
+        if not receiver_id and chat_id in chat_member_ids:
+            receiver_id = chat_member_ids[chat_id].get(receiver_username)
+            if receiver_id:
+                print(f"✅ Знайдено користувача {receiver_username} в chat_member_ids, ID: {receiver_id}")
+
+        # Якщо не знайшли, шукаємо в chat_members_cache і тоді в stats_data
         if not receiver_id and chat_id in chat_members_cache:
             for member in chat_members_cache[chat_id]:
                 member_username = f"{member}".lower()
@@ -4202,16 +4270,23 @@ def trade_cmd(message):
                     if receiver_id:
                         break
 
-        # Якщо все ще не знайшли, пробуємо отримати через Telegram API
+        # Якщо все ще не знайшли, пробуємо знайти серед адміністраторів (тільки для них працює)
         if not receiver_id:
             try:
-                # Шукаємо учасника чату через API
-                chat_member = bot.get_chat_member(chat_id, receiver_username)
-                if chat_member and chat_member.user:
-                    receiver_id = chat_member.user.id
-                    print(f"✅ Знайдено користувача {receiver_username} через API, ID: {receiver_id}")
+                admins = bot.get_chat_administrators(chat_id)
+                for admin in admins:
+                    user = admin.user
+                    admin_username = f"@{user.username}".lower() if user.username else None
+                    if admin_username == receiver_username:
+                        receiver_id = user.id
+                        print(f"✅ Знайдено адміна {receiver_username} через API, ID: {receiver_id}")
+                        # Зберігаємо в кеш для майбутнього
+                        if chat_id not in chat_member_ids:
+                            chat_member_ids[chat_id] = {}
+                        chat_member_ids[chat_id][receiver_username] = receiver_id
+                        break
             except Exception as e:
-                print(f"⚠️ Не вдалося знайти користувача {receiver_username} через API: {e}")
+                print(f"⚠️ Не вдалося знайти користувача {receiver_username} серед адміністраторів: {e}")
 
         # Якщо все ще не знайшли, шукаємо в manual_users
         if not receiver_id:
