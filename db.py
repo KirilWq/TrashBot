@@ -871,6 +871,8 @@ def init_db():
             ('wild', '🐗 Дикий кабан', 'Міцний як дуб', 100, 'rare', 'weight_bonus', 5, '🐗'),
             ('golden', '✨ Золотий', 'Багатий хряк', 500, 'epic', 'luck_bonus', 10, '✨'),
             ('rainbow', '🌈 Веселка', 'Яскравий як мрія', 1000, 'legendary', 'xp_bonus', 15, '🌈'),
+            ('merchant', '💰 Купець', 'Майстер торгівлі', 750, 'epic', 'coin_bonus', 10, '💰'),
+            ('tycoon', '🏦 Магнат', 'Король бізнесу', 1500, 'legendary', 'coin_bonus', 20, '🏦'),
             ('cyber', '🤖 Кіберхряк', 'Майбутнє вже тут', 2000, 'legendary', 'all_bonus', 20, '🤖'),
             ('royal', '👑 Королівський', 'Для обраних', 5000, 'mythic', 'all_bonus', 30, '👑')
         ]
@@ -1247,11 +1249,26 @@ def update_user_currency(user_id, chat_id, coins=None, xp=None, level=None):
         cursor.close()
         conn.close()
 
-def add_coins(user_id, chat_id, amount):
-    """Додає монети"""
+def add_coins(user_id, chat_id, amount, apply_skin_bonus=True):
+    """Додає монети з урахуванням бонусів від скінів"""
+    coin_bonus = 0
+    all_bonus = 0
+    if apply_skin_bonus:
+        coin_bonus = get_skin_bonus(user_id, chat_id, 'coin_bonus')
+        all_bonus = get_skin_bonus(user_id, chat_id, 'all_bonus')
+    
+    # Розраховуємо загальний бонус
+    total_bonus = coin_bonus + all_bonus
+    final_amount = amount
+    
+    if total_bonus > 0:
+        bonus_coins = int(amount * total_bonus / 100)
+        final_amount = amount + bonus_coins
+        logger.debug(f"🎨 Coin bonus: coin={coin_bonus}% + all={all_bonus}% = +{bonus_coins} монет")
+    
     current = get_user_currency(user_id, chat_id)
     if current:
-        update_user_currency(user_id, chat_id, coins=current['coins'] + amount)
+        update_user_currency(user_id, chat_id, coins=current['coins'] + final_amount)
 
 def add_xp(user_id, chat_id, amount, apply_skin_bonus=True):
     """Додає XP з урахуванням бонусів від скінів"""

@@ -398,33 +398,48 @@ def create_duel(chat_id, challenger_id, challenger_hryak):
     save_duels()
     return duel_id
 
-def calculate_duel_result(hryak1, hryak2):
-    """Розраховує результат дуелі"""
+def calculate_duel_result(hryak1, hryak2, user1_id=None, user2_id=None, chat_id=None):
+    """Розраховує результат дуелі з урахуванням бонусів скінів"""
     # Масса впливає на силу (60%)
     mass_factor1 = hryak1['weight'] * 0.6
     mass_factor2 = hryak2['weight'] * 0.6
-    
+
     # Проворність - рандом + досвід (40%)
     agility1 = random.randint(1, 20) + (hryak1['feed_count'] * 0.1)
     agility2 = random.randint(1, 20) + (hryak2['feed_count'] * 0.1)
-    
+
     power1 = mass_factor1 + agility1
     power2 = mass_factor2 + agility2
+
+    # Отримуємо бонуси удачі від скінів (впливають на шанс крита)
+    luck1 = 0
+    luck2 = 0
+    if user1_id and chat_id:
+        luck1 = get_skin_bonus(user1_id, chat_id, 'luck_bonus')
+        all1 = get_skin_bonus(user1_id, chat_id, 'all_bonus')
+        luck1 = luck1 + all1
+    if user2_id and chat_id:
+        luck2 = get_skin_bonus(user2_id, chat_id, 'luck_bonus')
+        all2 = get_skin_bonus(user2_id, chat_id, 'all_bonus')
+        luck2 = luck2 + all2
+
+    # Критичний удар (10% + бонус удачі, кожен % удачі = +0.5% крита)
+    crit_chance1 = 0.1 + (luck1 * 0.5 / 100)
+    crit_chance2 = 0.1 + (luck2 * 0.5 / 100)
     
-    # Критичний удар (10% шанс)
-    crit1 = random.random() < 0.1
-    crit2 = random.random() < 0.1
-    
+    crit1 = random.random() < crit_chance1
+    crit2 = random.random() < crit_chance2
+
     if crit1:
         power1 *= 2
     if crit2:
         power2 *= 2
-    
+
     # Нокаут (5% шанс для слабшого)
     knockout = False
     if random.random() < 0.05:
         knockout = True
-    
+
     return {
         'power1': power1,
         'power2': power2,
@@ -592,24 +607,28 @@ def feed_hryak(user_id, chat_id):
 
     logger.info(f"💾 Оновлено last_feed={now} для {key}")
 
-    # Зміна ваги (від -20 до +20 кг)
-    change = random.randint(-20, 20)
+    # Зміна ваги (від -10 до +30 кг) - зміщено вгору для кращих шансів
+    change = random.randint(-10, 30)
 
     # Отримуємо бонуси від скіну
     skin_weight_bonus = get_skin_bonus(user_id, chat_id, 'weight_bonus')
     skin_all_bonus = get_skin_bonus(user_id, chat_id, 'all_bonus')
     total_bonus = skin_weight_bonus + skin_all_bonus
-    
-    if total_bonus > 0 and change > 0:
-        # Додаємо бонус тільки до позитивної зміни ваги
-        bonus = int(change * total_bonus / 100)
-        change += bonus
-        logger.info(f"🎨 Скін бонус: weight={skin_weight_bonus}% + all={skin_all_bonus}% = +{bonus} кг, итого change={change}")
+
+    # Бонус застосовується до ВСІХ змін ваги (і позитивних, і негативних)
+    if total_bonus > 0:
+        bonus = int(abs(change) * total_bonus / 100)
+        if change > 0:
+            change += bonus  # Підсилюємо набір ваги
+        else:
+            change -= bonus  # Зменшуємо втрату (робимо менш негативним)
+            change = max(-20, change)  # Максимальна втрата -20 кг
+        logger.info(f"🎨 Скін бонус: weight={skin_weight_bonus}% + all={skin_all_bonus}% = {change:+d} кг")
 
     # Баф для @terchizz - кращі шанси на набір ваги
     if user_id == 1044325356:  # terchizz user ID
-        # Збільшуємо шанс на позитивну зміну: від -10 до +30 замість -20 до +20
-        change = random.randint(-10, 30)
+        # Додатковий баф: від -5 до +35 замість -10 до +30
+        change = random.randint(-5, 35)
         logger.info(f"🎁 @terchizz баф активовано: change={change}")
 
     old_weight = hryak['weight']
@@ -1280,8 +1299,14 @@ def duel_accept_callback(call):
         bot.answer_callback_query(call.id, "❌ Хряк викликача зник!", show_alert=True)
         return
 
-    # Розраховуємо результат
-    result = calculate_duel_result(challenger_hryak, opponent_hryak)
+    # Розраховуємо результат з урахуванням бонусів скінів
+    result = calculate_duel_result(
+        challenger_hryak, 
+        opponent_hryak,
+        user1_id=challenger_id,
+        user2_id=opponent_id,
+        chat_id=chat_id
+    )
 
     # Визначаємо переможця
     if result['knockout']:
@@ -1870,13 +1895,24 @@ def team_battle_start_callback(call):
         team2_weight = sum(p['hryak']['weight'] for p in duel['team2'])
         team1_agility = sum(p['hryak'].get('feed_count', 0) for p in duel['team1']) / len(duel['team1'])
         team2_agility = sum(p['hryak'].get('feed_count', 0) for p in duel['team2']) / len(duel['team2'])
-        
+
         team1_power = team1_weight * 0.6 + team1_agility * 0.4 + random.randint(0, 50)
         team2_power = team2_weight * 0.6 + team2_agility * 0.4 + random.randint(0, 50)
+
+        # Бонуси удачі від скінів (середній по команді)
+        team1_luck = sum(get_skin_bonus(p['user_id'], chat_id, 'luck_bonus') + 
+                        get_skin_bonus(p['user_id'], chat_id, 'all_bonus') 
+                        for p in duel['team1']) / len(duel['team1'])
+        team2_luck = sum(get_skin_bonus(p['user_id'], chat_id, 'luck_bonus') + 
+                        get_skin_bonus(p['user_id'], chat_id, 'all_bonus') 
+                        for p in duel['team2']) / len(duel['team2'])
+
+        # Критичний удар (15% + бонус удачі, кожен % = +0.5% крита)
+        team1_crit_chance = 0.15 + (team1_luck * 0.5 / 100)
+        team2_crit_chance = 0.15 + (team2_luck * 0.5 / 100)
         
-        # Критичний удар (15% шанс)
-        team1_crit = random.random() < 0.15
-        team2_crit = random.random() < 0.15
+        team1_crit = random.random() < team1_crit_chance
+        team2_crit = random.random() < team2_crit_chance
         if team1_crit:
             team1_power *= 1.5
         if team2_crit:
@@ -3624,7 +3660,8 @@ def buy_cmd(message):
             if currency['coins'] < item['price']:
                 bot.reply_to(message, f"❌ Недостатньо монет! Потрібно {item['price']}")
                 return
-            add_coins(user_id, chat_id, -item['price'])
+            # При покупці бонуси не застосовуються
+            add_coins(user_id, chat_id, -item['price'], apply_skin_bonus=False)
         elif item['price_currency'] == 'xp':
             if currency['xp'] < item['price']:
                 bot.reply_to(message, f"❌ Недостатньо XP! Потрібно {item['price']}")
@@ -5528,6 +5565,16 @@ def child_raid_cmd(message):
 
         if not result:
             bot.reply_to(message, "❌ Помилка відправки в рейд!")
+            return
+
+        # Перевіряємо чи не повернуто помилку
+        if result.get('error') == 'cooldown':
+            cooldown_left = int(result.get('cooldown_left', 0) / 60)
+            bot.reply_to(message, f"⏰ **Зачекайте!**\n\nМинуло занадто мало часу з останнього рейду.\n\nЗалишилося: {cooldown_left} хв.")
+            return
+
+        if 'raid_time' not in result:
+            bot.reply_to(message, "❌ Помилка: рейд не вдалося створити. Перевірте витривалість дитини.")
             return
 
         raid_time_minutes = int(result['raid_time'] / 60)
@@ -9127,9 +9174,8 @@ def casino_play_cmd(message):
             return
 
         # Отримуємо бонус удачі від скіну (впливає на шанс виграшу)
-        luck_bonus = get_skin_bonus(user_id, chat_id, 'luck_bonus')
-        all_bonus = get_skin_bonus(user_id, chat_id, 'all_bonus')
-        total_luck = luck_bonus + all_bonus
+        # all_bonus вже включає в себе всі бонуси, тому не потрібно додавати luck_bonus окремо
+        total_luck = get_skin_bonus(user_id, chat_id, 'all_bonus')
 
         # Граємо
         logger.info(f"🎰 Casino play: user={user_id}, casino_id={casino['id']}, bet={bet_amount}, luck_bonus={total_luck}%")
