@@ -5861,13 +5861,15 @@ def children_cmd(message):
         children_count = get_children_count(user_id, chat_id)
 
         if not children_list:
-            bot.reply_to(message, f"👶 У тебе ще немає дітей!\n\nЗаведи дітей через /trachen або /breed\n\n📊 Ліміт: {children_count}/10")
+            bot.reply_to(message, f"👶 У тебе ще немає дітей\\!\n\nЗаведи дітей через /trachen або /breed\n\n📊 Ліміт: {children_count}/10")
             return
 
-        text = f"👶 *Твої діти:* ({children_count}/10)\n\n"
+        text = f"👶 *Твої діти:* \\({children_count}/10\\)\n\n"
 
         for i, child in enumerate(children_list, 1):
             born_date = time.strftime('%d.%m.%Y', time.localtime(child['born_at']))
+            # Екрануємо крапки в даті
+            born_date = born_date.replace('.', '\\.')
 
             # Отримуємо гени дитини
             child_genes = get_hryak_genes(child['user_id'], chat_id)
@@ -5890,9 +5892,9 @@ def children_cmd(message):
                 if now < active_raid['end_time']:
                     time_left = active_raid['end_time'] - now
                     minutes_left = int(time_left / 60)
-                    raid_status = f" 🗡️ В рейді ({minutes_left} хв)"
+                    raid_status = f" 🗡️ В рейді \\({minutes_left} хв\\)"
                 else:
-                    raid_status = f" ✅ Готовий до claim! (/childclaim {active_raid['id']})"
+                    raid_status = f" ✅ Готовий до claim! \\(/childclaim {active_raid['id']}\\)"
 
             # Екрануємо спеціальні символи в тексті
             child_name = escape_markdown(child['name'])
@@ -5909,7 +5911,7 @@ def children_cmd(message):
         text += "/sacrificechild <ID> \\- жертва\n"
         text += "/childmarry <ID1> <ID2> \\- одружити\n"
         text += "/childtrain <ID> \\- тренувати\n"
-        text += "/childraid <ID> [тип] \\- рейд\n"
+        text += "/childraid <ID> \\[тип\\] \\- рейд\n"
         text += "/childclaim <ID рейду> \\- отримати нагороду\n"
         text += "/childstamina\\_upgrade \\- покращити витривалість\n"
         text += "/genes \\- гени твого хряка\n\n"
