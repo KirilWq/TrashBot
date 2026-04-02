@@ -5861,13 +5861,15 @@ def children_cmd(message):
         children_count = get_children_count(user_id, chat_id)
 
         if not children_list:
-            bot.reply_to(message, f"👶 У тебе ще немає дітей!\n\nЗаведи дітей через /trachen або /breed\n\n📊 Ліміт: {children_count}/10")
+            bot.reply_to(message, "👶 У тебе ще немає дітей!\n\nЗаведи дітей через /trachen або /breed\n\n📊 Ліміт: {}/10".format(children_count))
             return
 
-        text = f"👶 *Твої діти:* ({children_count}/10)\n\n"
+        text = "👶 *Твої діти:* \\({}/10\\)\n\n".format(children_count)
 
         for i, child in enumerate(children_list, 1):
             born_date = time.strftime('%d.%m.%Y', time.localtime(child['born_at']))
+            # Екрануємо крапки в даті
+            born_date = born_date.replace('.', '\\.')
 
             # Отримуємо гени дитини
             child_genes = get_hryak_genes(child['user_id'], chat_id)
@@ -5890,36 +5892,36 @@ def children_cmd(message):
                 if now < active_raid['end_time']:
                     time_left = active_raid['end_time'] - now
                     minutes_left = int(time_left / 60)
-                    raid_status = f" 🗡️ В рейді ({minutes_left} хв)"
+                    raid_status = " 🗡️ В рейді \\({} хв\\)".format(minutes_left)
                 else:
-                    raid_status = f" ✅ Готовий до claim! (/childclaim {active_raid['id']})"
+                    raid_status = " ✅ Готовий до claim! \\(/childclaim {}\\)".format(active_raid['id'])
 
             # Екрануємо спеціальні символи в тексті
-            child_name = child['name'].replace('*', '\\*').replace('_', '\\_')
-            inherited_trait = (child['inherited_trait'] or 'Немає').replace('*', '\\*').replace('_', '\\_')
+            child_name = escape_markdown(child['name'])
+            inherited_trait = escape_markdown(child['inherited_trait'] or 'Немає')
 
-            text += f"{i}. `{child['id']}` - *{child_name}* {rarity_emoji}{ownership}{raid_status}\n"
-            text += f"   ⚖️ Вага: {child['weight']} кг\n"
-            text += f"   🎂 Народжений: {born_date}\n"
-            text += f"   🧬 Особливість: {inherited_trait}\n\n"
+            text += "{}\\. `{}` \\- *{}* {}{}{}\n".format(i, child['id'], child_name, rarity_emoji, ownership, raid_status)
+            text += "   ⚖️ Вага: {} кг\n".format(child['weight'])
+            text += "   🎂 Народжений: {}\n".format(born_date)
+            text += "   🧬 Особливість: {}\n\n".format(inherited_trait)
 
-        text += f"\n*Команди:*\n"
-        text += "/childinfo <ID> - інформація\n"
-        text += "/renamechild <ID> <ім'я> - перейменувати\n"
-        text += "/sacrificechild <ID> - жертва\n"
-        text += "/childmarry <ID1> <ID2> - одружити\n"
-        text += "/childtrain <ID> - тренувати\n"
-        text += "/childraid <ID> [тип] - рейд\n"
-        text += "/childclaim <ID рейду> - отримати нагороду\n"
-        text += "/childstamina_upgrade - покращити витривалість\n"
-        text += "/genes - гени твого хряка\n\n"
+        text += "\n*Команди:*\n"
+        text += "/childinfo <ID> \\- інформація\n"
+        text += "/renamechild <ID> <ім'я> \\- перейменувати\n"
+        text += "/sacrificechild <ID> \\- жертва\n"
+        text += "/childmarry <ID1> <ID2> \\- одружити\n"
+        text += "/childtrain <ID> \\- тренувати\n"
+        text += "/childraid <ID> \\[тип\\] \\- рейд\n"
+        text += "/childclaim <ID рейду> \\- отримати нагороду\n"
+        text += "/childstamina\\_upgrade \\- покращити витривалість\n"
+        text += "/genes \\- гени твого хряка\n\n"
         text += "*Приклад:* `/childinfo 123`"
 
-        bot.reply_to(message, text, parse_mode="Markdown")
+        bot.reply_to(message, text, parse_mode="MarkdownV2")
 
     except Exception as e:
         logger.error(f"❌ Помилка /children: {e}", exc_info=True)
-        bot.reply_to(message, f"❌ Помилка: {e}")
+        bot.reply_to(message, "❌ Помилка: {}".format(e))
 
 
 @bot.message_handler(commands=['childinfo'])
