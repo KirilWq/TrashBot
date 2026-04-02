@@ -4111,10 +4111,15 @@ def trade_cmd(message):
         # Якщо не знайшли, шукаємо в chat_members_cache
         if not receiver_id and chat_id in chat_members_cache:
             for member in chat_members_cache[chat_id]:
-                member_username = f"@{member.get('username', '')}".lower()
+                member_username = f"{member}".lower()
                 if member_username == receiver_username:
-                    receiver_id = member.get('user_id')
-                    break
+                    # Отримуємо user_id з stats_data по username
+                    for key, data in stats_data.items():
+                        if data.get('username', '').lower() == member_username:
+                            receiver_id = data.get('user_id')
+                            break
+                    if receiver_id:
+                        break
         
         # Якщо все ще не знайшли, шукаємо в manual_users
         if not receiver_id:

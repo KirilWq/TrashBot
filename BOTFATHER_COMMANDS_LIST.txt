@@ -112,7 +112,6 @@ whosgay - Who is gay
 rate - Rate player
 fact - Random fact
 choose - Choose random
-такні - Yes/No game
 random - Random user
 kickme - Leave chat
 mute - Mute user
@@ -129,24 +128,6 @@ del - Delete message
 pin - Pin message
 unpin - Unpin message
 spam - Check spam
-test_admin - Test admin access
-admin_weight - Set pig weight
-admin_addweight - Add weight
-admin_addcoins - Add coins
-admin_addxp - Add XP
-admin_additem - Add item
-admin_stats - Admin stats
-admin_help - Admin help
-admin_removecoins - Remove coins
-admin_removexp - Remove XP
-admin_removeweight - Remove weight
-admin_removeitem - Remove item
-admin_clearinventory - Clear inventory
-admin_addskin - Add skin
-admin_removeskin - Remove skin
-admin_addguildcoins - Add guild coins
-admin_removeguildcoins - Remove guild coins
-admin_addguildxp - Add guild XP
 guild_menu - Guild menu
 warriors_menu - Warriors menu
 items_menu - Items menu
