@@ -45,7 +45,7 @@ from db import (
     create_territory, get_all_territories, get_territory, capture_territory, collect_territory_income,
     donate_to_chest, get_guild_chest, withdraw_from_chest,
     declare_war, join_war, add_war_contribution, end_war, get_active_wars,
-    spawn_guild_boss, attack_guild_boss, get_guild_boss_participants,
+    spawn_guild_boss, attack_guild_boss, get_guild_boss_participants, get_active_guild_boss,
     # Guild warriors and items
     buy_warrior, get_guild_warriors, get_total_warrior_power, station_warriors, get_territory_defense,
     remove_warriors_from_guild, record_territory_battle,
@@ -5627,14 +5627,21 @@ def children_cmd(message):
 
         for i, child in enumerate(children_list, 1):
             born_date = time.strftime('%d.%m.%Y', time.localtime(child['born_at']))
-            
+
             # Отримуємо гени дитини
             child_genes = get_hryak_genes(child['user_id'], chat_id)
             rarity_emoji = "⚪"
             if child_genes:
                 rarity_emoji = GENE_RARITIES.get(child_genes.get('gene_rarity', 'C'), {}).get('color', '⚪')
-            
-            text += f"{i}. `{child['id']}` - **{child['name']}** {rarity_emoji}\n"
+
+            # Перевіряємо чи є співвласником
+            ownership = ""
+            if child.get('co_owner_id'):
+                ownership = " 🤝 Спільно"
+            elif child.get('user_id') != user_id:
+                ownership = " 👥 Ви співвласник"
+
+            text += f"{i}. `{child['id']}` - **{child['name']}** {rarity_emoji}{ownership}\n"
             text += f"   ⚖️ Вага: {child['weight']} кг\n"
             text += f"   🎂 Народжений: {born_date}\n"
             text += f"   🧬 Особливість: {child['inherited_trait'] or 'Немає'}\n\n"
@@ -5644,6 +5651,8 @@ def children_cmd(message):
         text += "/renamechild <ID> <ім'я> - перейменувати\n"
         text += "/sacrificechild <ID> - жертва\n"
         text += "/childmarry <ID1> <ID2> - одружити\n"
+        text += "/childtrain <ID> - тренувати\n"
+        text += "/childraid <ID> - рейд\n"
         text += "/genes - гени твого хряка\n\n"
         text += "**Приклад:** `/childinfo 123`"
 
@@ -7541,24 +7550,119 @@ def guild_boss_attack_cmd(message):
     """Атакувати боса гільдії"""
     chat_id = message.chat.id
     user_id = message.from_user.id
-    
+
     try:
         user_guild = get_user_guild(user_id, chat_id)
         if not user_guild:
             bot.reply_to(message, "❌ Ви не в гільдії!")
             return
-        
+
         # Отримуємо хряка
         hryak = get_hryak(user_id, chat_id)
-        
+
         if not hryak:
             bot.reply_to(message, "❌ У тебе немає хряка!")
             return
-        
+
         # Знаходимо активного боса гільдії
-        # (тут потрібна функція get_active_guild_boss, поки що заглушка)
-        bot.reply_to(message, f"⚔️ **АТАКА!**\n\nТвій хряк {hryak['name']} готовий до бою!\n\nШкода: {hryak['weight'] * 2}\n\n⚠️ Функція в розробці...")
-        
+        boss = get_active_guild_boss(user_guild['id'])
+
+        if not boss:
+            bot.reply_to(message, """🐲 **НЕМАЄ АКТИВНОГО БОСА**
+
+Ваша гільдія ще не має активного боса.
+
+**Спавнити боса:**
+/guild_boss_spawn <ім'я> <рівень>
+
+**Вартість:** 1000 монет""")
+            return
+
+        # Перевіряємо кулдаун (2 години між атаками)
+        last_attack = get_last_guild_boss_attack_time(user_id, boss['id'])
+        now = int(time.time())
+
+        if last_attack and (now - last_attack) < 7200:
+            hours_left = int((7200 - (now - last_attack)) / 3600)
+            minutes_left = int((7200 - (now - last_attack)) / 60) % 60
+            bot.reply_to(message, f"⏰ **КУЛДАУН**\n\nВи вже атакували цього боса!\n\nЗалишилося: {hours_left} год {minutes_left} хв")
+            return
+
+        # Розрахунок шкоди
+        damage = hryak['weight'] * 2
+
+        # Атакуємо боса
+        result = attack_guild_boss(boss['id'], user_id, user_guild['id'], damage)
+
+        if not result:
+            bot.reply_to(message, "❌ Помилка атаки!")
+            return
+
+        # Зберігаємо час атаки
+        save_guild_boss_attack_time(user_id, boss['id'], now)
+
+        if result.get('defeated'):
+            # Бос переможений - видаємо нагороди
+            participants = get_guild_boss_participants(boss['id'])
+            total_damage = sum(p['damage_dealt'] for p in participants)
+
+            # Знаходимо хто завдав останнього удару
+            top_participant = max(participants, key=lambda x: x['damage_dealt'])
+
+            text = f"""🎉 **БОСА ПЕРЕМОЖЕНО!**
+
+{boss['name']} загинув від рук героїв гільдії!
+Останній удар: {top_participant.get('username', f'ID {top_participant["user_id"]}')}
+
+🏆 **Топ гравців:**
+"""
+            sorted_participants = sorted(participants, key=lambda x: x['damage_dealt'], reverse=True)[:5]
+            for i, p in enumerate(sorted_participants, 1):
+                medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "•"
+                damage_percent = (p['damage_dealt'] / total_damage * 100) if total_damage > 0 else 0
+                text += f"{medal} {i}. {p.get('username', f'ID {p["user_id"]}')} - {damage_percent:.1f}% ({p['damage_dealt']} шкоди)\n"
+
+            # Видаємо нагороди
+            for p in participants:
+                if p['damage_dealt'] > 0:
+                    reward_share = p['damage_dealt'] / total_damage
+                    coins_reward = int(boss['reward_coins'] * reward_share)
+                    xp_reward = int(boss['reward_xp'] * reward_share)
+
+                    if coins_reward > 0:
+                        add_coins(p['user_id'], chat_id, coins_reward)
+                    if xp_reward > 0:
+                        add_xp(p['user_id'], chat_id, xp_reward)
+
+            text += f"""
+
+💰 **Нагороди розподілено!**
+Кожен отримав монети та XP за % урону.
+
+🐲 **Новий бос:**
+Спавніть нового боса: /guild_boss_spawn"""
+
+            bot.reply_to(message, text, parse_mode="Markdown")
+
+        else:
+            # Бос ще живий
+            remaining = result.get('remaining_health', boss['health'])
+            max_health = result.get('max_health', boss['max_health'])
+            hp_percent = int((remaining / max_health) * 100)
+            hp_bar = "🟩" * (hp_percent // 10) + "🟥" * (10 - hp_percent // 10)
+
+            bot.reply_to(message, f"""⚔️ **АТАКА!**
+
+Твій хряк {hryak['name']} завдав {damage} шкоди!
+
+🐲 {boss['name']}
+❤️ {remaining}/{max_health} ({hp_percent}%)
+{hp_bar}
+
+⏰ Наступна атака через 2 години!
+
+Продовжуй атакувати: /guild_boss_attack""")
+
     except Exception as e:
         logger.error(f"❌ Помилка /guild_boss_attack: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
@@ -7569,15 +7673,61 @@ def guild_boss_info_cmd(message):
     """Інформація про боса гільдії"""
     chat_id = message.chat.id
     user_id = message.from_user.id
-    
+
     try:
         user_guild = get_user_guild(user_id, chat_id)
         if not user_guild:
             bot.reply_to(message, "❌ Ви не в гільдії!")
             return
-        
-        bot.reply_to(message, "🐲 **ІНФОРМАЦІЯ ПРО БОСІВ**\n\nФункція в розробці...\n\nСкоро тут буде інформація про активних босів гільдії!")
-        
+
+        boss = get_active_guild_boss(user_guild['id'])
+
+        if not boss:
+            bot.reply_to(message, """🐲 **НЕМАЄ АКТИВНОГО БОСА**
+
+Ваша гільдія ще не має активного боса.
+
+**Спавнити боса:**
+/guild_boss_spawn <ім'я> <рівень>
+
+**Вартість:** 1000 монет""")
+            return
+
+        hp_percent = int((boss['health'] / boss['max_health']) * 100)
+        hp_bar = "🟩" * (hp_percent // 10) + "🟥" * (10 - hp_percent // 10)
+
+        participants = get_guild_boss_participants(boss['id'])
+
+        text = f"""🐲 {boss['name']}
+
+⭐ Рівень: {boss['level']}
+🏆 Перемог: {boss.get('defeat_count', 0)}
+❤️ Здоров'я: {boss['health']}/{boss['max_health']}
+{hp_bar} {hp_percent}%
+⚔️ Шкода: {boss['damage']}
+💰 Нагорода: {boss['reward_coins']} монет + {boss['reward_xp']} XP
+
+**Топ гравців:**
+"""
+        for i, p in enumerate(participants[:5], 1):
+            medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "•"
+            text += f"{medal} {i}. {p.get('username', f'ID {p["user_id"]}')} - {p['damage_dealt']} шкоди\n"
+
+        text += f"""
+
+**Команди:**
+/guild_boss_attack - атакувати боса
+/guild_boss_info - інформація про боса
+
+**Як це працює:**
+1. Кожен гравець може атакувати боса
+2. Шкода = вага хряка × 2
+3. Кулдаун між атаками: 2 години
+4. Нагороди розподіляються за % урону
+5. Після перемоги можна спавнити нового боса"""
+
+        bot.reply_to(message, text, parse_mode="Markdown")
+
     except Exception as e:
         logger.error(f"❌ Помилка /guild_boss_info: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")

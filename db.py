@@ -319,10 +319,18 @@ def init_db():
                 gene_rarity TEXT DEFAULT 'C',
                 bonus_type TEXT,
                 bonus_value INTEGER DEFAULT 0,
-                color_type TEXT DEFAULT 'normal'
+                color_type TEXT DEFAULT 'normal',
+                co_owner_id BIGINT DEFAULT NULL
             )
         ''')
         logger.info("✅ Таблиця children створена")
+        
+        # Додаємо co_owner_id якщо колонка відсутня (для існуючих баз)
+        try:
+            cursor.execute('ALTER TABLE children ADD COLUMN IF NOT EXISTS co_owner_id BIGINT DEFAULT NULL')
+            logger.info("✅ Додано колонку co_owner_id")
+        except Exception:
+            pass  # Колонка вже існує
 
         # Таблиця генів хряка
         cursor.execute('''
@@ -2328,7 +2336,7 @@ def claim_pregnancy(pregnancy_id):
         conn.close()
 
 def get_children(user_id, chat_id):
-    """Отримує всіх дітей користувача"""
+    """Отримує всіх дітей користувача (включаючи співвласників)"""
     conn = get_connection()
     if not conn:
         return []
@@ -2336,10 +2344,10 @@ def get_children(user_id, chat_id):
     cursor = conn.cursor()
     try:
         cursor.execute('''
-            SELECT * FROM children 
-            WHERE (user_id = %s OR mother_user_id = %s OR father_user_id = %s) AND chat_id = %s
+            SELECT * FROM children
+            WHERE (user_id = %s OR co_owner_id = %s OR mother_user_id = %s OR father_user_id = %s) AND chat_id = %s
             ORDER BY born_at DESC
-        ''', (user_id, user_id, user_id, chat_id))
+        ''', (user_id, user_id, user_id, user_id, chat_id))
         rows = cursor.fetchall()
         children = []
         for row in rows:
@@ -2352,7 +2360,12 @@ def get_children(user_id, chat_id):
                 'name': row[5],
                 'weight': int(row[6]) if row[6] else 0,
                 'inherited_trait': row[7],
-                'born_at': int(row[8]) if row[8] else 0
+                'born_at': int(row[8]) if row[8] else 0,
+                'gene_rarity': row[9] if len(row) > 9 else 'C',
+                'bonus_type': row[10] if len(row) > 10 else None,
+                'bonus_value': int(row[11]) if len(row) > 11 else 0,
+                'color_type': row[12] if len(row) > 12 else 'normal',
+                'co_owner_id': int(row[13]) if len(row) > 13 and row[13] else None
             })
         return children
     except Exception as e:
@@ -2362,7 +2375,7 @@ def get_children(user_id, chat_id):
         cursor.close()
         conn.close()
 
-def add_child(user_id, chat_id, father_user_id, mother_user_id, name, weight, inherited_trait=''):
+def add_child(user_id, chat_id, father_user_id, mother_user_id, name, weight, inherited_trait='', co_owner_id=None):
     """Додає дитину"""
     conn = get_connection()
     if not conn:
@@ -2371,9 +2384,9 @@ def add_child(user_id, chat_id, father_user_id, mother_user_id, name, weight, in
     cursor = conn.cursor()
     try:
         cursor.execute('''
-            INSERT INTO children (user_id, chat_id, father_user_id, mother_user_id, name, weight, inherited_trait, born_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        ''', (user_id, chat_id, father_user_id, mother_user_id, name, weight, inherited_trait, int(time.time())))
+            INSERT INTO children (user_id, chat_id, father_user_id, mother_user_id, name, weight, inherited_trait, born_at, co_owner_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ''', (user_id, chat_id, father_user_id, mother_user_id, name, weight, inherited_trait, int(time.time()), co_owner_id))
         conn.commit()
         return True
     except Exception as e:
@@ -3926,7 +3939,7 @@ def save_boss_attack_time(user_id, chat_id, timestamp):
 # ============================================
 
 def rename_child(child_id, user_id, chat_id, new_name):
-    """Перейменувати дитину"""
+    """Перейменувати дитину (доступно власнику або співвласнику)"""
     conn = get_connection()
     if not conn:
         return False
@@ -3934,9 +3947,9 @@ def rename_child(child_id, user_id, chat_id, new_name):
     cursor = conn.cursor()
     try:
         cursor.execute('''
-            UPDATE children SET name = %s 
-            WHERE id = %s AND user_id = %s AND chat_id = %s
-        ''', (new_name, child_id, user_id, chat_id))
+            UPDATE children SET name = %s
+            WHERE id = %s AND (user_id = %s OR co_owner_id = %s) AND chat_id = %s
+        ''', (new_name, child_id, user_id, user_id, chat_id))
         conn.commit()
         return cursor.rowcount > 0
     except Exception as e:
@@ -3968,7 +3981,12 @@ def get_child(child_id, chat_id):
             'name': row[5],
             'weight': int(row[6]) if row[6] else 0,
             'inherited_trait': row[7],
-            'born_at': int(row[8]) if row[8] else 0
+            'born_at': int(row[8]) if row[8] else 0,
+            'gene_rarity': row[9] if len(row) > 9 else 'C',
+            'bonus_type': row[10] if len(row) > 10 else None,
+            'bonus_value': int(row[11]) if len(row) > 11 else 0,
+            'color_type': row[12] if len(row) > 12 else 'normal',
+            'co_owner_id': int(row[13]) if len(row) > 13 and row[13] else None
         }
     except Exception as e:
         logger.error(f"❌ Помилка отримання дитини: {e}")
@@ -4019,7 +4037,7 @@ def get_top_children(chat_id, limit=10):
         conn.close()
 
 def sacrifice_child(child_id, user_id, chat_id):
-    """Жертва дитини для бонусів"""
+    """Жертва дитини для бонусів (доступно власнику або співвласнику)"""
     conn = get_connection()
     if not conn:
         return None
@@ -4027,22 +4045,24 @@ def sacrifice_child(child_id, user_id, chat_id):
     cursor = conn.cursor()
     try:
         # Отримуємо дитину
-        cursor.execute('SELECT * FROM children WHERE id = %s AND user_id = %s AND chat_id = %s', 
-                      (child_id, user_id, chat_id))
+        cursor.execute('''
+            SELECT * FROM children 
+            WHERE id = %s AND (user_id = %s OR co_owner_id = %s) AND chat_id = %s
+        ''', (child_id, user_id, user_id, chat_id))
         child = cursor.fetchone()
-        
+
         if not child:
             return None
-        
+
         # Розраховуємо бонуси на основі ваги дитини
         weight = int(child[6]) if child[6] else 0
         coins_reward = weight * 2
         xp_reward = weight
-        
+
         # Видаляємо дитину
         cursor.execute('DELETE FROM children WHERE id = %s', (child_id,))
         conn.commit()
-        
+
         return {
             'coins': coins_reward,
             'xp': xp_reward,
@@ -4057,13 +4077,15 @@ def sacrifice_child(child_id, user_id, chat_id):
         conn.close()
 
 def marry_children(child1_id, child2_id, user_id, chat_id):
-    """Одруження дітей (створення онуків)"""
+    """Одруження дітей (створення онуків з співвласництвом)"""
     conn = get_connection()
     if not conn:
         return None
 
     cursor = conn.cursor()
     try:
+        import random
+        
         # Отримуємо обох дітей
         cursor.execute('SELECT * FROM children WHERE id = %s AND chat_id = %s', (child1_id, chat_id))
         child1 = cursor.fetchone()
@@ -4072,35 +4094,53 @@ def marry_children(child1_id, child2_id, user_id, chat_id):
         child2 = cursor.fetchone()
 
         if not child1 or not child2:
-            return None
+            return {'error': 'Дитину не знайдено'}
 
         # Перевіряємо що це різні діти
         if child1[0] == child2[0]:
-            return None
+            return {'error': 'Не можна одружити одну й ту саму дитину'}
+
+        # Перевіряємо права (один з батьків має бути власником)
+        child1_owner = int(child1[1])
+        child2_owner = int(child1[1])
+        child1_co_owner = int(child1[13]) if len(child1) > 13 and child1[13] else None
+        child2_co_owner = int(child2[13]) if len(child2) > 13 and child2[13] else None
+        
+        # Перевірка що користувач має право на одруження
+        if user_id not in [child1_owner, child1_co_owner, child2_owner, child2_co_owner]:
+            return {'error': 'У вас немає прав на одруження цих дітей'}
 
         # Створюємо онука
         now = int(time.time())
         child_weight = max(1, int((child1[6] + child2[6]) / 2) + random.randint(-3, 3))
+        
+        # Визначаємо співвласника (якщо діти від різних користувачів)
+        co_owner = None
+        if child1_owner != child2_owner:
+            # Якщо одружуються діти від різних користувачів - обидва стають співвласниками
+            co_owner = child2_owner if child1_owner == user_id else child1_owner
 
         cursor.execute('''
             INSERT INTO children (user_id, chat_id, father_user_id, mother_user_id,
-                                name, weight, inherited_trait, born_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                                name, weight, inherited_trait, born_at, co_owner_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
         ''', (user_id, chat_id, child1[3], child2[3],
-              f"{child1[5][:3]}-{child2[5][:3]}-F1", child_weight, '', now))
+              f"{child1[5][:3]}-{child2[5][:3]}-F1", child_weight, '', now, co_owner))
 
         grandchild_id = cursor.fetchone()[0]
         conn.commit()
 
         return {
             'grandchild_id': grandchild_id,
-            'weight': child_weight
+            'weight': child_weight,
+            'co_owner_id': co_owner,
+            'success': True
         }
     except Exception as e:
         logger.error(f"❌ Помилка одруження дітей: {e}")
         conn.rollback()
-        return None
+        return {'error': str(e)}
     finally:
         cursor.close()
         conn.close()
@@ -4202,9 +4242,11 @@ def train_child(child_id, user_id, chat_id, training_type='weight'):
 
     cursor = conn.cursor()
     try:
-        # Отримуємо дитину
-        cursor.execute('SELECT * FROM children WHERE id = %s AND user_id = %s AND chat_id = %s',
-                      (child_id, user_id, chat_id))
+        # Отримуємо дитину (доступно власнику або співвласнику)
+        cursor.execute('''
+            SELECT * FROM children 
+            WHERE id = %s AND (user_id = %s OR co_owner_id = %s) AND chat_id = %s
+        ''', (child_id, user_id, user_id, chat_id))
         child = cursor.fetchone()
 
         if not child:
@@ -4213,7 +4255,6 @@ def train_child(child_id, user_id, chat_id, training_type='weight'):
         current_weight = int(child[6]) if child[6] else 0
         cost = 50  # Вартість тренування
 
-        # Перевіряємо чи вистачає монет (це перевіряється в боті)
         # Тренування
         weight_gain = random.randint(2, 8)
         new_weight = current_weight + weight_gain
@@ -4252,9 +4293,11 @@ def send_child_on_raid(child_id, user_id, chat_id, raid_type='coins'):
 
     cursor = conn.cursor()
     try:
-        # Отримуємо дитину
-        cursor.execute('SELECT * FROM children WHERE id = %s AND user_id = %s AND chat_id = %s',
-                      (child_id, user_id, chat_id))
+        # Отримуємо дитину (доступно власнику або співвласнику)
+        cursor.execute('''
+            SELECT * FROM children 
+            WHERE id = %s AND (user_id = %s OR co_owner_id = %s) AND chat_id = %s
+        ''', (child_id, user_id, user_id, chat_id))
         child = cursor.fetchone()
 
         if not child:
@@ -5710,6 +5753,51 @@ def attack_guild_boss(boss_id, user_id, guild_id, damage):
         conn.close()
 
 
+def get_active_guild_boss(guild_id):
+    """Отримує активного боса гільдії"""
+    conn = get_connection()
+    if not conn:
+        return None
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT id, name, level, health, max_health, damage, reward_coins, reward_xp,
+                   owner_guild_id, spawn_date, is_active, defeat_date, defeated_by_guild_id, defeat_count
+            FROM guild_bosses
+            WHERE owner_guild_id = %s AND is_active = TRUE
+            ORDER BY spawn_date DESC
+            LIMIT 1
+        ''', (guild_id,))
+
+        row = cursor.fetchone()
+        if not row:
+            return None
+
+        return {
+            'id': int(row[0]),
+            'name': row[1],
+            'level': int(row[2]),
+            'health': int(row[3]),
+            'max_health': int(row[4]),
+            'damage': int(row[5]),
+            'reward_coins': int(row[6]),
+            'reward_xp': int(row[7]),
+            'owner_guild_id': int(row[8]),
+            'spawn_date': int(row[9]) if row[9] else 0,
+            'is_active': bool(row[10]),
+            'defeat_date': int(row[11]) if row[11] else 0,
+            'defeated_by_guild_id': int(row[12]) if row[12] else None,
+            'defeat_count': int(row[13]) if row[13] else 0
+        }
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання активного боса гільдії: {e}")
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+
 def get_guild_boss_participants(boss_id):
     """Отримує учасників бою з босом"""
     conn = get_connection()
@@ -5725,7 +5813,7 @@ def get_guild_boss_participants(boss_id):
             WHERE gbp.boss_id = %s
             ORDER BY gbp.damage_dealt DESC
         ''', (boss_id,))
-        
+
         rows = cursor.fetchall()
         participants = []
         for row in rows:
@@ -5734,14 +5822,70 @@ def get_guild_boss_participants(boss_id):
                 'boss_id': int(row[1]),
                 'user_id': int(row[2]),
                 'guild_id': int(row[3]),
-                'damage_dealt': int(row[4]) if row[4] else 0,
-                'joined_at': int(row[5]) if row[5] else 0,
+                'damage_dealt': int(row[4]),
+                'joined_at': int(row[5]),
                 'username': row[6]
             })
         return participants
     except Exception as e:
-        logger.error(f"❌ Помилка отримання учасників боса: {e}")
+        logger.error(f"❌ Помилка отримання учасників боса гільдії: {e}")
         return []
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_last_guild_boss_attack_time(user_id, boss_id):
+    """Отримує час останньої атаки боса гільдії"""
+    conn = get_connection()
+    if not conn:
+        return 0
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT joined_at FROM guild_boss_participants
+            WHERE user_id = %s AND boss_id = %s
+            ORDER BY joined_at DESC LIMIT 1
+        ''', (user_id, boss_id))
+        row = cursor.fetchone()
+        return int(row[0]) if row else 0
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання часу атаки гільдії: {e}")
+        return 0
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def save_guild_boss_attack_time(user_id, boss_id, timestamp):
+    """Зберігає час атаки боса гільдії (оновлює існуючий запис)"""
+    conn = get_connection()
+    if not conn:
+        return
+
+    cursor = conn.cursor()
+    try:
+        # Отримуємо guild_id з боса
+        cursor.execute('SELECT owner_guild_id FROM guild_bosses WHERE id = %s', (boss_id,))
+        row = cursor.fetchone()
+        if not row:
+            return
+
+        guild_id = row[0]
+
+        # Оновлюємо час атаки в існуючому записі
+        cursor.execute('''
+            INSERT INTO guild_boss_participants (boss_id, user_id, guild_id, damage_dealt, joined_at)
+            VALUES (%s, %s, %s, 0, %s)
+            ON CONFLICT (boss_id, user_id, guild_id) DO UPDATE SET
+                joined_at = %s
+        ''', (boss_id, user_id, guild_id, timestamp, timestamp))
+
+        conn.commit()
+    except Exception as e:
+        logger.error(f"❌ Помилка збереження часу атаки гільдії: {e}")
+        conn.rollback()
     finally:
         cursor.close()
         conn.close()
