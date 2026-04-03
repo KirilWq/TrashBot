@@ -371,11 +371,20 @@ def init_db():
                 bonus_value INTEGER DEFAULT 0,
                 color_type TEXT DEFAULT 'normal',
                 mutation_chance REAL DEFAULT 0.05,
+                last_train BIGINT DEFAULT 0,
                 updated_at BIGINT,
                 UNIQUE(user_id, chat_id)
             )
         ''')
         logger.info("✅ Таблиця hryak_genes створена")
+
+        # Додаємо колонку last_train якщо її немає (міграція)
+        try:
+            cursor.execute('ALTER TABLE hryak_genes ADD COLUMN IF NOT EXISTS last_train BIGINT DEFAULT 0')
+            conn.commit()
+            logger.info("✅ Додано колонку last_train в hryak_genes")
+        except Exception:
+            pass
 
         # Таблиця турнірів
         cursor.execute('''

@@ -5492,48 +5492,75 @@ def child_train_cmd(message):
 
     try:
         parts = message.text.split()
-        
+
         if len(parts) < 2:
             bot.reply_to(message, """💪 **ТРЕНУВАННЯ ДИТИНИ**
 
 Використання: /childtrain <child_id>
 
 Вартість: 50 монет
-Ефект: +5 до ваги дитини""")
+Ефект: +5 до ваги дитини
+Кулдаун: 12 годин""")
             return
-        
+
         try:
             child_id = int(parts[1])
         except ValueError:
             bot.reply_to(message, "❌ ID має бути числом!")
             return
-        
+
         # Перевіряємо чи є дитина
         children = get_children(user_id, chat_id)
         child = next((c for c in children if c['id'] == child_id), None)
-        
+
         if not child:
             bot.reply_to(message, "❌ Дитину не знайдено!")
             return
-        
+
+        # Перевіряємо кулдаун тренування
+        from db import get_connection
+        conn = get_connection()
+        if conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT last_train FROM hryak_genes WHERE user_id = %s AND chat_id = %s', (user_id, chat_id))
+            row = cursor.fetchone()
+            last_train = int(row[0]) if row and row[0] else 0
+            cursor.close()
+            conn.close()
+
+            CHILD_TRAIN_COOLDOWN = 43200  # 12 годин
+            now = int(time.time())
+            time_since_last = now - last_train if last_train > 0 else CHILD_TRAIN_COOLDOWN
+
+            if last_train > 0 and time_since_last < CHILD_TRAIN_COOLDOWN:
+                hours_left = int((CHILD_TRAIN_COOLDOWN - time_since_last) / 3600)
+                minutes_left = int(((CHILD_TRAIN_COOLDOWN - time_since_last) % 3600) / 60)
+                bot.reply_to(message, "⏳ **Ще рано!**\n\nЗалишилось: {} год {} хв".format(hours_left, minutes_left))
+                return
+
         # Перевіряємо баланс
         currency = get_user_currency(user_id, chat_id)
         if currency['coins'] < 50:
             bot.reply_to(message, f"❌ Недостатньо монет! Потрібно 50")
             return
-        
+
         # Знімаємо монети
         update_user_currency(user_id, chat_id, coins=currency['coins'] - 50)
 
         # Збільшуємо вагу
         new_weight = child['weight'] + 5
 
-        # Оновлюємо дитину
-        from db import get_connection
+        # Оновлюємо дитину і last_train
         conn = get_connection()
         if conn:
             cursor = conn.cursor()
             cursor.execute('UPDATE children SET weight = %s WHERE id = %s', (new_weight, child_id))
+            # Оновлюємо last_train
+            cursor.execute('''
+                INSERT INTO hryak_genes (user_id, chat_id, last_train)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (user_id, chat_id) DO UPDATE SET last_train = %s
+            ''', (user_id, chat_id, int(time.time()), int(time.time())))
             conn.commit()
             cursor.close()
             conn.close()
@@ -5546,7 +5573,8 @@ def child_train_cmd(message):
 Дитина: {child_name_safe}
 Вага: {child['weight']} → {new_weight} кг (+5)
 
-💰 Витрачено: 50 монет""")
+💰 Витрачено: 50 монет
+⏰ Наступне тренування через 12 годин""")
     except Exception as e:
         logger.error(f"❌ Помилка /childtrain: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
