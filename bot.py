@@ -5862,7 +5862,7 @@ def children_cmd(message):
         children_count = get_children_count(user_id, chat_id)
 
         if not children_list:
-            bot.reply_to(message, "👶 У тебе ще немає дітей!\n\nЗаведи дітей через /trachen або /breed\n\n📊 Ліміт: {}/10".format(children_count))
+            bot.reply_to(message, "👶 У тебе ще немає дітей\\!\n\nЗаведи дітей через /trachen або /breed\n\n📊 Ліміт: {}/10".format(children_count), parse_mode="MarkdownV2")
             return
 
         text = "👶 *Твої діти:* \\({}/10\\)\n\n".format(children_count)
@@ -5895,7 +5895,7 @@ def children_cmd(message):
                     minutes_left = int(time_left / 60)
                     raid_status = " 🗡️ В рейді \\({} хв\\)".format(minutes_left)
                 else:
-                    raid_status = " ✅ Готовий до claim! \\(/childclaim {}\\)".format(active_raid['id'])
+                    raid_status = " ✅ Готовий до claim\\! \\(/childclaim {}\\)".format(active_raid['id'])
 
             # Екрануємо спеціальні символи в тексті
             child_name = escape_markdown(child['name'])
