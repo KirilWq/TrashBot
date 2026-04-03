@@ -3817,12 +3817,13 @@ def inventory_cmd(message):
 
             for item in user_items[:20]:
                 rarity_emoji = rarity_emojis.get(item['rarity'], '⚪')
-                type_name = type_names.get(item['item_type'], item['item_type'])
-                bonus_text = f"+{item['bonus_value']} {item['bonus_type']}" if item['bonus_type'] else ""
+                type_name = type_names.get(item['item_type'], 'Предмет')
                 item_name_safe = escape_markdown(item['item_name'])
+                type_name_safe = escape_markdown(type_name)
 
-                text += "{} \\*{}\\* \\({}\\) x{}\n".format(rarity_emoji, item_name_safe, type_name, item['quantity'])
-                if bonus_text:
+                text += "{} \\*{}\\* \\({}\\) x{}\n".format(rarity_emoji, item_name_safe, type_name_safe, item['quantity'])
+                if item.get('bonus_type'):
+                    bonus_text = "+{} {}".format(item['bonus_value'], item['bonus_type'])
                     text += "   {}\n".format(escape_markdown(bonus_text))
             text += "\n"
 
@@ -3832,7 +3833,7 @@ def inventory_cmd(message):
             for inv_item in inventory:
                 item = items_dict.get(inv_item['item_id'])
                 if item:
-                    text += "{} - {} x{}\n".format(inv_item['item_id'], item['name'], inv_item['quantity'])
+                    text += "\\- {} x{}\n".format(escape_markdown(item['name']), inv_item['quantity'])
                     if inv_item['expires_at']:
                         expires = inv_item['expires_at'] - int(time.time())
                         hours = expires // 3600
@@ -3850,9 +3851,9 @@ def inventory_cmd(message):
             text += "\n"
 
         text += "\\*Команди:\\*\n"
-        text += "/use \\<item_id\\> - використати предмет\n"
-        text += "/equipskin \\<назва\\> - одягнути скін\n"
-        text += "/item_trade \\<предмет\\> \\<кількість\\> - трейд предметом\n\n"
+        text += "/use \\<item_id\\> \\- використати предмет\n"
+        text += "/equipskin \\<назва\\> \\- одягнути скін\n"
+        text += "/item_trade \\<предмет\\> \\<кількість\\> \\- трейд предметом\n\n"
         text += "Приклад: `/equipskin classic`"
 
         bot.reply_to(message, text, parse_mode="MarkdownV2")
