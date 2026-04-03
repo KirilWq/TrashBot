@@ -5424,6 +5424,9 @@ def breed_cmd(message):
         except Exception as e:
             logger.error(f"❌ Помилка збереження генів дитини: {e}")
 
+        # Встановлюємо кулдаун 24 години (той самий як і /trachen)
+        add_trachen_record(user_id, chat_id, partner_id, mother_hryak['name'], 0, 0)
+
         bot.reply_to(message, text, parse_mode="MarkdownV2")
 
     except Exception as e:
