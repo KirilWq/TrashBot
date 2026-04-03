@@ -3904,10 +3904,61 @@ def use_cmd(message):
             hryak = get_hryak(user_id, chat_id)
             if hryak:
                 hryak['weight'] += item['effect_value']
-                save_hryak_to_db(f"{chat_id}_{user_id}", hryak)
-                text = f"🍎 **Вітаміни ��використано!**\n\nВага збільшена на +{item['effect_value']} кг!"
+                save_hryak_to_db(user_id, chat_id, hryak)
+                text = f"🍎 **Вітаміни використано!**\n\nВага збільшена на +{item['effect_value']} кг!"
             else:
                 text = "❌ У тебе немає хряка!"
+        elif item_id == 'spermobak':
+            # Зняти кулдаун з трахену/breed
+            from db import get_connection
+            import time as time_module
+            conn = get_connection()
+            if conn:
+                cursor = conn.cursor()
+                old_time = int(time_module.time()) - 86400
+                cursor.execute('''
+                    UPDATE trachenzebiten
+                    SET created_at = %s
+                    WHERE user_id = %s AND chat_id = %s
+                    AND id = (
+                        SELECT id FROM trachenzebiten
+                        WHERE user_id = %s AND chat_id = %s
+                        ORDER BY id DESC LIMIT 1
+                    )
+                ''', (old_time, user_id, chat_id, user_id, chat_id))
+                affected = cursor.rowcount
+                conn.commit()
+                cursor.close()
+                conn.close()
+                if affected > 0:
+                    text = f"🧪 **{item['name']} використано!**\n\nТепер можна /trachen та /breed!"
+                else:
+                    text = f"🧪 **{item['name']} використано!**\n\nНемає активного кулдауну."
+            else:
+                text = "❌ Помилка БД!"
+        elif item_id == 'pastors_milk':
+            # Зняти кулдаун з тренування дітей
+            from db import get_connection
+            import time as time_module
+            conn = get_connection()
+            if conn:
+                cursor = conn.cursor()
+                old_time = int(time_module.time()) - 86400
+                cursor.execute('''
+                    UPDATE hryak_genes
+                    SET last_train = %s
+                    WHERE user_id = %s
+                ''', (old_time, user_id))
+                affected = cursor.rowcount
+                conn.commit()
+                cursor.close()
+                conn.close()
+                if affected > 0:
+                    text = f"🥛 **{item['name']} використано!**\n\nТепер можна тренувати дітей!"
+                else:
+                    text = f"🥛 **{item['name']} використано!**\n\nНемає активного кулдауну."
+            else:
+                text = "❌ Помилка БД!"
         else:
             text = f"✅ **{item['name']} використано!**\n\nЕфект: {item['description']}"
 
