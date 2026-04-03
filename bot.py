@@ -2217,13 +2217,30 @@ def menu_callback(call):
 /name - змінити ім'я"""
     
     elif command == 'top':
-        chat_hryaky = sorted(hryaky_data.values(), key=lambda x: x['weight'], reverse=True)[:5]
-        if not chat_hryaky:
-            text = "📭 Ще немає хряків!"
+        # Отримуємо хряків тільки з поточного чату
+        chat_hryaky = []
+        from db import get_connection
+        conn = get_connection()
+        if conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT key FROM hryaky')
+            rows = cursor.fetchall()
+            for row in rows:
+                key = row[0]
+                hryak = get_hryak_from_db(key)
+                if hryak and hryak.get('chat_id') == chat_id:
+                    chat_hryaky.append(hryak)
+            cursor.close()
+            conn.close()
+
+        chat_hryaky.sort(key=lambda x: x['weight'], reverse=True)
+        top_hryaky = chat_hryaky[:5]
+
+        if not top_hryaky:
+            text = "📭 Ще немає хряків у цьому чаті!"
         else:
             text = "🏆 **ТОП ХРЯКІВ ЧАТУ**\n\n"
-            for i, h in enumerate(chat_hryaky):
-                # Екрануємо спеціальні символи в імені хряка
+            for i, h in enumerate(top_hryaky):
                 hryak_name = escape_markdown(h['name'])
                 text += f"{i+1}. {hryak_name} - {h['weight']} кг\n"
 
@@ -2243,16 +2260,17 @@ def menu_callback(call):
                     all_hryaky.append(hryak)
             cursor.close()
             conn.close()
-        
+
         all_hryaky.sort(key=lambda x: x['weight'], reverse=True)
         top_count = min(5, len(all_hryaky))
-        
+
         if not all_hryaky:
             text = "📭 Ще немає хряків ніде!"
         else:
             text = "🌍 **ГЛОБАЛЬНИЙ ТОП ХРЯКІВ**\n\n"
             for i, h in enumerate(all_hryaky[:top_count]):
-                text += f"{i+1}. {h['name']} - {h['weight']} кг\n"
+                hryak_name = escape_markdown(h['name'])
+                text += f"{i+1}. {hryak_name} - {h['weight']} кг\n"
 
     elif command == 'name':
         hryak = get_hryak(user_id, chat_id)
@@ -2394,7 +2412,7 @@ def menu_callback(call):
     else:
         text = "❌ Невідома команда"
 
-    # Редагуємо повідомлення або відправляємо нове
+    # Відправляємо повідомлення
     bot.send_message(chat_id, text, parse_mode="Markdown")
 
 
