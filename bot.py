@@ -3909,8 +3909,8 @@ def use_cmd(message):
             else:
                 text = "❌ У тебе немає хряка!"
         else:
-            text = f"✅ **{item['name']} використано!**\n\nЕфект: {item['desc']}"
-        
+            text = f"✅ **{item['name']} використано!**\n\nЕфект: {item['description']}"
+
         # Видаляємо предмет
         # Видаляємо предмет з тієї системи де він був
         if has_item(user_id, chat_id, item_id):
@@ -7643,7 +7643,7 @@ def use_item_cmd(message):
             else:
                 # Стандартний баф
                 text = f"✅ **{item['name']} використано!**\n\n"
-                text += f"✨ Ефект: {item['desc']}"
+                text += f"✨ Ефект: {item['description']}"
 
             bot.reply_to(message, text, parse_mode="Markdown")
 
