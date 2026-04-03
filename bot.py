@@ -943,6 +943,17 @@ def feed_hryak_cmd(message):
             lose_completed = True
             update_daily_quest(user_id, chat_id, 'lose_10kg', 1, 1, completed=lose_completed)
 
+        # Квест: дружній (нагодуй хряка коли 3+ гравців з хряками в чаті)
+        players_with_hryak = set()
+        for key, h in hryaky_data.items():
+            if h.get('chat_id') == chat_id:
+                players_with_hryak.add(h['user_id'])
+        if len(players_with_hryak) >= 3:
+            ff_quest = quest_progress.get('feed_friends', {'progress': 0, 'target': 1})
+            new_ff_progress = min(ff_quest['progress'] + 1, ff_quest['target'])
+            ff_completed = new_ff_progress >= ff_quest['target']
+            update_daily_quest(user_id, chat_id, 'feed_friends', new_ff_progress, 1, completed=ff_completed)
+
         # 🐰 ІВЕНТ: Великдень - годування = пошук яєць
         add_event_progress(user_id, chat_id, 'easter', 1)
         check_event_random_drop(user_id, chat_id, 'easter', 'годування хряка')
