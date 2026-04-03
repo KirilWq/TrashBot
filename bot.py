@@ -761,8 +761,10 @@ SHOP_ITEMS = {
     'vitamins': {'name': '🍎 Вітаміни', 'desc': '+5 кг до наступного годування', 'price': 50, 'effect': 'weight_bonus', 'value': 5},
     'trainer': {'name': '💪 Тренажер', 'desc': '+10% до проворності на 24 год', 'price': 100, 'effect': 'agility_bonus', 'value': 10},
     'shield': {'name': '🛡️ Щит', 'desc': 'Захист від -10% ваги в дуелі', 'price': 75, 'effect': 'shield', 'value': 10},
-    'energy': {'name': '⚡ Енергетик', 'desc': 'Зняти кулдаун з /feed', 'price': 30, 'effect': 'remove_cooldown', 'value': 1},
-    'lucky_charm': {'name': '🍀 Підкова', 'desc': '+5% шанс на перемогу в дуелі', 'price': 200, 'effect': 'luck_bonus', 'value': 5}
+    'energy': {'name': '⚡ Енергетик', 'desc': 'Зняти кулдаун з /feed', 'price': 50, 'effect': 'remove_cooldown', 'value': 1},
+    'lucky_charm': {'name': '🍀 Підкова', 'desc': '+5% шанс на перемогу в дуелі', 'price': 200, 'effect': 'luck_bonus', 'value': 5},
+    'spermobak': {'name': '🧪 Спермобак', 'desc': 'Зняти кулдаун з /trachen та /breed', 'price': 100, 'effect': 'remove_trachen_cooldown', 'value': 1},
+    'pastors_milk': {'name': '🥛 Молочко пастора', 'desc': 'Зняти кулдаун з тренування дітей', 'price': 100, 'effect': 'remove_child_train_cooldown', 'value': 1}
 }
 
 # ============================================
@@ -7504,31 +7506,72 @@ def use_item_cmd(message):
     """Використати предмет для бафу"""
     chat_id = message.chat.id
     user_id = message.from_user.id
-    
+
     try:
         parts = message.text.split()
         if len(parts) < 2:
             bot.reply_to(message, "❌ Використання: /use_item <ID предмета>")
             return
-        
+
         item_id = int(parts[1])
-        
+
         # Використовуємо предмет
         result = use_item(user_id, chat_id, item_id)
-        
+
         if result.get('success'):
-            duration_hours = result.get('duration', 3600) / 3600
-            
-            text = f"✅ **ПРЕДМЕТ ВИКОРИСТАНО!**\n\n"
-            text += f"🎒 {result.get('item_name')}\n"
-            text += f"✨ Ефект: {result.get('effect')}\n"
-            text += f"⏰ Тривалість: {duration_hours:.1f} год\n\n"
-            text += "Баф активний! Бонуси вже враховані."
-            
+            bonus_type = result.get('bonus_type', '')
+            item_name = result.get('item_name', '')
+            effect = result.get('effect', '')
+
+            # Обробка спеціальних ефектів
+            if bonus_type == 'remove_cooldown':
+                # Знімаємо кулдаун з годування
+                hryak = get_hryak(user_id, chat_id)
+                if hryak:
+                    save_hryak_to_db(user_id, chat_id, {'last_feed': 0})
+                    text = f"⚡ **{item_name} використано!**\n\nТепер можна годувати хряка!"
+                else:
+                    text = "❌ У тебе немає хряка!"
+            elif bonus_type == 'remove_trachen_cooldown':
+                # Знімаємо кулдаун з трахену
+                from db import get_connection
+                conn = get_connection()
+                if conn:
+                    cursor = conn.cursor()
+                    cursor.execute('''
+                        UPDATE hryaky SET last_trachen = 0
+                        WHERE user_id = %s AND chat_id = %s
+                    ''', (user_id, chat_id))
+                    conn.commit()
+                    cursor.close()
+                    conn.close()
+                text = f"🧪 **{item_name} використано!**\n\nТепер можна використовувати /trachen та /breed!"
+            elif bonus_type == 'remove_child_train_cooldown':
+                # Знімаємо кулдаун з тренування дітей
+                from db import get_connection
+                conn = get_connection()
+                if conn:
+                    cursor = conn.cursor()
+                    cursor.execute('''
+                        UPDATE hryak_genes SET last_train = 0
+                        WHERE user_id = %s
+                    ''', (user_id,))
+                    conn.commit()
+                    cursor.close()
+                    conn.close()
+                text = f"🥛 **{item_name} використано!**\n\nТепер можна тренувати дітей!"
+            else:
+                duration_hours = result.get('duration', 3600) / 3600
+                text = f"✅ **ПРЕДМЕТ ВИКОРИСТАНО!**\n\n"
+                text += f"🎒 {item_name}\n"
+                text += f"✨ Ефект: {effect}\n"
+                text += f"⏰ Тривалість: {duration_hours:.1f} год\n\n"
+                text += "Баф активний! Бонуси вже враховані."
+
             bot.reply_to(message, text, parse_mode="Markdown")
         else:
             bot.reply_to(message, f"❌ Помилка: {result.get('error', 'Невідома помилка')}")
-            
+
     except ValueError:
         bot.reply_to(message, "❌ Невірний ID!")
     except Exception as e:

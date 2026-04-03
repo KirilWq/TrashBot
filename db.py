@@ -899,7 +899,9 @@ def init_db():
             ('vitamins', '🍎 Вітаміни', '+5 кг до наступного годування', 50, 'coins', 'weight_bonus', 5, 0),
             ('trainer', '💪 Тренажер', '+10% до проворності на 24 год', 100, 'coins', 'agility_bonus', 10, 86400),
             ('shield', '🛡️ Щит', 'Захист від -10% ваги в дуелі', 75, 'coins', 'shield', 10, 0),
-            ('energy', '⚡ Енергетик', 'Зняти кулдаун з /feed', 30, 'coins', 'remove_cooldown', 0, 0),
+            ('energy', '⚡ Енергетик', 'Зняти кулдаун з /feed', 50, 'coins', 'remove_cooldown', 0, 0),
+            ('spermobak', '🧪 Спермобак', 'Зняти кулдаун з /trachen та /breed', 100, 'coins', 'remove_trachen_cooldown', 0, 0),
+            ('pastors_milk', '🥛 Молочко пастора', 'Зняти кулдаун з тренування дітей', 100, 'coins', 'remove_child_train_cooldown', 0, 0),
             ('lucky_charm', '🍀 Підкова', '+5% шанс на перемогу в дуелі', 200, 'coins', 'luck_bonus', 5, 86400)
         ]
         
@@ -5733,7 +5735,7 @@ def withdraw_guild_item_to_user(guild_id, user_id, chat_id, item_id, quantity=1)
 def use_item(user_id, chat_id, item_id):
     """
     Використовує предмет (дає баф)
-    Повертає: {'success': bool, 'effect': str, 'duration': int}
+    Повертає: {'success': bool, 'effect': str, 'duration': int, 'bonus_type': str}
     """
     conn = get_connection()
     if not conn:
@@ -5781,14 +5783,22 @@ def use_item(user_id, chat_id, item_id):
                 cursor.execute('UPDATE user_items SET quantity = quantity - 1 WHERE id = %s', (item_id,))
             conn.commit()
 
-        # TODO: Додати таблицю active_buffs для зберігання активних бафів
-        # Поки що просто повертаємо інформацію
+        # Формуємо опис ефекту
+        if bonus_type == 'remove_cooldown':
+            effect_desc = "Знято кулдаун з годування"
+        elif bonus_type == 'remove_trachen_cooldown':
+            effect_desc = "Знято кулдаун з трахену"
+        elif bonus_type == 'remove_child_train_cooldown':
+            effect_desc = "Знято кулдаун з тренування дітей"
+        else:
+            effect_desc = f"+{effect_value} {bonus_type}"
 
         return {
             'success': True,
-            'effect': f"+{effect_value} {bonus_type}",
+            'effect': effect_desc,
             'duration': duration,
-            'item_name': row[4]
+            'item_name': row[4],
+            'bonus_type': bonus_type
         }
     except Exception as e:
         logger.error(f"❌ Помилка використання предмета: {e}")
