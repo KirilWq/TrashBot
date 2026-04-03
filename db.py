@@ -5630,6 +5630,53 @@ def donate_to_chest(guild_id, user_id, item_type, item_name, quantity=1, usernam
         cursor.close()
         conn.close()
 
+def donate_coins_to_chest(guild_id, user_id, coins, username=None):
+    """Вносить монети до гільдійної скриньки"""
+    conn = get_connection()
+    if not conn:
+        return False
+
+    cursor = conn.cursor()
+    try:
+        now = int(time.time())
+
+        # Оновлюємо username
+        if username:
+            cursor.execute('''
+                INSERT INTO user_languages (user_id, username, updated_at)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (user_id) DO UPDATE SET
+                    username = EXCLUDED.username,
+                    updated_at = EXCLUDED.updated_at
+            ''', (user_id, username, now))
+
+        # Перевіряємо чи вже є монети
+        cursor.execute('''
+            SELECT id, quantity FROM guild_chests
+            WHERE guild_id = %s AND item_type = 'coins'
+        ''', (guild_id,))
+        row = cursor.fetchone()
+
+        if row:
+            cursor.execute('''
+                UPDATE guild_chests SET quantity = quantity + %s WHERE id = %s
+            ''', (coins, int(row[0])))
+        else:
+            cursor.execute('''
+                INSERT INTO guild_chests (guild_id, item_type, item_name, quantity, donated_by_user_id, donated_at)
+                VALUES (%s, 'coins', 'Монети', %s, %s, %s)
+            ''', (guild_id, coins, user_id, now))
+
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"❌ Помилка внеску монет до скриньки: {e}")
+        conn.rollback()
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
 
 def get_guild_chest(guild_id):
     """Отримує вміст гільдійної скриньки"""

@@ -184,7 +184,7 @@ chat_member_ids = {}
 # Ручний список юзернеймів для кожного чату (можна додавати командами)
 manual_users = {}
 
-# Замушені користувачі (реальний мут): {chat_id: {user_id: expire_time}}
+# Замучені користувачі (реальний мут): {chat_id: {user_id: expire_time}}
 muted_users = {}
 
 # Провинні користувачі (образи у відповідь): {chat_id: {user_id: expire_time}}
@@ -7862,19 +7862,27 @@ def guild_donate_cmd(message):
 
         username = message.from_user.username or message.from_user.first_name or str(user_id)
         if donate_to_chest(user_guild['id'], user_id, 'item', item_name, quantity, username):
-            # Бонус для всіх членів гільдії (5 монет + 2 XP кожному)
-            members = get_guild_members(user_guild['id'])
-            bonus_members = 0
-            for m in members:
-                if m['user_id'] != user_id:  # Не даємо бонус тому хто донатить
-                    add_coins(m['user_id'], chat_id, 5)
-                    add_xp(m['user_id'], chat_id, 2)
-                    bonus_members += 1
+            # Перевіряємо вартість предмета для бонусу
+            item = get_item(item_name)
+            item_value = item['price'] if item else 0
+            total_value = item_value * quantity
 
-            text = f"✅ Внесено {item_name} x{quantity} до скриньки!"
-            if bonus_members > 0:
-                text += f"\n\n🎁 Бонус гільдії: +5 монет, +2 XP для {bonus_members} учасників!"
-            bot.reply_to(message, text)
+            # Бонус тільки якщо предмет коштує 30+ монет
+            if total_value >= 30:
+                members = get_guild_members(user_guild['id'])
+                bonus_members = 0
+                for m in members:
+                    if m['user_id'] != user_id:
+                        add_coins(m['user_id'], chat_id, 5)
+                        add_xp(m['user_id'], chat_id, 2)
+                        bonus_members += 1
+
+                text = f"✅ Внесено {item_name} x{quantity} до скриньки!"
+                if bonus_members > 0:
+                    text += f"\n\n🎁 Бонус гільдії: +5 монет, +2 XP для {bonus_members} учасників!\n(Вартість внеску: {total_value} монет)"
+                bot.reply_to(message, text)
+            else:
+                bot.reply_to(message, f"✅ Внесено {item_name} x{quantity} до скриньки!\n\n💡 _Бонус гільдії дається при внеску предметів від 30 монет._")
         else:
             bot.reply_to(message, "❌ Помилка внеску!")
 
@@ -7882,6 +7890,66 @@ def guild_donate_cmd(message):
         bot.reply_to(message, "❌ Невірна кількість!")
     except Exception as e:
         logger.error(f"❌ Помилка /guild_donate: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
+@bot.message_handler(commands=['guild_donatecoins'])
+def guild_donate_coins_cmd(message):
+    """Внести монети до гільдійної скриньки"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    try:
+        parts = message.text.split()
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Використання: /guild_donatecoins <кількість>")
+            return
+
+        coins = int(parts[1])
+
+        if coins <= 0:
+            bot.reply_to(message, "❌ Кількість має бути додатною!")
+            return
+
+        user_guild = get_user_guild(user_id, chat_id)
+        if not user_guild:
+            bot.reply_to(message, "❌ Ви не в гільдії!")
+            return
+
+        # Перевіряємо баланс
+        currency = get_user_currency(user_id, chat_id)
+        if currency['coins'] < coins:
+            bot.reply_to(message, f"❌ Недостатньо монет! У вас: {currency['coins']}")
+            return
+
+        # Списуємо монети
+        update_user_currency(user_id, chat_id, coins=currency['coins'] - coins)
+
+        username = message.from_user.username or message.from_user.first_name or str(user_id)
+        if donate_coins_to_chest(user_guild['id'], user_id, coins, username):
+            # Бонус тільки якщо внесок 50+ монет
+            if coins >= 50:
+                members = get_guild_members(user_guild['id'])
+                bonus_members = 0
+                for m in members:
+                    if m['user_id'] != user_id:
+                        add_coins(m['user_id'], chat_id, 5)
+                        add_xp(m['user_id'], chat_id, 2)
+                        bonus_members += 1
+
+                text = f"✅ Внесено {coins} монет до скриньки!"
+                if bonus_members > 0:
+                    text += f"\n\n🎁 Бонус гільдії: +5 монет, +2 XP для {bonus_members} учасників!"
+                bot.reply_to(message, text)
+            else:
+                bot.reply_to(message, f"✅ Внесено {coins} монет до скриньки!\n\n💡 _Бонус гільдії дається при внеску від 50 монет._")
+        else:
+            bot.reply_to(message, "❌ Помилка внеску!")
+
+    except ValueError:
+        bot.reply_to(message, "❌ Невірна кількість!")
+    except Exception as e:
+        logger.error(f"❌ Помилка /guild_donatecoins: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
 
 
