@@ -10645,9 +10645,12 @@ def webapp_app_alt():
 def api_get_user():
     """Отримати дані користувача"""
     try:
-        user_id = int(request.args.get('user_id', 0))
+        user_id_str = request.args.get('user_id', '0')
+        if not user_id_str or user_id_str.lower() == 'null':
+            return jsonify({'success': False, 'message': 'User ID required'}), 400
+        user_id = int(user_id_str)
         chat_id = int(request.args.get('chat_id', 0))
-        
+
         if not user_id:
             return jsonify({'success': False, 'message': 'User ID required'}), 400
         
@@ -10699,8 +10702,11 @@ def api_get_user():
 def api_get_user_chats():
     """Отримати чати користувача"""
     try:
-        user_id = int(request.args.get('user_id', 0))
-        
+        user_id_str = request.args.get('user_id', '0')
+        if not user_id_str or user_id_str.lower() == 'null':
+            return jsonify({'success': False, 'message': 'User ID required'}), 400
+        user_id = int(user_id_str)
+
         if not user_id:
             return jsonify({'success': False, 'message': 'User ID required'}), 400
         
@@ -10748,12 +10754,15 @@ def api_get_skins():
 def api_get_inventory():
     """Отримати інвентар"""
     try:
-        user_id = int(request.args.get('user_id', 0))
+        user_id_str = request.args.get('user_id', '0')
+        if not user_id_str or user_id_str.lower() == 'null':
+            return jsonify({'success': False, 'message': 'User ID required'}), 400
+        user_id = int(user_id_str)
         chat_id = int(request.args.get('chat_id', 0))
-        
+
         if not user_id:
             return jsonify({'success': False, 'message': 'User ID required'}), 400
-        
+
         inventory = get_user_inventory(user_id, chat_id or -1)
         return jsonify({'success': True, 'data': inventory}), 200
     except Exception as e:
@@ -10764,12 +10773,15 @@ def api_get_inventory():
 def api_get_my_skins():
     """Отримати скіни користувача"""
     try:
-        user_id = int(request.args.get('user_id', 0))
+        user_id_str = request.args.get('user_id', '0')
+        if not user_id_str or user_id_str.lower() == 'null':
+            return jsonify({'success': False, 'message': 'User ID required'}), 400
+        user_id = int(user_id_str)
         chat_id = int(request.args.get('chat_id', 0))
-        
+
         if not user_id:
             return jsonify({'success': False, 'message': 'User ID required'}), 400
-        
+
         skins = get_user_skins(user_id, chat_id or -1)
         return jsonify({'success': True, 'data': skins}), 200
     except Exception as e:

@@ -5,10 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Trash Bot - Web App</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="https://unpkg.com/ton-connect-sdk@1.0.0/dist/ton-connect-sdk.min.js"></script>
     <link rel="stylesheet" href="/webapp/style.css">
     <script src="/webapp/app.js"></script>
-    <script src="/webapp/crypto.js"></script>
 </head>
 <body>
     <div class="app">
@@ -40,7 +38,6 @@
             <button class="tab-btn" data-tab="shop"><span>🏪 Магазин</span></button>
             <button class="tab-btn" data-tab="inventory"><span>🎒 Інвентар</span></button>
             <button class="tab-btn" data-tab="leaderboard"><span>🏆 Топ</span></button>
-            <button class="tab-btn" data-tab="crypto"><span>🪙 Crypto</span></button>
         </nav>
 
         <!-- Content -->
@@ -73,7 +70,7 @@
 
                 <div class="actions-grid">
                     <button class="action-btn" onclick="openCommand('/grow')">🐷 Отримати хряка</button>
-                    <button class="action-btn" onclick="openCommand('/daily')">🎁 Daily</button>
+                    <button class="action-btn" onclick="openCommand('/daily')">🎁 Щоденні</button>
                     <button class="action-btn" onclick="openCommand('/quests')">📋 Квести</button>
                     <button class="action-btn" onclick="openCommand('/achievements')">🏅 Досягнення</button>
                 </div>
@@ -140,89 +137,6 @@
                 <h3>🏆 Топ хряків чату</h3>
                 <div class="leaderboard-list" id="chatTop">
                     <!-- Leaders will be loaded here -->
-                </div>
-            </div>
-
-            <!-- Crypto Tab -->
-            <div class="tab-content" id="crypto">
-                <div class="crypto-card">
-                    <h3>🪙 CRYPTO (TON Testnet)</h3>
-                    
-                    <div class="crypto-balance">
-                        <div class="balance-item">
-                            <span class="balance-label">💰 Ігрові монети</span>
-                            <span class="balance-value" id="gameCoins">0</span>
-                        </div>
-                        <div class="balance-item">
-                            <span class="balance-label">🪙 Crypto баланс</span>
-                            <span class="balance-value" id="cryptoCoins">0 CRYPTO</span>
-                        </div>
-                    </div>
-
-                    <div class="crypto-info">
-                        <div class="info-row">
-                            <span>Курс:</span>
-                            <span id="conversionRate">1000 = 1 CRYPTO</span>
-                        </div>
-                        <div class="info-row">
-                            <span>Всього конвертовано:</span>
-                            <span id="totalConverted">0 монет</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="convert-section">
-                    <h4>💱 Конвертація</h4>
-                    
-                    <div class="input-group">
-                        <label>Сума (ігрові монети):</label>
-                        <input type="number" id="convertAmount" placeholder="Мінімум 10000" min="10000" step="1000">
-                        <div class="convert-preview">
-                            Отримаєш: <span id="cryptoPreview">0</span> CRYPTO
-                        </div>
-                    </div>
-
-                    <button class="btn btn-primary" id="convertBtn" onclick="convertCoins()">
-                        🔄 Конвертувати
-                    </button>
-                </div>
-
-                <div class="withdraw-section">
-                    <h4>💸 Виведення</h4>
-                    
-                    <div class="input-group">
-                        <label>Сума (CRYPTO):</label>
-                        <input type="number" id="withdrawAmount" placeholder="Мінімум 10" min="10" step="1">
-                    </div>
-
-                    <div class="input-group">
-                        <label>TON гаманець:</label>
-                        <input type="text" id="walletAddress" placeholder="kQDl...0Yq">
-                        <button class="btn btn-secondary" onclick="connectTonWallet()">
-                            🔗 Підключити гаманець
-                        </button>
-                    </div>
-
-                    <button class="btn btn-primary" id="withdrawBtn" onclick="withdrawCrypto()">
-                        💸 Вивести
-                    </button>
-                </div>
-
-                <div class="ton-info">
-                    <h4>ℹ️ Інформація</h4>
-                    <p><strong>Blockchain:</strong> TON Testnet</p>
-                    <p><strong>Contract:</strong> <code id="contractAddress">kQDlcflos1dKSPfhw17NoyUvwPrI_V-mLFG3wr3Xn2zPk0Yq</code></p>
-                    <p><strong>Supply:</strong> 1,000,000 CRYPTO</p>
-                    <p><strong>Decimals:</strong> 9</p>
-                </div>
-
-                <div class="transaction-history">
-                    <h4>📜 Історія транзакцій</h4>
-                    <div id="transactionList">
-                        <div style="text-align: center; padding: 20px; color: var(--tg-theme-hint-color);">
-                            Завантаження...
-                        </div>
-                    </div>
                 </div>
             </div>
         </main>

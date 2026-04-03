@@ -52,16 +52,67 @@ function stopAutoRefresh() {
     }
 }
 
+function showAuthPrompt() {
+    const content = document.querySelector('.content');
+    const mainEl = document.getElementById('authPrompt');
+
+    if (mainEl) {
+        mainEl.style.display = 'block';
+        return;
+    }
+
+    const promptDiv = document.createElement('div');
+    promptDiv.id = 'authPrompt';
+    promptDiv.style.cssText = 'text-align:center;padding:60px 20px;color:#8b8b9e;';
+    promptDiv.innerHTML = `
+        <div style="font-size:48px;margin-bottom:20px;">🔐</div>
+        <h3 style="color:#fff;margin-bottom:10px;">Підключіть Telegram</h3>
+        <p style="margin-bottom:20px;">Цей Web App працює тільки через Telegram.<br>Відкрийте бота та натисніть /webapp</p>
+        <div style="background:#1a1a2e;padding:15px;border-radius:10px;margin:15px 0;">
+            <p style="font-size:12px;color:#6c5ce7;">💡 Для тестування без Telegram:<br>Додай ?uid=123456 до URL</p>
+        </div>
+    `;
+
+    // Hide tabs while showing auth prompt
+    document.querySelector('.tabs').style.display = 'none';
+
+    // Insert before content
+    const mainContent = document.querySelector('.content');
+    mainContent.parentNode.insertBefore(promptDiv, mainContent);
+}
+
+function checkUrlForUserId() {
+    const params = new URLSearchParams(window.location.search);
+    const uid = params.get('uid');
+    if (uid) {
+        userData.id = parseInt(uid);
+        document.getElementById('authPrompt')?.remove();
+        document.querySelector('.tabs').style.display = 'flex';
+        document.getElementById('username').textContent = `Test User ${uid}`;
+        loadUserData();
+        startAutoRefresh();
+    }
+}
+
 function initApp() {
     // Expand the WebApp
     tg.expand();
-    
+
+    // Check if user_id was provided in URL for testing
+    checkUrlForUserId();
+
+    // If still no user_id, show auth prompt
+    if (!userData.id) {
+        showAuthPrompt();
+        return;
+    }
+
     // Enable main button color
     tg.MainButton.setParams({
         color: '#667eea',
         text_color: '#ffffff'
     });
-    
+
     // Set theme colors
     document.documentElement.style.setProperty('--tg-theme-bg-color', tg.themeParams.bg_color || '#0f0f1a');
     document.documentElement.style.setProperty('--tg-theme-text-color', tg.themeParams.text_color || '#ffffff');
@@ -70,29 +121,29 @@ function initApp() {
     document.documentElement.style.setProperty('--tg-theme-button-color', tg.themeParams.button_color || '#6c5ce7');
     document.documentElement.style.setProperty('--tg-theme-button-text-color', tg.themeParams.button_text_color || '#ffffff');
     document.documentElement.style.setProperty('--tg-theme-secondary-bg-color', tg.themeParams.secondary_bg_color || '#1a1a2e');
-    
+
     // Set user info
     document.getElementById('username').textContent = userData.username;
     document.getElementById('userAvatar').textContent = userData.first_name.charAt(0).toUpperCase();
-    
+
     // Setup tabs
     setupTabs();
-    
+
     // Setup chat selector
     loadUserChats();
-    
+
     // Setup MainButton
     tg.MainButton.setText("🍽️ НАГОДУВАТИ ХРЯКА");
     tg.MainButton.onClick(() => {
         feedHryak();
     });
-    
+
     // Load initial data
     loadUserData();
-    
+
     // Start auto-refresh
     startAutoRefresh();
-    
+
     // Ready
     tg.ready();
     tg.MainButton.show();
@@ -128,6 +179,11 @@ function setupTabs() {
 }
 
 async function loadUserData() {
+    if (!userData.id) {
+        showAuthPrompt();
+        return;
+    }
+
     showLoading(true);
 
     try {
@@ -712,6 +768,8 @@ document.addEventListener('visibilitychange', () => {
 
 // Chat Selector Functions
 async function loadUserChats() {
+    if (!userData.id) return;
+
     try {
         const response = await fetch(`${API_BASE}/user-chats?user_id=${userData.id}`);
         const data = await response.json();
