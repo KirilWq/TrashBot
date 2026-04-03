@@ -7533,33 +7533,60 @@ def use_item_cmd(message):
                 else:
                     text = "❌ У тебе немає хряка!"
             elif bonus_type == 'remove_trachen_cooldown':
-                # Знімаємо кулдаун з трахену
+                # Знімаємо кулдаун з трахену - оновлюємо запис в БД на старий час
                 from db import get_connection
+                import time as time_module
                 conn = get_connection()
                 if conn:
                     cursor = conn.cursor()
+                    # Встановлюємо час останнього трахену на 24 години тому (щоб кулдаун точно пройшов)
+                    old_time = int(time_module.time()) - 86400
                     cursor.execute('''
-                        UPDATE hryaky SET last_trachen = 0
+                        UPDATE trachenzebiten
+                        SET created_at = %s
                         WHERE user_id = %s AND chat_id = %s
-                    ''', (user_id, chat_id))
+                        AND id = (
+                            SELECT id FROM trachenzebiten
+                            WHERE user_id = %s AND chat_id = %s
+                            ORDER BY id DESC LIMIT 1
+                        )
+                    ''', (old_time, user_id, chat_id, user_id, chat_id))
+                    affected = cursor.rowcount
                     conn.commit()
                     cursor.close()
                     conn.close()
-                text = f"🧪 **{item_name} використано!**\n\nТепер можна використовувати /trachen та /breed!"
+
+                    if affected > 0:
+                        text = f"🧪 **{item_name} використано!**\n\nТепер можна використовувати /trachen та /breed!"
+                    else:
+                        text = f"🧪 **{item_name} використано!**\n\nУ вас немає активного кулдауну."
+                else:
+                    text = "❌ Помилка БД!"
             elif bonus_type == 'remove_child_train_cooldown':
-                # Знімаємо кулдаун з тренування дітей
+                # Знімаємо кулдаун з тренування дітей - ставимо old_time щоб дозволити ОДНЕ тренування
                 from db import get_connection
+                import time as time_module
                 conn = get_connection()
                 if conn:
                     cursor = conn.cursor()
+                    # Встановлюємо last_train на 24 години тому (кулдаун 12 год = пройшов)
+                    old_time = int(time_module.time()) - 86400
                     cursor.execute('''
-                        UPDATE hryak_genes SET last_train = 0
+                        UPDATE hryak_genes
+                        SET last_train = %s
                         WHERE user_id = %s
-                    ''', (user_id,))
+                    ''', (old_time, user_id))
+                    affected = cursor.rowcount
                     conn.commit()
                     cursor.close()
                     conn.close()
-                text = f"🥛 **{item_name} використано!**\n\nТепер можна тренувати дітей!"
+
+                    if affected > 0:
+                        text = f"🥛 **{item_name} використано!**\n\nТепер можна тренувати дітей!"
+                    else:
+                        text = f"🥛 **{item_name} використано!**\n\nУ вас немає активного кулдауну."
+                else:
+                    text = "❌ Помилка БД!"
             else:
                 duration_hours = result.get('duration', 3600) / 3600
                 text = f"✅ **ПРЕДМЕТ ВИКОРИСТАНО!**\n\n"
