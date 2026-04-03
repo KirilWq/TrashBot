@@ -6016,15 +6016,30 @@ def attack_guild_boss(boss_id, user_id, guild_id, damage):
     cursor = conn.cursor()
     try:
         now = int(time.time())
-        
-        # Додаємо шкоду
+
+        # Перевіряємо чи існує запис
         cursor.execute('''
-            INSERT INTO guild_boss_participants (boss_id, user_id, guild_id, damage_dealt, joined_at)
-            VALUES (%s, %s, %s, %s, %s)
-            ON CONFLICT (boss_id, user_id, guild_id) DO UPDATE SET
-                damage_dealt = guild_boss_participants.damage_dealt + %s
-        ''', (boss_id, user_id, guild_id, damage, now, damage))
+            SELECT id, damage_dealt FROM guild_boss_participants
+            WHERE boss_id = %s AND user_id = %s AND guild_id = %s
+        ''', (boss_id, user_id, guild_id))
         
+        existing = cursor.fetchone()
+        
+        if existing:
+            # Оновлюємо шкоду
+            new_damage = int(existing[1]) + damage
+            cursor.execute('''
+                UPDATE guild_boss_participants
+                SET damage_dealt = %s, joined_at = %s
+                WHERE boss_id = %s AND user_id = %s AND guild_id = %s
+            ''', (new_damage, now, boss_id, user_id, guild_id))
+        else:
+            # Створюємо новий запис
+            cursor.execute('''
+                INSERT INTO guild_boss_participants (boss_id, user_id, guild_id, damage_dealt, joined_at)
+                VALUES (%s, %s, %s, %s, %s)
+            ''', (boss_id, user_id, guild_id, damage, now))
+
         # Отримуємо поточне здоров'я
         cursor.execute('SELECT health, max_health FROM guild_bosses WHERE id = %s', (boss_id,))
         row = cursor.fetchone()
