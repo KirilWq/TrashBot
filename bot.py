@@ -700,8 +700,8 @@ DAILY_QUESTS = {
         'name': 'Дуелянт ⚔️',
         'desc': 'Виграй 2 дуелі',
         'target': 2,
-        'reward_coins': 50,
-        'reward_xp': 12
+        'reward_coins': 30,
+        'reward_xp': 8
     },
     'lose_10kg': {
         'name': 'Схуднення 📉',
@@ -1316,6 +1316,31 @@ def duel_accept_callback(call):
         bot.answer_callback_query(call.id, "❌ Хряк викликача зник!", show_alert=True)
         return
 
+    # Перевіряємо кулдаун дуелі (2 години для обох учасників)
+    DUEL_COOLDOWN = 7200  # 2 години в секундах
+    now = int(time.time())
+
+    challenger_stats = get_user_stats(challenger_id, chat_id)
+    opponent_stats = get_user_stats(opponent_id, chat_id)
+
+    challenger_last_duel = challenger_stats.get('last_duel', 0) if challenger_stats else 0
+    opponent_last_duel = opponent_stats.get('last_duel', 0) if opponent_stats else 0
+
+    challenger_cooldown_left = DUEL_COOLDOWN - (now - challenger_last_duel) if challenger_last_duel > 0 else 0
+    opponent_cooldown_left = DUEL_COOLDOWN - (now - opponent_last_duel) if opponent_last_duel > 0 else 0
+
+    if challenger_cooldown_left > 0:
+        hours_left = int(challenger_cooldown_left / 3600)
+        minutes_left = int((challenger_cooldown_left % 3600) / 60)
+        bot.answer_callback_query(call.id, f"⏳ Викликач ще в кулдауні! Залишилось: {hours_left} год {minutes_left} хв", show_alert=True)
+        return
+
+    if opponent_cooldown_left > 0:
+        hours_left = int(opponent_cooldown_left / 3600)
+        minutes_left = int((opponent_cooldown_left % 3600) / 60)
+        bot.answer_callback_query(call.id, f"⏳ Ти ще в кулдауні! Залишилось: {hours_left} год {minutes_left} хв", show_alert=True)
+        return
+
     # Розраховуємо результат з урахуванням бонусів скінів
     result = calculate_duel_result(
         challenger_hryak, 
@@ -1382,6 +1407,11 @@ def duel_accept_callback(call):
 """
 
     bot.answer_callback_query(call.id, "⚔️ Дуель завершена!")
+
+    # Оновлюємо кулдаун дуелі для обох учасників
+    duel_time = int(time.time())
+    update_user_stats(challenger_id, chat_id, {'last_duel': duel_time})
+    update_user_stats(opponent_id, chat_id, {'last_duel': duel_time})
 
     # Оновлюємо квести за перемогу в дуелі
     if winner == 1:
@@ -4133,10 +4163,10 @@ def daily_cmd(message):
             else:
                 new_streak = 1
             
-            # Нагорода збільшується зі стріком
+            # Нагорода збільшується зі стріком (кап на 50 монет)
             base_coins = 10
             base_xp = 5
-            coins = base_coins + (new_streak * 2)
+            coins = min(50, base_coins + (new_streak * 2))
             xp = base_xp + (new_streak // 3)
             
             add_coins(user_id, chat_id, coins)
@@ -4749,10 +4779,10 @@ def quiz_callback(call):
         # Записуємо відповідь
         record_quiz_answer(user_id, chat_id, question_id, is_correct)
 
-        # Нагорода за правильну відповідь (збільшена за складність)
+        # Нагорода за правильну відповідь
         if is_correct:
-            add_coins(user_id, chat_id, 10)  # Збільшено з 5 до 10 монет
-            add_xp(user_id, chat_id, 5)  # Додано XP
+            add_coins(user_id, chat_id, 5)
+            add_xp(user_id, chat_id, 3)
 
             # 🐰 ІВЕНТ: Великдень - правильна відповідь = прогрес
             add_event_progress(user_id, chat_id, 'easter', 1)
@@ -7832,7 +7862,19 @@ def guild_donate_cmd(message):
 
         username = message.from_user.username or message.from_user.first_name or str(user_id)
         if donate_to_chest(user_guild['id'], user_id, 'item', item_name, quantity, username):
-            bot.reply_to(message, f"✅ Внесено {item_name} x{quantity} до скриньки!")
+            # Бонус для всіх членів гільдії (5 монет + 2 XP кожному)
+            members = get_guild_members(user_guild['id'])
+            bonus_members = 0
+            for m in members:
+                if m['user_id'] != user_id:  # Не даємо бонус тому хто донатить
+                    add_coins(m['user_id'], chat_id, 5)
+                    add_xp(m['user_id'], chat_id, 2)
+                    bonus_members += 1
+
+            text = f"✅ Внесено {item_name} x{quantity} до скриньки!"
+            if bonus_members > 0:
+                text += f"\n\n🎁 Бонус гільдії: +5 монет, +2 XP для {bonus_members} учасників!"
+            bot.reply_to(message, text)
         else:
             bot.reply_to(message, "❌ Помилка внеску!")
 
@@ -12327,7 +12369,7 @@ def run_bot_with_retry():
                 logger.info(f"⏳ Перезапуск через {retry_delay} сек...")
                 time.sleep(retry_delay)
             else:
-                logger.error("❌ Максимальна кіль��ість с�����об вичерпана")
+                logger.error("❌ Максимальна кількість спроб вичерпана")
                 raise
 
 run_bot_with_retry()

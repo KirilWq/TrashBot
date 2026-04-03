@@ -237,10 +237,19 @@ def init_db():
                 total_weight_gained BIGINT DEFAULT 0,
                 casino_wins BIGINT DEFAULT 0,
                 casino_losses BIGINT DEFAULT 0,
+                last_duel BIGINT DEFAULT 0,
                 PRIMARY KEY (user_id, chat_id)
             )
         ''')
         logger.info("✅ Таблиця user_stats створена")
+
+        # Додаємо колонку last_duel якщо її немає (міграція)
+        try:
+            cursor.execute('ALTER TABLE user_stats ADD COLUMN IF NOT EXISTS last_duel BIGINT DEFAULT 0')
+            conn.commit()
+            logger.info("✅ Додано колонку last_duel в user_stats")
+        except Exception:
+            pass
 
         # Таблиця магазину
         cursor.execute('''
@@ -2023,19 +2032,20 @@ def get_user_stats(user_id, chat_id):
 
     cursor = conn.cursor()
     try:
-        cursor.execute('SELECT duels_won, duels_lost, quests_completed, total_weight_gained, casino_wins, casino_losses FROM user_stats WHERE user_id = %s AND chat_id = %s', (user_id, chat_id))
+        cursor.execute('SELECT duels_won, duels_lost, quests_completed, total_weight_gained, casino_wins, casino_losses, last_duel FROM user_stats WHERE user_id = %s AND chat_id = %s', (user_id, chat_id))
         row = cursor.fetchone()
         if not row:
             cursor.execute('INSERT INTO user_stats (user_id, chat_id) VALUES (%s, %s)', (user_id, chat_id))
             conn.commit()
-            return {'duels_won': 0, 'duels_lost': 0, 'quests_completed': 0, 'total_weight_gained': 0, 'casino_wins': 0, 'casino_losses': 0}
+            return {'duels_won': 0, 'duels_lost': 0, 'quests_completed': 0, 'total_weight_gained': 0, 'casino_wins': 0, 'casino_losses': 0, 'last_duel': 0}
         return {
             'duels_won': int(row[0]),
             'duels_lost': int(row[1]),
             'quests_completed': int(row[2]),
             'total_weight_gained': int(row[3]),
             'casino_wins': int(row[4]),
-            'casino_losses': int(row[5])
+            'casino_losses': int(row[5]),
+            'last_duel': int(row[6]) if row[6] else 0
         }
     except Exception as e:
         logger.error(f"❌ Помилка отримання статистики: {e}")
@@ -2052,19 +2062,37 @@ def update_user_stats(user_id, chat_id, stats):
 
     cursor = conn.cursor()
     try:
-        cursor.execute('''
-            INSERT INTO user_stats (user_id, chat_id, duels_won, duels_lost, quests_completed, total_weight_gained, casino_wins, casino_losses)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (user_id, chat_id) DO UPDATE SET
-                duels_won = EXCLUDED.duels_won,
-                duels_lost = EXCLUDED.duels_lost,
-                quests_completed = EXCLUDED.quests_completed,
-                total_weight_gained = EXCLUDED.total_weight_gained,
-                casino_wins = EXCLUDED.casino_wins,
-                casino_losses = EXCLUDED.casino_losses
-        ''', (user_id, chat_id, stats.get('duels_won', 0), stats.get('duels_lost', 0),
-              stats.get('quests_completed', 0), stats.get('total_weight_gained', 0),
-              stats.get('casino_wins', 0), stats.get('casino_losses', 0)))
+        # Перевіряємо чи є last_duel в stats
+        if 'last_duel' in stats:
+            cursor.execute('''
+                INSERT INTO user_stats (user_id, chat_id, duels_won, duels_lost, quests_completed, total_weight_gained, casino_wins, casino_losses, last_duel)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (user_id, chat_id) DO UPDATE SET
+                    duels_won = EXCLUDED.duels_won,
+                    duels_lost = EXCLUDED.duels_lost,
+                    quests_completed = EXCLUDED.quests_completed,
+                    total_weight_gained = EXCLUDED.total_weight_gained,
+                    casino_wins = EXCLUDED.casino_wins,
+                    casino_losses = EXCLUDED.casino_losses,
+                    last_duel = EXCLUDED.last_duel
+            ''', (user_id, chat_id, stats.get('duels_won', 0), stats.get('duels_lost', 0),
+                  stats.get('quests_completed', 0), stats.get('total_weight_gained', 0),
+                  stats.get('casino_wins', 0), stats.get('casino_losses', 0),
+                  stats.get('last_duel', 0)))
+        else:
+            cursor.execute('''
+                INSERT INTO user_stats (user_id, chat_id, duels_won, duels_lost, quests_completed, total_weight_gained, casino_wins, casino_losses)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (user_id, chat_id) DO UPDATE SET
+                    duels_won = EXCLUDED.duels_won,
+                    duels_lost = EXCLUDED.duels_lost,
+                    quests_completed = EXCLUDED.quests_completed,
+                    total_weight_gained = EXCLUDED.total_weight_gained,
+                    casino_wins = EXCLUDED.casino_wins,
+                    casino_losses = EXCLUDED.casino_losses
+            ''', (user_id, chat_id, stats.get('duels_won', 0), stats.get('duels_lost', 0),
+                  stats.get('quests_completed', 0), stats.get('total_weight_gained', 0),
+                  stats.get('casino_wins', 0), stats.get('casino_losses', 0)))
         conn.commit()
     except Exception as e:
         logger.error(f"❌ Помилка оновлення статистики: {e}")
