@@ -5382,27 +5382,31 @@ def breed_cmd(message):
         mother_name_safe = escape_markdown(mother_hryak['name'])
         inherited_trait_safe = escape_markdown(child.get('inherited_trait') or '')
         rarity_name_safe = escape_markdown(GENE_RARITIES.get(child['gene_rarity'], {}).get('name', 'Звичайний'))
-        compatibility_safe = escape_markdown(str(compatibility.get('compatibility', '0%')))
+        if compatibility.get('compatibility') == 'unknown':
+            compatibility_text = "Н/Д (гени не знайдено)"
+        else:
+            compatibility_text = compatibility['compatibility']
+        compatibility_safe = escape_markdown(compatibility_text)
 
-        text = f"🎉 \\*ПОТОМСТВО СТВОРЕНО\\!\\*\\n\\n"
-        text += f"👨 Батько: {father_name_safe} \\(ID: {user_id}\\)\\n"
-        text += f"👩 Мати: {mother_name_safe} \\(ID: {partner_id}\\)\\n\\n"
-        text += f"👶 \\*Дитина:\\*\\n"
-        text += f"{color_emoji} Ім'я: {child_name_safe}\\n"
-        text += f"⚖️ Вага: {child['weight']} кг\\n"
-        text += f"{rarity_emoji} Рідкість: {rarity_name_safe}\\n\\n"
-        text += f"🧬 \\*Особливості:\\*"
+        text = "🎉 \\*ПОТОМСТВО СТВОРЕНО\\!\\*\n\n"
+        text += f"👨 Батько: {father_name_safe} \\(ID: {user_id}\\)\n"
+        text += f"👩 Мати: {mother_name_safe} \\(ID: {partner_id}\\)\n\n"
+        text += "👶 \\*Дитина:\\*\n"
+        text += f"{color_emoji} Ім'я: {child_name_safe}\n"
+        text += f"⚖️ Вага: {child['weight']} кг\n"
+        text += f"{rarity_emoji} Рідкість: {rarity_name_safe}\n\n"
+        text += "🧬 \\*Особливості:\\*"
 
         if child['has_mutation']:
-            text += "\\n🔴 \\*МУТАЦІЯ\\!\\* Унікальна здібність\\!"
+            text += "\n🔴 \\*МУТАЦІЯ\\!\\* Унікальна здібність\\!"
         elif child.get('inherited_trait'):
-            text += f"\\n✨ {inherited_trait_safe}"
+            text += f"\n✨ {inherited_trait_safe}"
         else:
-            text += "\\n⚪ Без особливих ознак"
+            text += "\n⚪ Без особливих ознак"
 
-        text += f"\\n\\n💞 Сумісність генів: {compatibility_safe}"
-        text += f"\\n💰 Витрачено: 100 монет"
-        text += f"\\n\\n⏰ Наступне схрещування через 24 години"
+        text += f"\n\n💞 Сумісність генів: {compatibility_safe}"
+        text += "\n💰 Витрачено: 100 монет"
+        text += "\n\n⏰ Наступне схрещування через 24 години"
 
         # Зберігаємо гени дитини
         try:
