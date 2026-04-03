@@ -5952,6 +5952,7 @@ def child_info_cmd(message):
             return
 
         born_date = time.strftime('%d.%m.%Y %H:%M', time.localtime(child['born_at']))
+        born_date = born_date.replace('.', '\\.').replace(':', '\\:')
 
         # Отримуємо гени дитини
         child_genes = get_hryak_genes(child['user_id'], chat_id)
@@ -6004,7 +6005,7 @@ def child_info_cmd(message):
         bot.reply_to(message, "❌ Невірний ID дитини!")
     except Exception as e:
         logger.error(f"❌ Помилка /childinfo: {e}", exc_info=True)
-        bot.reply_to(message, f"❌ Помилка: {e}")
+        bot.reply_to(message, "❌ Помилка: {}".format(escape_markdown(str(e))), parse_mode="MarkdownV2")
 
 
 @bot.message_handler(commands=['renamechild'])
