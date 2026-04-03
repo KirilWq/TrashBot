@@ -6182,13 +6182,27 @@ def save_guild_boss_attack_time(user_id, boss_id, timestamp):
 
         guild_id = row[0]
 
-        # Оновлюємо час атаки в існуючому записі
+        # Перевіряємо чи існує запис
         cursor.execute('''
-            INSERT INTO guild_boss_participants (boss_id, user_id, guild_id, damage_dealt, joined_at)
-            VALUES (%s, %s, %s, 0, %s)
-            ON CONFLICT (boss_id, user_id, guild_id) DO UPDATE SET
-                joined_at = %s
-        ''', (boss_id, user_id, guild_id, timestamp, timestamp))
+            SELECT id FROM guild_boss_participants
+            WHERE boss_id = %s AND user_id = %s AND guild_id = %s
+        ''', (boss_id, user_id, guild_id))
+        
+        existing = cursor.fetchone()
+        
+        if existing:
+            # Оновлюємо час атаки
+            cursor.execute('''
+                UPDATE guild_boss_participants
+                SET joined_at = %s
+                WHERE boss_id = %s AND user_id = %s AND guild_id = %s
+            ''', (timestamp, boss_id, user_id, guild_id))
+        else:
+            # Створюємо новий запис
+            cursor.execute('''
+                INSERT INTO guild_boss_participants (boss_id, user_id, guild_id, damage_dealt, joined_at)
+                VALUES (%s, %s, %s, 0, %s)
+            ''', (boss_id, user_id, guild_id, timestamp))
 
         conn.commit()
     except Exception as e:
