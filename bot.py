@@ -7896,7 +7896,8 @@ def guild_boss_attack_cmd(message):
             for i, p in enumerate(sorted_participants, 1):
                 medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "•"
                 damage_percent = (p['damage_dealt'] / total_damage * 100) if total_damage > 0 else 0
-                text += f"{medal} {i}. {p.get('username', f'ID {p["user_id"]}')} - {damage_percent:.1f}% ({p['damage_dealt']} шкоди)\n"
+                username = p.get('username', 'ID {}'.format(p['user_id']))
+                text += "{} {}. {} - {:.1f}% ({} шкоди)\n".format(medal, i, username, damage_percent, p['damage_dealt'])
 
             # Видаємо нагороди
             for p in participants:
@@ -7987,7 +7988,8 @@ def guild_boss_info_cmd(message):
 """
         for i, p in enumerate(participants[:5], 1):
             medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "•"
-            text += f"{medal} {i}. {p.get('username', f'ID {p["user_id"]}')} - {p['damage_dealt']} шкоди\n"
+            username = p.get('username', 'ID {}'.format(p['user_id']))
+            text += "{} {}. {} - {} шкоди\n".format(medal, i, username, p['damage_dealt'])
 
         text += f"""
 
