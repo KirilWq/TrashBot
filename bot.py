@@ -7560,33 +7560,42 @@ def use_item_cmd(message):
             bot.reply_to(message, "❌ Використання: /use_item <ID предмета>")
             return
 
-        item_id = int(parts[1])
+        item_id = parts[1]
 
-        # Використовуємо предмет
-        result = use_item(user_id, chat_id, item_id)
+        # Спочатку пробуємо знайти предмет в shop інвентарі (user_inventory)
+        inventory = get_user_inventory(user_id, chat_id)
+        inv_item = None
+        for inv in inventory:
+            if inv['item_id'] == item_id and inv['quantity'] > 0:
+                inv_item = inv
+                break
 
-        if result.get('success'):
-            bonus_type = result.get('bonus_type', '')
-            item_name = result.get('item_name', '')
-            effect = result.get('effect', '')
+        if inv_item:
+            # Це shop предмет — обробляємо вручну
+            item = get_item(item_id)
+            if not item:
+                bot.reply_to(message, "❌ Предмет не знайдено!")
+                return
 
-            # Обробка спеціальних ефектів
-            if bonus_type == 'remove_cooldown':
+            # Видаляємо з інвентарю
+            remove_from_inventory(user_id, chat_id, item_id, 1)
+
+            # Обробка ефекту предмета
+            if item_id == 'energy':
                 # Знімаємо кулдаун з годування
                 hryak = get_hryak(user_id, chat_id)
                 if hryak:
                     save_hryak_to_db(user_id, chat_id, {'last_feed': 0})
-                    text = f"⚡ **{item_name} використано!**\n\nТепер можна годувати хряка!"
+                    text = f"⚡ **{item['name']} використано!**\n\nТепер можна годувати хряка!"
                 else:
                     text = "❌ У тебе немає хряка!"
-            elif bonus_type == 'remove_trachen_cooldown':
-                # Знімаємо кулдаун з трахену - оновлюємо запис в БД на старий час
+            elif item_id == 'spermobak':
+                # Знімаємо кулдаун з трахену
                 from db import get_connection
                 import time as time_module
                 conn = get_connection()
                 if conn:
                     cursor = conn.cursor()
-                    # Встановлюємо час останнього трахену на 24 години тому (щоб кулдаун точно пройшов)
                     old_time = int(time_module.time()) - 86400
                     cursor.execute('''
                         UPDATE trachenzebiten
@@ -7602,21 +7611,19 @@ def use_item_cmd(message):
                     conn.commit()
                     cursor.close()
                     conn.close()
-
                     if affected > 0:
-                        text = f"🧪 **{item_name} використано!**\n\nТепер можна використовувати /trachen та /breed!"
+                        text = f"🧪 **{item['name']} використано!**\n\nТепер можна використовувати /trachen та /breed!"
                     else:
-                        text = f"🧪 **{item_name} використано!**\n\nУ вас немає активного кулдауну."
+                        text = f"🧪 **{item['name']} використано!**\n\nУ вас немає активного кулдауну."
                 else:
                     text = "❌ Помилка БД!"
-            elif bonus_type == 'remove_child_train_cooldown':
-                # Знімаємо кулдаун з тренування дітей - ставимо old_time щоб дозволити ОДНЕ тренування
+            elif item_id == 'pastors_milk':
+                # Знімаємо кулдаун з тренування дітей
                 from db import get_connection
                 import time as time_module
                 conn = get_connection()
                 if conn:
                     cursor = conn.cursor()
-                    # Встановлюємо last_train на 24 години тому (кулдаун 12 год = пройшов)
                     old_time = int(time_module.time()) - 86400
                     cursor.execute('''
                         UPDATE hryak_genes
@@ -7627,27 +7634,100 @@ def use_item_cmd(message):
                     conn.commit()
                     cursor.close()
                     conn.close()
-
                     if affected > 0:
-                        text = f"🥛 **{item_name} використано!**\n\nТепер можна тренувати дітей!"
+                        text = f"🥛 **{item['name']} використано!**\n\nТепер можна тренувати дітей!"
                     else:
-                        text = f"🥛 **{item_name} використано!**\n\nУ вас немає активного кулдауну."
+                        text = f"🥛 **{item['name']} використано!**\n\nУ вас немає активного кулдауну."
                 else:
                     text = "❌ Помилка БД!"
             else:
-                duration_hours = result.get('duration', 3600) / 3600
-                text = f"✅ **ПРЕДМЕТ ВИКОРИСТАНО!**\n\n"
-                text += f"🎒 {item_name}\n"
-                text += f"✨ Ефект: {effect}\n"
-                text += f"⏰ Тривалість: {duration_hours:.1f} год\n\n"
-                text += "Баф активний! Бонуси вже враховані."
+                # Стандартний баф
+                text = f"✅ **{item['name']} використано!**\n\n"
+                text += f"✨ Ефект: {item['desc']}"
 
             bot.reply_to(message, text, parse_mode="Markdown")
-        else:
-            bot.reply_to(message, f"❌ Помилка: {result.get('error', 'Невідома помилка')}")
 
-    except ValueError:
-        bot.reply_to(message, "❌ Невірний ID!")
+        else:
+            # Пробуємо як user_items (loot/traded items)
+            try:
+                numeric_item_id = int(item_id)
+            except ValueError:
+                bot.reply_to(message, f"❌ Предмет '{item_id}' не знайдено в інвентарі!")
+                return
+
+            result = use_item(user_id, chat_id, numeric_item_id)
+
+            if result.get('success'):
+                bonus_type = result.get('bonus_type', '')
+                item_name = result.get('item_name', '')
+
+                if bonus_type == 'remove_cooldown':
+                    hryak = get_hryak(user_id, chat_id)
+                    if hryak:
+                        save_hryak_to_db(user_id, chat_id, {'last_feed': 0})
+                        text = f"⚡ **{item_name} використано!**\n\nТепер можна годувати хряка!"
+                    else:
+                        text = "❌ У тебе немає хряка!"
+                elif bonus_type == 'remove_trachen_cooldown':
+                    from db import get_connection
+                    import time as time_module
+                    conn = get_connection()
+                    if conn:
+                        cursor = conn.cursor()
+                        old_time = int(time_module.time()) - 86400
+                        cursor.execute('''
+                            UPDATE trachenzebiten
+                            SET created_at = %s
+                            WHERE user_id = %s AND chat_id = %s
+                            AND id = (
+                                SELECT id FROM trachenzebiten
+                                WHERE user_id = %s AND chat_id = %s
+                                ORDER BY id DESC LIMIT 1
+                            )
+                        ''', (old_time, user_id, chat_id, user_id, chat_id))
+                        affected = cursor.rowcount
+                        conn.commit()
+                        cursor.close()
+                        conn.close()
+                        if affected > 0:
+                            text = f"🧪 **{item_name} використано!**\n\nТепер можна /trachen та /breed!"
+                        else:
+                            text = f"🧪 **{item_name} використано!**\n\nНемає активного кулдауну."
+                    else:
+                        text = "❌ Помилка БД!"
+                elif bonus_type == 'remove_child_train_cooldown':
+                    from db import get_connection
+                    import time as time_module
+                    conn = get_connection()
+                    if conn:
+                        cursor = conn.cursor()
+                        old_time = int(time_module.time()) - 86400
+                        cursor.execute('''
+                            UPDATE hryak_genes
+                            SET last_train = %s
+                            WHERE user_id = %s
+                        ''', (old_time, user_id))
+                        affected = cursor.rowcount
+                        conn.commit()
+                        cursor.close()
+                        conn.close()
+                        if affected > 0:
+                            text = f"🥛 **{item_name} використано!**\n\nТепер можна тренувати дітей!"
+                        else:
+                            text = f"🥛 **{item_name} використано!**\n\nНемає активного кулдауну."
+                    else:
+                        text = "❌ Помилка БД!"
+                else:
+                    duration_hours = result.get('duration', 3600) / 3600
+                    text = f"✅ **ПРЕДМЕТ ВИКОРИСТАНО!**\n\n"
+                    text += f"🎒 {item_name}\n"
+                    text += f"✨ Ефект: {result.get('effect')}\n"
+                    text += f"⏰ Тривалість: {duration_hours:.1f} год"
+
+                bot.reply_to(message, text, parse_mode="Markdown")
+            else:
+                bot.reply_to(message, f"❌ Помилка: {result.get('error', 'Предмет не знайдено')}")
+
     except Exception as e:
         logger.error(f"❌ Помилка /use_item: {e}", exc_info=True)
         bot.reply_to(message, f"❌ Помилка: {e}")
