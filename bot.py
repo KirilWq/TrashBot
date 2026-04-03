@@ -46,6 +46,7 @@ from db import (
     donate_to_chest, get_guild_chest, withdraw_from_chest,
     declare_war, join_war, add_war_contribution, end_war, get_active_wars,
     spawn_guild_boss, attack_guild_boss, get_guild_boss_participants, get_active_guild_boss,
+    get_last_guild_boss_attack_time, save_guild_boss_attack_time,
     # Guild warriors and items
     buy_warrior, get_guild_warriors, get_total_warrior_power, station_warriors, get_territory_defense,
     remove_warriors_from_guild, record_territory_battle,
