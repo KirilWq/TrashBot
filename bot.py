@@ -5325,8 +5325,8 @@ def breed_cmd(message):
             bot.reply_to(message, f"⏳ Ще рано! Схрещування доступне раз на 24 години.\n\nЗалишилось: {hours_left} год {minutes_left} хв")
             return
 
-        # Перевіряємо чи є партнер (обов'язково згадка)
-        if len(parts) < 2 or not message.reply_to_message:
+        # Перевіряємо чи є партнер (reply на повідомлення)
+        if not message.reply_to_message:
             bot.reply_to(message, """❌ Використання: /breed (у відповідь на повідомлення партнера)
 
 **Схрещування** - це просунута версія /trachen:
