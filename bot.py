@@ -10976,7 +10976,19 @@ def api_get_inventory():
             return jsonify({'success': False, 'message': 'User ID required'}), 400
 
         inventory = get_user_inventory(user_id, chat_id or -1)
-        return jsonify({'success': True, 'data': inventory}), 200
+
+        # Also get user_items (loot/traded items)
+        user_items_list = get_user_items(user_id, chat_id or -1)
+
+        # Add item_id as integer ID for loot items
+        for item in user_items_list:
+            item['is_loot'] = True
+
+        return jsonify({
+            'success': True,
+            'data': inventory,
+            'loot_items': user_items_list
+        }), 200
     except Exception as e:
         logger.error(f"API /inventory error: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500

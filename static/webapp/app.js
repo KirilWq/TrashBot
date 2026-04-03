@@ -337,7 +337,16 @@ async function loadInventory() {
         const container = document.getElementById('inventoryItems');
         container.innerHTML = '';
 
-        if (data.success && data.data.length > 0) {
+        let hasItems = false;
+
+        // Show shop items (by item_id string like 'energy', 'spermobak', etc.)
+        if (data.success && data.data && data.data.length > 0) {
+            hasItems = true;
+            const sectionTitle = document.createElement('div');
+            sectionTitle.style.cssText = 'padding: 10px; font-size: 13px; color: var(--tg-theme-hint-color); border-bottom: 1px solid rgba(255,255,255,0.1);';
+            sectionTitle.textContent = '🏪 Предмети магазину';
+            container.appendChild(sectionTitle);
+
             data.data.forEach(item => {
                 const itemEl = document.createElement('div');
                 itemEl.className = 'inventory-item';
@@ -345,15 +354,42 @@ async function loadInventory() {
                     <div class="item-info">
                         <span class="item-icon">${item.icon || '📦'}</span>
                         <div class="item-details">
-                            <span class="item-name">${item.name}</span>
-                            <span class="item-quantity">x${item.quantity}</span>
+                            <span class="item-name">${item.name} <span style="opacity:0.5; font-size:11px;">(ID: ${item.item_id})</span></span>
+                            <span class="item-quantity">x${item.quantity}${item.description ? ' — ' + item.description : ''}</span>
                         </div>
                     </div>
                     <button class="btn btn-primary" style="width: auto; padding: 8px 16px;" onclick="useItem('${item.item_id}')">Використати</button>
                 `;
                 container.appendChild(itemEl);
             });
-        } else {
+        }
+
+        // Show loot/traded items (by numeric ID)
+        if (data.success && data.loot_items && data.loot_items.length > 0) {
+            hasItems = true;
+            const sectionTitle = document.createElement('div');
+            sectionTitle.style.cssText = 'padding: 10px; font-size: 13px; color: var(--tg-theme-hint-color); border-bottom: 1px solid rgba(255,255,255,0.1); margin-top: 10px;';
+            sectionTitle.textContent = '⚔️ Предмети з боїв/трейдів';
+            container.appendChild(sectionTitle);
+
+            data.loot_items.forEach(item => {
+                const itemEl = document.createElement('div');
+                itemEl.className = 'inventory-item';
+                itemEl.innerHTML = `
+                    <div class="item-info">
+                        <span class="item-icon">${item.icon || '📦'}</span>
+                        <div class="item-details">
+                            <span class="item-name">${item.item_name} <span style="opacity:0.5; font-size:11px;">(ID: ${item.id})</span></span>
+                            <span class="item-quantity">x${item.quantity} | ${item.rarity} | ${item.bonus_type ? '+' + item.bonus_value + ' ' + item.bonus_type : ''}</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" style="width: auto; padding: 8px 16px;" onclick="useItem(${item.id})">Використати</button>
+                `;
+                container.appendChild(itemEl);
+            });
+        }
+
+        if (!hasItems) {
             container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--tg-theme-hint-color);">Інвентар порожній</div>';
         }
     } catch (error) {
