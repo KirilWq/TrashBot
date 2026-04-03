@@ -5967,37 +5967,40 @@ def child_info_cmd(message):
         child_name = escape_markdown(child['name'])
         inherited_trait = escape_markdown(child['inherited_trait'] or 'Немає')
 
-        text = f"""👶 *ІНФОРМАЦІЯ ПРО ДИТИНУ* {rarity_emoji}
+        weight_text = escape_markdown(str(child['weight']))
+        age_days = int((time.time() - child['born_at']) / 86400)
+        father_id = escape_markdown(str(child['father_user_id']))
+        mother_id = escape_markdown(str(child['mother_user_id']))
 
-{color_emoji} *Ім'я:* {child_name}
-⚖️ *Вага:* {child['weight']} кг
-🧬 *Особливість:* {inherited_trait}
+        text = "👶 \\*ІНФОРМАЦІЯ ПРО ДИТИНУ\\* {rarity_emoji}\n\n".format(rarity_emoji=rarity_emoji)
+        text += "{color_emoji} \\*Ім'я:\\* {child_name}\n".format(color_emoji=color_emoji, child_name=child_name)
+        text += "⚖️ \\*Вага:\\* {weight} кг\n".format(weight=weight_text)
+        text += "🧬 \\*Особливість:\\* {trait}\n\n".format(trait=inherited_trait)
+        text += "\\*Батьки:\\*\n"
+        text += "👨 Батько: ID {fid}\n".format(fid=father_id)
+        text += "👩 Мати: ID {mid}\n\n".format(mid=mother_id)
+        text += "\\*Народжений:\\* {born}\n".format(born=born_date)
+        text += "\\*Вік:\\* {age} дн\\.\n".format(age=age_days)
 
-*Батьки:*
-👨 Батько: ID {child['father_user_id']}
-👩 Мати: ID {child['mother_user_id']}
-
-*Народжений:* {born_date}
-*Вік:* {int((time.time() - child['born_at']) / 86400)} дн.
-
-"""
         if child_genes:
-            rarity_name = GENE_RARITIES.get(child_genes.get('gene_rarity', 'C'), {}).get('name', 'Звичайний')
-            color_name = COLOR_TYPES.get(child_genes.get('color_type', 'normal'), {}).get('name', 'Звичайний')
-            text += f"*Гени:*\n"
-            text += f"• Рідкість: {rarity_name} {rarity_emoji}\n"
-            text += f"• Колір: {color_name} {color_emoji}\n"
+            rarity_name = escape_markdown(GENE_RARITIES.get(child_genes.get('gene_rarity', 'C'), {}).get('name', 'Звичайний'))
+            color_name = escape_markdown(COLOR_TYPES.get(child_genes.get('color_type', 'normal'), {}).get('name', 'Звичайний'))
+            text += "\n\\*Гени:\\*\n"
+            text += "• Рідкість: {rarity} {emoji}\n".format(rarity=rarity_name, emoji=rarity_emoji)
+            text += "• Колір: {color} {emoji}\n".format(color=color_name, emoji=color_emoji)
 
             if child_genes.get('bonus_type'):
-                bonus_name = BONUS_TYPES.get(child_genes['bonus_type'], {}).get('name', 'Бонус')
-                text += f"• Бонус: +{child_genes['bonus_value']}% {bonus_name}\n"
+                bonus_name = escape_markdown(BONUS_TYPES.get(child_genes['bonus_type'], {}).get('name', 'Бонус'))
+                bonus_val = escape_markdown(str(child_genes['bonus_value']))
+                text += "• Бонус: \\+{val}% {name}\n".format(val=bonus_val, name=bonus_name)
 
-            text += f"• Шанс мутації: {child_genes.get('mutation_chance', 0.05) * 100:.1f}%\n"
+            mut_chance = escape_markdown("{:.1f}".format(child_genes.get('mutation_chance', 0.05) * 100))
+            text += "• Шанс мутації: {val}%\n".format(val=mut_chance)
 
-        text += f"""
-*Команди:*
-/renamechild {child_id} <нове ім'я> \\- перейменувати
-/sacrificechild {child_id} \\- жертва \\(монети \\+ XP\\)"""
+        child_id_text = escape_markdown(str(child_id))
+        text += "\n\\*Команди:\\*\n"
+        text += "/renamechild {id} \\<нове ім'я\\> \\- перейменувати\n".format(id=child_id_text)
+        text += "/sacrificechild {id} \\- жертва \\(монети \\+ XP\\)".format(id=child_id_text)
 
         bot.reply_to(message, text, parse_mode="MarkdownV2")
 
