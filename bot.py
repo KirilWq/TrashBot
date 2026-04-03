@@ -5951,8 +5951,8 @@ def child_info_cmd(message):
             bot.reply_to(message, "❌ Це не твоя дитина!")
             return
 
-        born_date = time.strftime('%d.%m.%Y %H:%M', time.localtime(child['born_at']))
-        born_date = born_date.replace('.', '\\.').replace(':', '\\:')
+        born_date_raw = time.strftime('%d.%m.%Y %H:%M', time.localtime(child['born_at']))
+        born_date = escape_markdown(born_date_raw)
 
         # Отримуємо гени дитини
         child_genes = get_hryak_genes(child['user_id'], chat_id)
