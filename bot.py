@@ -3789,58 +3789,58 @@ def inventory_cmd(message):
             bot.reply_to(message, "🎒 ІНВЕНТАР\n\nПорожньо!")
             return
 
-        text = "🎒 ІНВЕНТАР\n\n"
+        text = "🎒 *ІНВЕНТАР*\n\n"
 
         # Show user_items (loot/traded items)
         if user_items:
-            text += "**Предмети:**\n"
+            text += "\\*Предмети:\\*\n"
             rarity_emojis = {'mythic': '🔴', 'legendary': '🟡', 'epic': '🟣', 'rare': '🔵', 'common': '⚪'}
             type_names = {'weapon': 'Зброя', 'armor': 'Броня', 'accessory': 'Аксесуар', 'consumable': 'Споживне', 'special': 'Особливе', 'item': 'Предмет'}
-            
+
             for item in user_items[:20]:
                 rarity_emoji = rarity_emojis.get(item['rarity'], '⚪')
                 type_name = type_names.get(item['item_type'], item['item_type'])
                 bonus_text = f"+{item['bonus_value']} {item['bonus_type']}" if item['bonus_type'] else ""
-                
-                text += f"{rarity_emoji} **{item['item_name']}** ({type_name}) x{item['quantity']}\n"
+                item_name_safe = escape_markdown(item['item_name'])
+
+                text += "{} \\*{}\\* \\({}\\) x{}\n".format(rarity_emoji, item_name_safe, type_name, item['quantity'])
                 if bonus_text:
-                    text += f"   {bonus_text}\n"
+                    text += "   {}\n".format(escape_markdown(bonus_text))
             text += "\n"
 
         # Show shop items
         if inventory:
-            text += "**Предмети з магазину:**\n"
+            text += "\\*Предмети з магазину:\\*\n"
             for inv_item in inventory:
                 item = items_dict.get(inv_item['item_id'])
                 if item:
-                    text += f"{inv_item['item_id']} - {item['name']} x{inv_item['quantity']}\n"
+                    text += "{} - {} x{}\n".format(inv_item['item_id'], item['name'], inv_item['quantity'])
                     if inv_item['expires_at']:
                         expires = inv_item['expires_at'] - int(time.time())
                         hours = expires // 3600
-                        text += f"  (Ще {hours} год)\n"
+                        text += "  \\(Ще {} год\\)\n".format(hours)
                     text += "\n"
 
         # Show skins
         if skins:
-            text += "**Скіни:**\n"
+            text += "\\*Скіни:\\*\n"
             for skin in skins:
-                equipped = "(Одягнуто)" if skin['equipped'] else ""
-                # Додаємо назву для equipskin
-                skin_name = skin['name']  # Це name для команди (наприклад 'classic')
-                display_name = skin['display_name']  # Це відображувана назва
-                text += f"{skin['icon']} {display_name} {equipped} (/{skin_name})\n"
+                equipped = "\\(Одягнуто\\)" if skin['equipped'] else ""
+                display_name = escape_markdown(skin['display_name'])
+                skin_name_safe = escape_markdown(skin['name'])
+                text += "{} {} {} \\/{}\n".format(skin['icon'], display_name, equipped, skin_name_safe)
             text += "\n"
 
-        text += "**Команди:**\n"
-        text += "/use <item_id> - використати предмет\n"
-        text += "/equipskin <назва> - одягнути скін\n"
-        text += "/item_trade <предмет> <кількість> - трейд предметом\n\n"
-        text += "Приклад: /equipskin classic"
+        text += "\\*Команди:\\*\n"
+        text += "/use \\<item_id\\> - використати предмет\n"
+        text += "/equipskin \\<назва\\> - одягнути скін\n"
+        text += "/item_trade \\<предмет\\> \\<кількість\\> - трейд предметом\n\n"
+        text += "Приклад: `/equipskin classic`"
 
-        bot.reply_to(message, text, parse_mode="Markdown")
+        bot.reply_to(message, text, parse_mode="MarkdownV2")
     except Exception as e:
         logger.error(f"❌ Помилка /inventory: {e}", exc_info=True)
-        bot.reply_to(message, f"❌ Помилка: {e}")
+        bot.reply_to(message, "❌ Помилка: {}".format(escape_markdown(str(e))), parse_mode="MarkdownV2")
 
 
 @bot.message_handler(commands=['use'])
