@@ -3820,10 +3820,11 @@ def inventory_cmd(message):
                 type_name = type_names.get(item['item_type'], 'Предмет')
                 item_name_safe = escape_markdown(item['item_name'])
                 type_name_safe = escape_markdown(type_name)
+                item_id_safe = escape_markdown(str(item['id']))
 
-                text += "{} \\*{}\\* \\({}\\) x{}\n".format(rarity_emoji, item_name_safe, type_name_safe, item['quantity'])
+                text += "{} \\*{}\\* \\({}\\) x{} `\\(ID: {}\\)`\n".format(rarity_emoji, item_name_safe, type_name_safe, item['quantity'], item_id_safe)
                 if item.get('bonus_type'):
-                    bonus_text = "+{} {}".format(item['bonus_value'], item['bonus_type'])
+                    bonus_text = "\\+{} {}".format(item['bonus_value'], item['bonus_type'])
                     text += "   {}\n".format(escape_markdown(bonus_text))
             text += "\n"
 
@@ -3833,7 +3834,9 @@ def inventory_cmd(message):
             for inv_item in inventory:
                 item = items_dict.get(inv_item['item_id'])
                 if item:
-                    text += "\\- {} x{}\n".format(escape_markdown(item['name']), inv_item['quantity'])
+                    item_id_safe = escape_markdown(inv_item['item_id'])
+                    item_name_safe = escape_markdown(item['name'])
+                    text += "\\- {} x{} `\\(ID: {}\\)`\n".format(item_name_safe, inv_item['quantity'], item_id_safe)
                     if inv_item['expires_at']:
                         expires = inv_item['expires_at'] - int(time.time())
                         hours = expires // 3600
