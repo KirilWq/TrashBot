@@ -1978,44 +1978,86 @@ def team_battle_start_callback(call):
 
 @bot.message_handler(commands=['menu'])
 def menu_cmd(message):
-    """Показати inline меню"""
-    markup = types.InlineKeyboardMarkup(row_width=3)
+    """Показати головне inline меню з 3 категоріями"""
+    markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("🐷 Хряк", callback_data="menu_grow"),
-        types.InlineKeyboardButton("🍽️ Годувати", callback_data="menu_feed"),
-        types.InlineKeyboardButton("📊 Мій", callback_data="menu_my"),
-        types.InlineKeyboardButton("✏️ Ім'я", callback_data="menu_name"),
-        types.InlineKeyboardButton("🏆 Топ чату", callback_data="menu_top"),
-        types.InlineKeyboardButton("🌍 Глоб топ", callback_data="menu_globaltop"),
-        types.InlineKeyboardButton("⚔️ Дуель", callback_data="duel_create"),
-        types.InlineKeyboardButton("👥 Командна", callback_data="menu_teambattle"),
-        types.InlineKeyboardButton("🏅 Досягнення", callback_data="menu_achievements"),
-        types.InlineKeyboardButton("📋 Квести", callback_data="menu_quests"),
-        types.InlineKeyboardButton("💰 Баланс", callback_data="menu_balance"),
-        types.InlineKeyboardButton("📊 Статистика", callback_data="menu_mystats"),
-        types.InlineKeyboardButton("🏪 Магазин", callback_data="menu_shop"),
-        types.InlineKeyboardButton("🎒 Інвентар", callback_data="menu_inventory"),
-        types.InlineKeyboardButton("🎁 Daily", callback_data="menu_daily"),
-        types.InlineKeyboardButton("🎰 Рулетка", callback_data="menu_roulette"),
-        types.InlineKeyboardButton("🎯 Лотерея", callback_data="menu_lottery"),
-        types.InlineKeyboardButton("💕 Трахен", callback_data="menu_trachen"),
-        types.InlineKeyboardButton("👶 Діти", callback_data="menu_children"),
-        types.InlineKeyboardButton("🤰 Вагітні", callback_data="menu_pregnancies"),
-        types.InlineKeyboardButton("🏆 Турнір", callback_data="menu_tournament"),
-        types.InlineKeyboardButton("💱 Трейд", callback_data="menu_trade"),
-        types.InlineKeyboardButton("🎯 Квіз", callback_data="menu_quiz"),
-        types.InlineKeyboardButton("🐲 Бос", callback_data="menu_boss"),
-        types.InlineKeyboardButton("🎯 Підор", callback_data="menu_pidor"),
-        types.InlineKeyboardButton("🔥 Roast", callback_data="menu_roast"),
-        types.InlineKeyboardButton("🔮 Fortune", callback_data="menu_fortune"),
-        types.InlineKeyboardButton("⭐ Оцінка", callback_data="menu_rate")
+        types.InlineKeyboardButton("\U0001f437 Хряк та Рейтинг", callback_data="submenu_hryak"),
+        types.InlineKeyboardButton("\u2694\ufe0f Битви та Гільдії", callback_data="submenu_battles"),
+        types.InlineKeyboardButton("\U0001f3b0 Розваги та Економіка", callback_data="submenu_fun"),
+        types.InlineKeyboardButton("\U0001f3af Підор", callback_data="menu_pidor"),
+        types.InlineKeyboardButton("\U0001f525 Roast", callback_data="menu_roast"),
+        types.InlineKeyboardButton("\U0001f52e Fortune", callback_data="menu_fortune"),
+        types.InlineKeyboardButton("\u2b50 Оцінка", callback_data="menu_rate")
     )
+    bot.reply_to(message, "\U0001f4cb **МЕНЮ КОМАНД**\n\nОбери категорію:", parse_mode="Markdown", reply_markup=markup)
 
-    bot.reply_to(message,
-        "������������ **МЕНЮ КОМАНД**\n\nОбери кнопку:",
-        parse_mode="Markdown",
-        reply_markup=markup
-    )
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('submenu_'))
+def submenu_callback(call):
+    """Обробка підменю"""
+    submenu = call.data.split('_')[1]
+    chat_id = call.message.chat.id
+    bot.answer_callback_query(call.id)
+
+    if submenu == 'hryak':
+        markup = types.InlineKeyboardMarkup(row_width=3)
+        markup.add(
+            types.InlineKeyboardButton("\U0001f437 Отримати", callback_data="menu_grow"),
+            types.InlineKeyboardButton("\U0001f37d\ufe0f Годувати", callback_data="menu_feed"),
+            types.InlineKeyboardButton("\U0001f4ca Мій", callback_data="menu_my"),
+            types.InlineKeyboardButton("\u270f\ufe0f Ім'я", callback_data="menu_name"),
+            types.InlineKeyboardButton("\U0001f3c6 Топ чату", callback_data="menu_top"),
+            types.InlineKeyboardButton("\U0001f30d Глоб топ", callback_data="menu_globaltop"),
+            types.InlineKeyboardButton("\U0001f3c5 Досягнення", callback_data="menu_achievements")
+        )
+        markup.add(types.InlineKeyboardButton("\u25c0\ufe0f Назад", callback_data="menu_back"))
+        bot.edit_message_text("\U0001f437 **ХРЯК ТА РЕЙТИНГ**\n\nОбери дію:", chat_id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
+
+    elif submenu == 'battles':
+        markup = types.InlineKeyboardMarkup(row_width=3)
+        markup.add(
+            types.InlineKeyboardButton("\u2694\ufe0f Дуель", callback_data="duel_create"),
+            types.InlineKeyboardButton("\U0001f465 Командна", callback_data="menu_teambattle"),
+            types.InlineKeyboardButton("\U0001f432 Бос", callback_data="menu_boss"),
+            types.InlineKeyboardButton("\U0001f3f0 Гільдія", callback_data="menu_guild"),
+            types.InlineKeyboardButton("\u2694\ufe0f Бос гільдії", callback_data="menu_guild_boss"),
+            types.InlineKeyboardButton("\U0001f6e1\ufe0f Війни", callback_data="menu_guild_wars")
+        )
+        markup.add(types.InlineKeyboardButton("\u25c0\ufe0f Назад", callback_data="menu_back"))
+        bot.edit_message_text("\u2694\ufe0f **БИТВИ ТА ГІЛЬДІЇ**\n\nОбери дію:", chat_id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
+
+    elif submenu == 'fun':
+        markup = types.InlineKeyboardMarkup(row_width=3)
+        markup.add(
+            types.InlineKeyboardButton("\U0001f4b0 Баланс", callback_data="menu_balance"),
+            types.InlineKeyboardButton("\U0001f4ca Статистика", callback_data="menu_mystats"),
+            types.InlineKeyboardButton("\U0001f381 Daily", callback_data="menu_daily"),
+            types.InlineKeyboardButton("\U0001f4cb Квести", callback_data="menu_quests"),
+            types.InlineKeyboardButton("\U0001f3b0 Рулетка", callback_data="menu_roulette"),
+            types.InlineKeyboardButton("\U0001f3af Лотерея", callback_data="menu_lottery"),
+            types.InlineKeyboardButton("\U0001f3af Квіз", callback_data="menu_quiz"),
+            types.InlineKeyboardButton("\U0001f3ea Магазин", callback_data="menu_shop"),
+            types.InlineKeyboardButton("\U0001f392 Інвентар", callback_data="menu_inventory"),
+            types.InlineKeyboardButton("\U0001f495 Трахен", callback_data="menu_trachen"),
+            types.InlineKeyboardButton("\U0001f476 Діти", callback_data="menu_children"),
+            types.InlineKeyboardButton("\U0001f3c6 Турнір", callback_data="menu_tournament"),
+            types.InlineKeyboardButton("\U0001f4b1 Трейд", callback_data="menu_trade")
+        )
+        markup.add(types.InlineKeyboardButton("\u25c0\ufe0f Назад", callback_data="menu_back"))
+        bot.edit_message_text("\U0001f3b0 **РОЗВАГИ ТА ЕКОНОМІКА**\n\nОбери дію:", chat_id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
+
+    elif submenu == 'back':
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        markup.add(
+            types.InlineKeyboardButton("\U0001f437 Хряк та Рейтинг", callback_data="submenu_hryak"),
+            types.InlineKeyboardButton("\u2694\ufe0f Битви та Гільдії", callback_data="submenu_battles"),
+            types.InlineKeyboardButton("\U0001f3b0 Розваги та Економіка", callback_data="submenu_fun"),
+            types.InlineKeyboardButton("\U0001f3af Підор", callback_data="menu_pidor"),
+            types.InlineKeyboardButton("\U0001f525 Roast", callback_data="menu_roast"),
+            types.InlineKeyboardButton("\U0001f52e Fortune", callback_data="menu_fortune"),
+            types.InlineKeyboardButton("\u2b50 Оцінка", callback_data="menu_rate")
+        )
+        bot.edit_message_text("\U0001f4cb **МЕНЮ КОМАНД**\n\nОбери категорію:", chat_id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('menu_'))
@@ -2307,6 +2349,30 @@ def menu_callback(call):
 
     elif command == 'mystats':
         text = "📊 **Статистика**\n\nНапиши /mystats щоб побачити свою статистику!"
+
+    elif command == 'guild':
+        text = "🏰 **ГІЛЬДІЯ**\n\n"
+        text += "/guild_create <назва> - створити гільдію\n"
+        text += "/guild_join <назва> - приєднатися\n"
+        text += "/guild_info - інформація\n"
+        text += "/guild_members - учасники\n"
+        text += "/guild_spawn <ім'я> <рівень> - спавн боса\n"
+        text += "/guild_attack - атакувати боса\n"
+        text += "/guild_warriors - воїни гільдії\n"
+        text += "/guild_territories - території"
+
+    elif command == 'guild_boss':
+        text = "⚔️ **БОС ГІЛЬДІЇ**\n\n"
+        text += "/guild_boss_spawn <ім'я> <рівень> - спавнити боса\n"
+        text += "/guild_boss_attack - атакувати боса\n"
+        text += "/guild_boss_info - статус боса"
+
+    elif command == 'guild_wars':
+        text = "🛡️ **ВІЙНИ ГІЛЬДІЙ**\n\n"
+        text += "/guild_war_declare <гільдія> - оголосити війну\n"
+        text += "/guild_war_join - приєднатися до війни\n"
+        text += "/guild_war_battle - битися (щодня)\n"
+        text += "/guild_war_status - статус воєн"
 
     else:
         text = "❌ Невідома команда"
@@ -3998,35 +4064,28 @@ def balance_cmd(message):
 
     try:
         currency = get_user_currency(user_id, chat_id)
-        crypto_info = get_conversion_info(user_id, chat_id)
 
         if not currency:
             bot.reply_to(message, "❌ Помилка отримання балансу!")
             return
 
-        crypto_coins = crypto_info['crypto_coins'] if crypto_info else 0
+        text = """💰 **БАЛАНС**
 
-        text = f"""💰 **БАЛАНС**
+💵 Монети: {}
+⭐ XP: {}/100
+🏆 Рівень: {}
 
-💵 Ігрові монети: {currency['coins']}
-🪙 Crypto (TON): {crypto_coins} CRYPTO
-⭐ XP: {currency['xp']}/{100}
-🏆 Рівень: {currency['level']}
-
-**Конвертація:**
-Курс: {CONVERSION_RATE} монет = 1 CRYPTO
-Мінімум: {MIN_CONVERT} монет ({MIN_CONVERT // CONVERSION_RATE} CRYPTO)
-
-**Команди:**
-/convert <сума> - конвертувати монети в CRYPTO
-/crypto - інформація про крипто
-
-Як отримати:
+**Як отримати:**
 • /feed - +5 монет, +2 XP
 • /quests - до 50 монет, 12 XP
 • /boss attack - до 500 монет, 250 XP
 • /roulette - ризикни!
-• /lottery - спробуй удачу!"""
+• /lottery - спробуй удачу!
+• /daily - щоденний бонус""".format(
+            currency['coins'],
+            currency['xp'],
+            currency['level']
+        )
 
         bot.reply_to(message, text)
     except Exception as e:
