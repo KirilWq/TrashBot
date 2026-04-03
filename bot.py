@@ -11373,11 +11373,11 @@ def api_use_item():
         user_id = data.get('user_id')
         item_id = data.get('item_id')
         chat_id = data.get('chat_id')
-        
+
         # Fix chat_id - use -1 if 0, None, or missing
         if not chat_id or chat_id == 0:
             chat_id = -1
-        
+
         logger.info(f"Use item: user_id={user_id}, chat_id={chat_id}, item_id={item_id}")
 
         if not user_id or not item_id:
@@ -11392,21 +11392,66 @@ def api_use_item():
         if not item:
             return jsonify({'success': False, 'message': 'Item not found'}), 404
 
-        # Use item
+        # Use item - handle each type
         if item_id == 'energy':
-            # Remove cooldown
+            # Remove feed cooldown
             hryak = get_hryak(user_id, chat_id)
             if hryak:
-                hryak['last_feed'] = 0
-                save_hryak_to_db(f"{chat_id}_{user_id}", hryak)
+                save_hryak_to_db(user_id, chat_id, {'last_feed': 0})
+                logger.info(f"Energy used: removed feed cooldown")
             else:
                 return jsonify({'success': False, 'message': 'No hryak'}), 400
+        elif item_id == 'spermobak':
+            # Remove trachen/breed cooldown
+            from db import get_connection
+            import time as time_module
+            conn = get_connection()
+            if conn:
+                cursor = conn.cursor()
+                old_time = int(time_module.time()) - 86400
+                cursor.execute('''
+                    UPDATE trachenzebiten
+                    SET created_at = %s
+                    WHERE user_id = %s AND chat_id = %s
+                    AND id = (
+                        SELECT id FROM trachenzebiten
+                        WHERE user_id = %s AND chat_id = %s
+                        ORDER BY id DESC LIMIT 1
+                    )
+                ''', (old_time, user_id, chat_id, user_id, chat_id))
+                affected = cursor.rowcount
+                conn.commit()
+                cursor.close()
+                conn.close()
+                logger.info(f"Spermobak used: affected {affected} rows")
+            else:
+                return jsonify({'success': False, 'message': 'DB error'}), 500
+        elif item_id == 'pastors_milk':
+            # Remove child train cooldown
+            from db import get_connection
+            import time as time_module
+            conn = get_connection()
+            if conn:
+                cursor = conn.cursor()
+                old_time = int(time_module.time()) - 86400
+                cursor.execute('''
+                    UPDATE hryak_genes
+                    SET last_train = %s
+                    WHERE user_id = %s
+                ''', (old_time, user_id))
+                affected = cursor.rowcount
+                conn.commit()
+                cursor.close()
+                conn.close()
+                logger.info(f"Pastors milk used: affected {affected} rows")
+            else:
+                return jsonify({'success': False, 'message': 'DB error'}), 500
         elif item_id == 'vitamins':
             # Weight bonus
             hryak = get_hryak(user_id, chat_id)
             if hryak:
                 hryak['weight'] += item['effect_value']
-                save_hryak_to_db(f"{chat_id}_{user_id}", hryak)
+                save_hryak_to_db(user_id, chat_id, hryak)
             else:
                 return jsonify({'success': False, 'message': 'No hryak'}), 400
 

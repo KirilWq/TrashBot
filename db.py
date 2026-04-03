@@ -903,7 +903,7 @@ def init_db():
         ''', (now,))
         logger.info("✅ Перший бос додано")
 
-        # Додаємо предмети в магазин (якщо не існують)
+        # Додаємо предмети в магазин (оновлюємо якщо існують)
         shop_items_data = [
             ('vitamins', '🍎 Вітаміни', '+5 кг до наступного годування', 50, 'coins', 'weight_bonus', 5, 0),
             ('trainer', '💪 Тренажер', '+10% до проворності на 24 год', 100, 'coins', 'agility_bonus', 10, 86400),
@@ -913,12 +913,19 @@ def init_db():
             ('pastors_milk', '🥛 Молочко пастора', 'Зняти кулдаун з тренування дітей', 100, 'coins', 'remove_child_train_cooldown', 0, 0),
             ('lucky_charm', '🍀 Підкова', '+5% шанс на перемогу в дуелі', 200, 'coins', 'luck_bonus', 5, 86400)
         ]
-        
+
         for item in shop_items_data:
             cursor.execute('''
                 INSERT INTO shop_items (item_id, name, description, price, price_currency, effect_type, effect_value, duration)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (item_id) DO NOTHING
+                ON CONFLICT (item_id) DO UPDATE SET
+                    name = EXCLUDED.name,
+                    description = EXCLUDED.description,
+                    price = EXCLUDED.price,
+                    price_currency = EXCLUDED.price_currency,
+                    effect_type = EXCLUDED.effect_type,
+                    effect_value = EXCLUDED.effect_value,
+                    duration = EXCLUDED.duration
             ''', item)
         conn.commit()
         logger.info("✅ Предмети додано в магазин")
