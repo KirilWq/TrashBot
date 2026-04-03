@@ -2374,6 +2374,21 @@ def menu_callback(call):
         text += "/guild_war_battle - битися (щодня)\n"
         text += "/guild_war_status - статус воєн"
 
+    elif command == 'back':
+        # Повернутися до головного меню
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        markup.add(
+            types.InlineKeyboardButton("🐷 Хряк та Рейтинг", callback_data="submenu_hryak"),
+            types.InlineKeyboardButton("⚔️ Битви та Гільдії", callback_data="submenu_battles"),
+            types.InlineKeyboardButton("🎰 Розваги та Економіка", callback_data="submenu_fun"),
+            types.InlineKeyboardButton("🎯 Підор", callback_data="menu_pidor"),
+            types.InlineKeyboardButton("🔥 Roast", callback_data="menu_roast"),
+            types.InlineKeyboardButton("🔮 Fortune", callback_data="menu_fortune"),
+            types.InlineKeyboardButton("⭐ Оцінка", callback_data="menu_rate")
+        )
+        bot.edit_message_text("📋 **МЕНЮ КОМАНД**\n\nОбери категорію:", chat_id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
+        return  # Не надсилаємо текст нижче
+
     else:
         text = "❌ Невідома команда"
 
