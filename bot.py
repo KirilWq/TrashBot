@@ -5376,32 +5376,33 @@ def breed_cmd(message):
         rarity_emoji = GENE_RARITIES.get(child['gene_rarity'], {}).get('color', '⚪')
         color_emoji = COLOR_TYPES.get(child['color_type'], {}).get('emoji', '🐷')
 
-        # Екрануємо ім'я дитини та особливість
-        child_name_safe = child['name'].replace('_', '\\_').replace('*', '\\*').replace('`', '\\`')
-        inherited_trait_safe = (child.get('inherited_trait') or '').replace('_', '\\_').replace('*', '\\*').replace('`', '\\`')
+        # Екрануємо всі динамічні тексти для Markdown
+        child_name_safe = escape_markdown(child['name'])
+        father_name_safe = escape_markdown(father_hryak['name'])
+        mother_name_safe = escape_markdown(mother_hryak['name'])
+        inherited_trait_safe = escape_markdown(child.get('inherited_trait') or '')
+        rarity_name_safe = escape_markdown(GENE_RARITIES.get(child['gene_rarity'], {}).get('name', 'Звичайний'))
+        compatibility_safe = escape_markdown(str(compatibility.get('compatibility', '0%')))
 
-        text = f"""🎉 **ПОТОМСТВО СТВОРЕНО!**
-
-👨 Батько: {father_hryak['name']} (ID: {user_id})
-👩 Мати: {mother_hryak['name']} (ID: {partner_id})
-
-👶 **Дитина:**
-{color_emoji} Ім'я: {child_name_safe}
-⚖️ Вага: {child['weight']} кг
-{rarity_emoji} Рідкість: {GENE_RARITIES[child['gene_rarity']]['name']}
-
-🧬 **Особливості:**"""
+        text = f"🎉 *ПОТОМСТВО СТВОРЕНО!*\\n\\n"
+        text += f"👨 Батько: {father_name_safe} \\(ID: {user_id}\\)\\n"
+        text += f"👩 Мати: {mother_name_safe} \\(ID: {partner_id}\\)\\n\\n"
+        text += f"👶 *Дитина:*\\n"
+        text += f"{color_emoji} Ім'я: {child_name_safe}\\n"
+        text += f"⚖️ Вага: {child['weight']} кг\\n"
+        text += f"{rarity_emoji} Рідкість: {rarity_name_safe}\\n\\n"
+        text += f"🧬 *Особливості:*"
 
         if child['has_mutation']:
-            text += "\n🔴 **МУТАЦІЯ!** Унікальна здібність!"
+            text += "\\n🔴 *МУТАЦІЯ!* Унікальна здібність!"
         elif child.get('inherited_trait'):
-            text += f"\n✨ {inherited_trait_safe}"
+            text += f"\\n✨ {inherited_trait_safe}"
         else:
-            text += "\n⚪ Без особливих ознак"
+            text += "\\n⚪ Без особливих ознак"
 
-        text += f"\n\n💞 Сумісність генів: {compatibility['compatibility']}"
-        text += f"\n💰 Витрачено: 100 монет"
-        text += f"\n\n⏰ Наступне схрещування через 24 години"
+        text += f"\\n\\n💞 Сумісність генів: {compatibility_safe}"
+        text += f"\\n💰 Витрачено: 100 монет"
+        text += f"\\n\\n⏰ Наступне схрещування через 24 години"
 
         # Зберігаємо гени дитини
         try:
@@ -5419,7 +5420,7 @@ def breed_cmd(message):
         except Exception as e:
             logger.error(f"❌ Помилка збереження генів дитини: {e}")
 
-        bot.reply_to(message, text, parse_mode="Markdown")
+        bot.reply_to(message, text, parse_mode="MarkdownV2")
 
     except Exception as e:
         logger.error(f"❌ Помилка /breed: {e}", exc_info=True)
