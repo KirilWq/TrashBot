@@ -5922,7 +5922,7 @@ def children_cmd(message):
 
     except Exception as e:
         logger.error(f"❌ Помилка /children: {e}", exc_info=True)
-        bot.reply_to(message, "❌ Помилка: {}".format(e))
+        bot.reply_to(message, "❌ Помилка: {}".format(escape_markdown(str(e))), parse_mode="MarkdownV2")
 
 
 @bot.message_handler(commands=['childinfo'])
