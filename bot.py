@@ -4790,8 +4790,8 @@ def quiz_callback(call):
 
             text = f"""✅ **ПРАВИЛЬНО!**
 
-+10 монет
-+5 XP
++5 монет
++3 XP
 
 Правильна відповідь: {question['options'][question['correct']]}
 
