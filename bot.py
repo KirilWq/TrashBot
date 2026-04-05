@@ -4315,7 +4315,7 @@ def set_wipe_db_cmd(message):
                 return
             
             cursor = conn.cursor()
-            cursor.execute("SELECT key, value FROM bot_settings WHERE key LIKE %s", ('wipe_%',))
+            cursor.execute("SELECT key, value FROM bot_settings WHERE key LIKE 'wipe_%'")
             settings = dict(cursor.fetchall())
             cursor.close()
             conn.close()
@@ -4360,7 +4360,7 @@ def set_wipe_db_cmd(message):
                 return
             
             cursor = conn.cursor()
-            cursor.execute("DELETE FROM bot_settings WHERE key LIKE %s", ('wipe_%',))
+            cursor.execute("DELETE FROM bot_settings WHERE key LIKE 'wipe_%'")
             conn.commit()
             cursor.close()
             conn.close()
@@ -4380,10 +4380,10 @@ def set_wipe_db_cmd(message):
                 conn = get_connection()
                 if conn:
                     cursor = conn.cursor()
-                    cursor.execute('''
-                        INSERT OR REPLACE INTO bot_settings (key, value) 
-                        VALUES (?, ?)
-                    ''', ('last_wipe_time', str(int(time.time()))))
+                    cursor.execute(
+                        "INSERT INTO bot_settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+                        ('last_wipe_time', str(int(time.time())))
+                    )
                     conn.commit()
                     cursor.close()
                     conn.close()
@@ -4412,18 +4412,21 @@ def set_wipe_db_cmd(message):
                     return
                 
                 cursor = conn.cursor()
-                cursor.execute('INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)', 
-                             ('wipe_enabled', 'true'))
-                cursor.execute('INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)', 
-                             ('wipe_interval_days', str(days)))
-                
+                cursor.execute(
+                    "INSERT INTO bot_settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+                    ('wipe_enabled', 'true'))
+                cursor.execute(
+                    "INSERT INTO bot_settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+                    ('wipe_interval_days', str(days)))
+
                 # Перевіряємо чи є запис про останній вайп
-                cursor.execute('SELECT value FROM bot_settings WHERE key = ?', ('last_wipe_time',))
+                cursor.execute('SELECT value FROM bot_settings WHERE key = %s', ('last_wipe_time',))
                 last_wipe = cursor.fetchone()
-                
+
                 if not last_wipe:
-                    cursor.execute('INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)', 
-                                 ('last_wipe_time', str(int(time.time()))))
+                    cursor.execute(
+                        "INSERT INTO bot_settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+                        ('last_wipe_time', str(int(time.time()))))
                 
                 conn.commit()
                 cursor.close()
@@ -12714,8 +12717,9 @@ def check_auto_wipe():
             conn = get_connection()
             if conn:
                 cursor = conn.cursor()
-                cursor.execute('INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)',
-                             ('last_wipe_time', str(now)))
+                cursor.execute(
+                    "INSERT INTO bot_settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+                    ('last_wipe_time', str(now)))
                 conn.commit()
                 cursor.close()
                 conn.close()
