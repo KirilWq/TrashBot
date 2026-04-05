@@ -854,6 +854,15 @@ def init_db():
         ''')
         logger.info("✅ Таблиця user_languages створена")
 
+        # Таблиця налаштувань бота (для автовайпу та інших глобальних параметрів)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS bot_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        ''')
+        logger.info("✅ Таблиця bot_settings створена")
+
         # Додаємо колонку username якщо її немає
         try:
             cursor.execute('ALTER TABLE user_languages ADD COLUMN IF NOT EXISTS username TEXT')

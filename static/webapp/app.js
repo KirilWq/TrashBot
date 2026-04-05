@@ -235,12 +235,16 @@ async function loadUserData() {
 
             // Update stats
             if (user.stats) {
+                document.getElementById('levelStats').textContent = user.level || 1;
+                document.getElementById('coinsStats').textContent = user.coins || 0;
+                document.getElementById('xpStats').textContent = user.xp || 0;
                 document.getElementById('duelsStats').textContent = `${user.stats.duels_won || 0}/${user.stats.duels_lost || 0}`;
                 document.getElementById('casinoStats').textContent = `${user.stats.casino_wins || 0}/${user.stats.casino_losses || 0}`;
                 document.getElementById('trachenStats').textContent = user.trachen_stats?.total_times || 0;
                 document.getElementById('tournamentStats').textContent = user.tournament_stats?.tournaments_joined || 0;
                 document.getElementById('guildStats').textContent = user.user_guild?.name || '-';
                 document.getElementById('bossStats').textContent = user.boss_stats?.bosses_fought || 0;
+                document.getElementById('childrenStats').textContent = user.children_count || 0;
             }
         }
     } catch (error) {

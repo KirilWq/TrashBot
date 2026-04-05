@@ -4361,6 +4361,183 @@ def reset_db_cmd(message):
         bot.reply_to(message, f"❌ Помилка: {e}")
 
 
+@bot.message_handler(commands=['setwipedb'])
+def set_wipe_db_cmd(message):
+    """Налаштувати автоматичне скидання БД (ТІЛЬКИ для terchizz!)"""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    # Перевірка - тільки для terchizz (1044325356)
+    if user_id != 1044325356:
+        bot.reply_to(message, "❌ Ця команда доступна ТІЛЬКИ для @terchizz!")
+        return
+
+    try:
+        parts = message.text.split()
+        
+        if len(parts) < 2:
+            text = """⚙️ **НАЛАШТУВАННЯ АВТОМАТИЧНОГО ВАЙПУ БД**
+
+Використання:
+/setwipedb <кількість_днів> - встановити інтервал
+/setwipedb status - перевірити статус
+/setwipedb cancel - скасувати автовайп
+/setwipedb now - виконати вайп зараз
+
+Приклади:
+/setwipedb 60 - вайп кожні 60 днів (2 місяці)
+/setwipedb 30 - вайп кожні 30 днів
+/setwipedb 90 - вайп кожні 90 днів (3 місяці)
+
+⚠️ Вайп скидає ВСЮ базу даних!"""
+            bot.reply_to(message, text, parse_mode="Markdown")
+            return
+
+        command = parts[1].lower()
+
+        if command == 'status':
+            # Перевіряємо статус
+            from db import get_connection
+            conn = get_connection()
+            if not conn:
+                bot.reply_to(message, "❌ Помилка підключення до БД!")
+                return
+            
+            cursor = conn.cursor()
+            cursor.execute('SELECT key, value FROM bot_settings WHERE key LIKE "wipe_%"')
+            settings = dict(cursor.fetchall())
+            cursor.close()
+            conn.close()
+
+            if not settings:
+                bot.reply_to(message, "📊 **Статус автовайпу:**\n\n❌ Автоматичний вайп не налаштовано\n\nВикористовуйте /setwipedb <днів> для налаштування")
+                return
+
+            wipe_interval = int(settings.get('wipe_interval_days', 0))
+            wipe_enabled = settings.get('wipe_enabled', 'false')
+            last_wipe = int(settings.get('last_wipe_time', 0))
+            next_wipe = last_wipe + (wipe_interval * 86400) if last_wipe else 0
+
+            import time
+            now = int(time.time())
+            
+            text = "📊 **Статус автовайпу:**\n\n"
+            text += f"✅ Увімкнено: {'Так' if wipe_enabled == 'true' else 'Ні'}\n"
+            text += f"📅 Інтервал: {wipe_interval} днів\n"
+            
+            if last_wipe:
+                import datetime
+                last_wipe_date = datetime.datetime.fromtimestamp(last_wipe).strftime('%Y-%m-%d %H:%M:%S')
+                text += f"🕐 Останній вайп: {last_wipe_date}\n"
+                
+                if next_wipe:
+                    next_wipe_date = datetime.datetime.fromtimestamp(next_wipe).strftime('%Y-%m-%d %H:%M:%S')
+                    days_left = (next_wipe - now) // 86400
+                    text += f"⏳ Наступний вайп: {next_wipe_date} (через {days_left} днів)\n"
+            else:
+                text += "🕐 Останній вайп: Ніколи\n"
+
+            text += f"\n💡 Для зміни: /setwipedb <днів>\n💡 Для скасування: /setwipedb cancel"
+            bot.reply_to(message, text, parse_mode="Markdown")
+
+        elif command == 'cancel':
+            # Скасовуємо автовайп
+            from db import get_connection
+            conn = get_connection()
+            if not conn:
+                bot.reply_to(message, "❌ Помилка підключення до БД!")
+                return
+            
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM bot_settings WHERE key LIKE "wipe_%"')
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+            bot.reply_to(message, "✅ Автоматичний вайп скасовано!")
+
+        elif command == 'now':
+            # Виконуємо вайп зараз
+            bot.reply_to(message, "⚠️ **УВАГА!**\n\nЦе ВИКОНАЄ вайп БД зараз!\nВсі дані будуть ВИДАЛЕНІ!\n\nДля підтвердження: /setwipedb now CONFIRM", parse_mode="Markdown")
+            
+            if len(parts) > 2 and parts[2] == 'CONFIRM':
+                from db import init_db
+                init_db()
+                
+                # Записуємо час вайпу
+                import time
+                conn = get_connection()
+                if conn:
+                    cursor = conn.cursor()
+                    cursor.execute('''
+                        INSERT OR REPLACE INTO bot_settings (key, value) 
+                        VALUES (?, ?)
+                    ''', ('last_wipe_time', str(int(time.time()))))
+                    conn.commit()
+                    cursor.close()
+                    conn.close()
+                
+                bot.reply_to(message, "✅ Базу даних ПОВНІСТЮ скинуто! Всі дані видалено.\n\n⚠️ Перезапустіть бота для застосування змін.")
+
+        else:
+            # Встановлюємо інтервал вайпу
+            try:
+                days = int(command)
+                
+                if days < 1:
+                    bot.reply_to(message, "❌ Інтервал має бути мінімум 1 день!")
+                    return
+                
+                if days > 365:
+                    bot.reply_to(message, "❌ Інтервал має бути максимум 365 днів (1 рік)!")
+                    return
+
+                import time
+                # Зберігаємо налаштування
+                from db import get_connection
+                conn = get_connection()
+                if not conn:
+                    bot.reply_to(message, "❌ Помилка підключення до БД!")
+                    return
+                
+                cursor = conn.cursor()
+                cursor.execute('INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)', 
+                             ('wipe_enabled', 'true'))
+                cursor.execute('INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)', 
+                             ('wipe_interval_days', str(days)))
+                
+                # Перевіряємо чи є запис про останній вайп
+                cursor.execute('SELECT value FROM bot_settings WHERE key = ?', ('last_wipe_time',))
+                last_wipe = cursor.fetchone()
+                
+                if not last_wipe:
+                    cursor.execute('INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)', 
+                                 ('last_wipe_time', str(int(time.time()))))
+                
+                conn.commit()
+                cursor.close()
+                conn.close()
+
+                import datetime
+                next_wipe = int(time.time()) + (days * 86400)
+                next_wipe_date = datetime.datetime.fromtimestamp(next_wipe).strftime('%Y-%m-%d %H:%M:%S')
+
+                bot.reply_to(message, 
+                    f"✅ **Автовaip налаштовано!**\n\n"
+                    f"📅 Інтервал: {days} днів\n"
+                    f"⏳ Наступний вайп: {next_wipe_date}\n\n"
+                    f"💡 Перевірити статус: /setwipedb status\n"
+                    f"💡 Скасувати: /setwipedb cancel",
+                    parse_mode="Markdown")
+
+            except ValueError:
+                bot.reply_to(message, "❌ Невірний формат! Використовуйте число днів.\n\nПриклад: /setwipedb 60")
+
+    except Exception as e:
+        logger.error(f"❌ Помилка /setwipedb: {e}", exc_info=True)
+        bot.reply_to(message, f"❌ Помилка: {e}")
+
+
 @bot.message_handler(commands=['cleanevents'])
 def clean_events_cmd(message):
     """Очистити дублікати івентів (адмін команда)"""
@@ -7299,9 +7476,15 @@ def guild_capture_cmd(message):
             bot.reply_to(message, "❌ Ви не в гільдії!")
             return
         
-        # Перевірка рівня гільдії
-        if user_guild.get('level', 1) < 3:
-            bot.reply_to(message, "❌ Гільдія має бути 3+ рівня!")
+        # Перевірка рівня гільдії (потрібно 5 рівень)
+        if user_guild.get('level', 1) < 5:
+            bot.reply_to(message, "❌ Гільдія має бути 5+ рівня для захоплення територій!")
+            return
+
+        # Перевірка кількості членів гільдії (потрібно мінімум 5)
+        members = get_guild_members(user_guild['id'])
+        if len(members) < 5:
+            bot.reply_to(message, f"❌ Для захоплення територій потрібно мінімум 5 членів гільдії! Зараз: {len(members)}")
             return
         
         # Знаходимо територію
@@ -11060,13 +11243,17 @@ def api_get_user():
         user_guild = get_user_guild(user_id, chat_id or -1)
         equipped_skin = get_user_equipped_skin(user_id, chat_id or -1)
         
+        # Get children count
+        from db import get_children_count
+        children_count = get_children_count(user_id, chat_id or -1)
+
         # Check if can feed
         can_feed = False
         if hryak:
             now = time.time()
             if hryak['last_feed'] == 0 or (now - hryak['last_feed']) >= 43200:
                 can_feed = True
-        
+
         return jsonify({
             'success': True,
             'data': {
@@ -11086,7 +11273,8 @@ def api_get_user():
                 'tournament_stats': tournament_stats,
                 'guild_stats': guild_stats,
                 'boss_stats': boss_stats,
-                'user_guild': user_guild
+                'user_guild': user_guild,
+                'children_count': children_count
             }
         }), 200
     except Exception as e:
@@ -12416,12 +12604,100 @@ def admin_add_guild_xp(message):
         bot.reply_to(message, f"❌ Помилка: {e}")
 
 
+# ============================================
+# АВТОМАТИЧНИЙ ВАЙП БД
+# ============================================
+
+def check_auto_wipe():
+    """Перевіряє чи потрібно виконати автоматичний вайп БД"""
+    try:
+        from db import get_connection
+        conn = get_connection()
+        if not conn:
+            logger.error("❌ Помилка підключення до БД при перевірці автовайпу")
+            return False
+        
+        cursor = conn.cursor()
+        
+        # Отримуємо налаштування вайпу
+        cursor.execute('SELECT key, value FROM bot_settings WHERE key IN (%s, %s, %s)',
+                      ('wipe_enabled', 'wipe_interval_days', 'last_wipe_time'))
+        settings = dict(cursor.fetchall())
+        cursor.close()
+        conn.close()
+        
+        # Перевіряємо чи увімкнено автовайп
+        if settings.get('wipe_enabled') != 'true':
+            logger.info("✅ Автовайп вимкнено")
+            return False
+        
+        wipe_interval_days = int(settings.get('wipe_interval_days', 0))
+        last_wipe_time = int(settings.get('last_wipe_time', 0))
+        
+        if wipe_interval_days == 0 or last_wipe_time == 0:
+            logger.info("✅ Автовайп не налаштовано (відсутній інтервал або час останнього вайпу)")
+            return False
+        
+        import time
+        now = int(time.time())
+        next_wipe_time = last_wipe_time + (wipe_interval_days * 86400)
+        
+        if now >= next_wipe_time:
+            logger.warning("⚠️ Час автоматичного вайпу БД!")
+            
+            # Виконуємо вайп
+            from db import init_db
+            init_db()
+            
+            # Оновлюємо час останнього вайпу
+            conn = get_connection()
+            if conn:
+                cursor = conn.cursor()
+                cursor.execute('INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)',
+                             ('last_wipe_time', str(now)))
+                conn.commit()
+                cursor.close()
+                conn.close()
+            
+            logger.info("✅ Автоматичний вайп БД виконано!")
+            return True
+        else:
+            import datetime
+            next_wipe_date = datetime.datetime.fromtimestamp(next_wipe_time).strftime('%Y-%m-%d %H:%M:%S')
+            days_left = (next_wipe_time - now) // 86400
+            logger.info(f"✅ До автовайпу залишилось {days_left} днів (наступний: {next_wipe_date})")
+            return False
+            
+    except Exception as e:
+        logger.error(f"❌ Помилка перевірки автовайпу: {e}", exc_info=True)
+        return False
+
+
 # Запускаємо бота з retry logic
 def run_bot_with_retry():
     """Запускає бота з автоматичним перезапуском при помилках"""
+    # Перевіряємо автовайп перед запуском
+    logger.info("🔍 Перевірка автоматичного вайпу БД...")
+    check_auto_wipe()
+    
+    # Запускаємо фоновий потік для періодичної перевірки автовайпу (кожну годину)
+    def auto_wipe_checker():
+        """Фоновий потік для перевірки автовайпу"""
+        while True:
+            time.sleep(3600)  # Перевірка кожну годину
+            try:
+                logger.info("🔄 Фонова перевірка автовайпу БД...")
+                check_auto_wipe()
+            except Exception as e:
+                logger.error(f"❌ Помилка фонової перевірки автовайпу: {e}")
+    
+    wipe_thread = Thread(target=auto_wipe_checker, daemon=True)
+    wipe_thread.start()
+    logger.info("✅ Запущено фоновий потік перевірки автовайпу (кожну годину)")
+    
     max_retries = 5
     retry_delay = 5
-    
+
     for attempt in range(max_retries):
         try:
             logger.info(f"🤖 Запуск бота (спроба {attempt + 1}/{max_retries})...")
