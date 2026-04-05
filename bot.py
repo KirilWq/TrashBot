@@ -4376,10 +4376,10 @@ def set_wipe_db_cmd(message):
         parts = message.text.split()
         
         if len(parts) < 2:
-            text = """⚙️ **НАЛАШТУВАННЯ АВТОМАТИЧНОГО ВАЙПУ БД**
+            text = """⚙️ <b>НАЛАШТУВАННЯ АВТОМАТИЧНОГО ВАЙПУ БД</b>
 
 Використання:
-/setwipedb <кількість_днів> - встановити інтервал
+/setwipedb &lt;кількість_днів&gt; - встановити інтервал
 /setwipedb status - перевірити статус
 /setwipedb cancel - скасувати автовайп
 /setwipedb now - виконати вайп зараз
@@ -4390,7 +4390,7 @@ def set_wipe_db_cmd(message):
 /setwipedb 90 - вайп кожні 90 днів (3 місяці)
 
 ⚠️ Вайп скидає ВСЮ базу даних!"""
-            bot.reply_to(message, text, parse_mode="Markdown")
+            bot.reply_to(message, text, parse_mode="HTML")
             return
 
         command = parts[1].lower()
@@ -4410,7 +4410,7 @@ def set_wipe_db_cmd(message):
             conn.close()
 
             if not settings:
-                bot.reply_to(message, "📊 **Статус автовайпу:**\n\n❌ Автоматичний вайп не налаштовано\n\nВикористовуйте /setwipedb <днів> для налаштування")
+                bot.reply_to(message, "📊 <b>Статус автовайпу:</b>\n\n❌ Автоматичний вайп не налаштовано\n\nВикористовуйте /setwipedb &lt;днів&gt; для налаштування", parse_mode="HTML")
                 return
 
             wipe_interval = int(settings.get('wipe_interval_days', 0))
@@ -4421,9 +4421,9 @@ def set_wipe_db_cmd(message):
             import time
             now = int(time.time())
             
-            text = "📊 **Статус автовайпу:**\n\n"
-            text += f"✅ Увімкнено: {'Так' if wipe_enabled == 'true' else 'Ні'}\n"
-            text += f"📅 Інтервал: {wipe_interval} днів\n"
+            text = "📊 <b>Статус автовайпу:</b>\n\n"
+            text += f"✅ Увімкнено: {'<b>Так</b>' if wipe_enabled == 'true' else '<b>Ні</b>'}\n"
+            text += f"📅 Інтервал: <b>{wipe_interval}</b> днів\n"
             
             if last_wipe:
                 import datetime
@@ -4437,8 +4437,8 @@ def set_wipe_db_cmd(message):
             else:
                 text += "🕐 Останній вайп: Ніколи\n"
 
-            text += f"\n💡 Для зміни: /setwipedb <днів>\n💡 Для скасування: /setwipedb cancel"
-            bot.reply_to(message, text, parse_mode="Markdown")
+            text += f"\n💡 Для зміни: /setwipedb &lt;днів&gt;\n💡 Для скасування: /setwipedb cancel"
+            bot.reply_to(message, text, parse_mode="HTML")
 
         elif command == 'cancel':
             # Скасовуємо автовайп
@@ -4458,7 +4458,7 @@ def set_wipe_db_cmd(message):
 
         elif command == 'now':
             # Виконуємо вайп зараз
-            bot.reply_to(message, "⚠️ **УВАГА!**\n\nЦе ВИКОНАЄ вайп БД зараз!\nВсі дані будуть ВИДАЛЕНІ!\n\nДля підтвердження: /setwipedb now CONFIRM", parse_mode="Markdown")
+            bot.reply_to(message, "⚠️ <b>УВАГА!</b>\n\nЦе ВИКОНАЄ вайп БД зараз!\nВсі дані будуть ВИДАЛЕНІ!\n\nДля підтвердження: /setwipedb now CONFIRM", parse_mode="HTML")
             
             if len(parts) > 2 and parts[2] == 'CONFIRM':
                 from db import init_db
@@ -4477,7 +4477,7 @@ def set_wipe_db_cmd(message):
                     cursor.close()
                     conn.close()
                 
-                bot.reply_to(message, "✅ Базу даних ПОВНІСТЮ скинуто! Всі дані видалено.\n\n⚠️ Перезапустіть бота для застосування змін.")
+                bot.reply_to(message, "✅ Базу даних <b>ПОВНІСТЮ</b> скинуто! Всі дані видалено.\n\n⚠️ Перезапустіть бота для застосування змін.", parse_mode="HTML")
 
         else:
             # Встановлюємо інтервал вайпу
@@ -4522,13 +4522,13 @@ def set_wipe_db_cmd(message):
                 next_wipe = int(time.time()) + (days * 86400)
                 next_wipe_date = datetime.datetime.fromtimestamp(next_wipe).strftime('%Y-%m-%d %H:%M:%S')
 
-                bot.reply_to(message, 
-                    f"✅ **Автовaip налаштовано!**\n\n"
-                    f"📅 Інтервал: {days} днів\n"
+                bot.reply_to(message,
+                    f"✅ <b>Автовайп налаштовано!</b>\n\n"
+                    f"📅 Інтервал: <b>{days}</b> днів\n"
                     f"⏳ Наступний вайп: {next_wipe_date}\n\n"
                     f"💡 Перевірити статус: /setwipedb status\n"
                     f"💡 Скасувати: /setwipedb cancel",
-                    parse_mode="Markdown")
+                    parse_mode="HTML")
 
             except ValueError:
                 bot.reply_to(message, "❌ Невірний формат! Використовуйте число днів.\n\nПриклад: /setwipedb 60")

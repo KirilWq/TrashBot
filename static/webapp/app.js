@@ -187,11 +187,10 @@ async function loadUserData() {
     showLoading(true);
 
     try {
-        // Get user data from API
-        const url = userData.chat_id 
-            ? `${API_BASE}/user?user_id=${userData.id}&chat_id=${userData.chat_id}`
-            : `${API_BASE}/user?user_id=${userData.id}`;
-        
+        // Get user data from API - завжди відправляємо chat_id (навіть якщо null/0)
+        const chatId = userData.chat_id || 0;
+        const url = `${API_BASE}/user?user_id=${userData.id}&chat_id=${chatId}`;
+
         console.log('Loading user data from:', url);
         const response = await fetch(url);
         const data = await response.json();
@@ -236,14 +235,41 @@ async function loadUserData() {
             // Update stats
             if (user.stats) {
                 document.getElementById('levelStats').textContent = user.level || 1;
-                document.getElementById('coinsStats').textContent = user.coins || 0;
-                document.getElementById('xpStats').textContent = user.xp || 0;
-                document.getElementById('duelsStats').textContent = `${user.stats.duels_won || 0}/${user.stats.duels_lost || 0}`;
-                document.getElementById('casinoStats').textContent = `${user.stats.casino_wins || 0}/${user.stats.casino_losses || 0}`;
+                document.getElementById('coinsStats').textContent = (user.coins || 0).toLocaleString();
+                document.getElementById('xpStats').textContent = `${user.xp || 0}/100`;
+                
+                // Форматуємо статистику дуелей (В/П)
+                const duelsWon = user.stats.duels_won || 0;
+                const duelsLost = user.stats.duels_lost || 0;
+                const duelsTotal = duelsWon + duelsLost;
+                const duelsWinRate = duelsTotal > 0 ? Math.round((duelsWon / duelsTotal) * 100) : 0;
+                document.getElementById('duelsStats').textContent = `${duelsWon}/${duelsLost} (${duelsWinRate}%)`;
+                
+                // Форматуємо статистику казино (В/П)
+                const casinoWins = user.stats.casino_wins || 0;
+                const casinoLosses = user.stats.casino_losses || 0;
+                const casinoTotal = casinoWins + casinoLosses;
+                const casinoWinRate = casinoTotal > 0 ? Math.round((casinoWins / casinoTotal) * 100) : 0;
+                document.getElementById('casinoStats').textContent = `${casinoWins}/${casinoLosses} (${casinoWinRate}%)`;
+                
+                // Трахензебітен
                 document.getElementById('trachenStats').textContent = user.trachen_stats?.total_times || 0;
+                
+                // Турніри
                 document.getElementById('tournamentStats').textContent = user.tournament_stats?.tournaments_joined || 0;
-                document.getElementById('guildStats').textContent = user.user_guild?.name || '-';
+                
+                // Гільдія (показуємо назву та рівень)
+                if (user.user_guild) {
+                    const guildLevel = user.user_guild.level || 1;
+                    document.getElementById('guildStats').textContent = `${user.user_guild.name} (Рів. ${guildLevel})`;
+                } else {
+                    document.getElementById('guildStats').textContent = '-';
+                }
+                
+                // Боси
                 document.getElementById('bossStats').textContent = user.boss_stats?.bosses_fought || 0;
+                
+                // Діти
                 document.getElementById('childrenStats').textContent = user.children_count || 0;
             }
         }
