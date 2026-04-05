@@ -73,13 +73,22 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Завантажуємо змінні середовища
+# Завантажуємо змінні середовища з .env файлу
 load_dotenv()
+
+# Отримуємо токен і ADMIN_ID
+BOT_TOKEN = os.environ.get('BOT_TOKEN')
+ADMIN_ID = int(os.environ.get('ADMIN_ID', 0))
+
+# ПРИМУСОВО для terchizz
+if ADMIN_ID == 0:
+    ADMIN_ID = 1044325356
+    logger.warning("⚠️ ADMIN_ID не знайдено в .env! Використовується: 1044325356")
 
 logger.info(f"🔑 BOT_TOKEN: {'✅' if BOT_TOKEN else '❌'}")
 logger.info(f"🛡️ ADMIN_ID: {ADMIN_ID}")
-logger.info(f"👤 Твій user_id (terchizz): {TERCHIZZ_ID}")
-logger.info(f"✅ Адмін-команди доступні: {ADMIN_ID == TERCHIZZ_ID}")
+logger.info(f"👤 Твій user_id (terchizz): 1044325356")
+logger.info(f"✅ Адмін-команди доступні: {ADMIN_ID == 1044325356}")
 
 if not BOT_TOKEN:
     logger.error("❌ ПОМИЛКА: BOT_TOKEN не знайдено в змінних середовища!")

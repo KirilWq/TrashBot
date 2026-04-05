@@ -31,9 +31,6 @@ def get_pool():
             min_size=5,      # Мінімальна кількість з'єднань
             max_size=20,     # Максимальна кількість з'єднань
             timeout=30,      # Таймаут очікування з'єднання (сек)
-            kwargs={
-                "autocommit": True,  # Автокомміт за замовчуванням
-            }
         )
         logger.info(f"✅ ConnectionPool створено (min=5, max=20)")
         return _connection_pool
