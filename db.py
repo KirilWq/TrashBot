@@ -1,4 +1,5 @@
 import psycopg
+from psycopg_pool import ConnectionPool
 import os
 import json
 import time
@@ -10,18 +11,105 @@ logger = logging.getLogger(__name__)
 # Отримуємо connection string зі змінних середовища
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
-def get_connection():
-    """Отримує з'єднання з базою"""
+# Connection Pool — єдиний екземпляр на весь процес
+_connection_pool = None
+
+def get_pool():
+    """Отримує або створює ConnectionPool (singleton)"""
+    global _connection_pool
+    
+    if _connection_pool is not None:
+        return _connection_pool
+    
     if not DATABASE_URL:
         logger.error("❌ DATABASE_URL не знайдено!")
         return None
     
     try:
-        conn = psycopg.connect(DATABASE_URL)
-        return conn
+        _connection_pool = ConnectionPool(
+            conninfo=DATABASE_URL,
+            min_size=5,      # Мінімальна кількість з'єднань
+            max_size=20,     # Максимальна кількість з'єднань
+            timeout=30,      # Таймаут очікування з'єднання (сек)
+            kwargs={
+                "autocommit": True,  # Автокомміт за замовчуванням
+            }
+        )
+        logger.info(f"✅ ConnectionPool створено (min=5, max=20)")
+        return _connection_pool
     except Exception as e:
-        logger.error(f"❌ Помилка підключення до БД: {e}")
+        logger.error(f"❌ Помилка створення ConnectionPool: {e}")
         return None
+
+class PooledConnection:
+    """Обгортка навколо з'єднання для автоматичного повернення в пул"""
+    def __init__(self, conn, pool):
+        self._conn = conn
+        self._pool = pool
+        self._closed = False
+    
+    def cursor(self, *args, **kwargs):
+        return self._conn.cursor(*args, **kwargs)
+    
+    def commit(self):
+        return self._conn.commit()
+    
+    def rollback(self):
+        return self._conn.rollback()
+    
+    def close(self):
+        """Повертає з'єднання в пул замість закриття"""
+        if not self._closed:
+            self._closed = True
+            if self._pool:
+                try:
+                    self._pool.putconn(self._conn)
+                except Exception:
+                    try:
+                        self._conn.close()
+                    except:
+                        pass
+            else:
+                try:
+                    self._conn.close()
+                except:
+                    pass
+    
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+    
+    # Делегуємо інші атрибути
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+def get_connection():
+    """Отримує з'єднання з пулу (автоматично повертається при close())"""
+    pool = get_pool()
+    if not pool:
+        # Fallback: пряме підключення якщо пул не створено
+        if not DATABASE_URL:
+            logger.error("❌ DATABASE_URL не знайдено!")
+            return None
+        try:
+            return psycopg.connect(DATABASE_URL)
+        except Exception as e:
+            logger.error(f"❌ Помилка підключення до БД: {e}")
+            return None
+    
+    try:
+        conn = pool.getconn()
+        return PooledConnection(conn, pool)
+    except Exception as e:
+        logger.error(f"❌ Помилка отримання з'єднання з пулу: {e}")
+        return None
+
+def release_connection(conn):
+    """Повертає з'єднання в пул (зручний аліас для conn.close())"""
+    if conn is not None:
+        conn.close()
 
 def init_db():
     """Ініціалізація таблиць"""
@@ -289,11 +377,18 @@ def init_db():
                 partner_hryak_name TEXT,
                 weight_change BIGINT,
                 energy_used BIGINT DEFAULT 10,
-                created_at BIGINT,
-                UNIQUE(user_id, chat_id)
+                created_at BIGINT
             )
         ''')
         logger.info("✅ Таблиця trachenzebiten створена")
+
+        # Видаляємо UNIQUE constraint якщо він існує (міграція)
+        try:
+            cursor.execute('ALTER TABLE trachenzebiten DROP CONSTRAINT IF EXISTS trachenzebiten_user_id_chat_id_key')
+            conn.commit()
+            logger.info("✅ Видалено UNIQUE constraint з trachenzebiten")
+        except Exception as e:
+            logger.warning(f"⚠️ Можливо constraint вже видалено: {e}")
 
         # Таблиця вагітностей
         cursor.execute('''
@@ -1121,13 +1216,35 @@ def load_from_db(hryaky_data, stats_data, warns_data, spam_data, manual_users):
         cursor.close()
         conn.close()
 
-# Функції для статистики
-def save_stats_to_db(stats_data):
-    """Зберігає статистику в БД"""
+# Функції для статистики — індивідуальне збереження (без JSON файлів)
+def save_stats_record(key, user_id, chat_id, username, count, first_message, last_message):
+    """Зберігає окремий запис статистики в БД"""
     conn = get_connection()
     if not conn:
         return
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            INSERT INTO stats (key, user_id, chat_id, username, count, first_message, last_message)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (key) DO UPDATE SET
+                count = EXCLUDED.count,
+                last_message = EXCLUDED.last_message,
+                username = EXCLUDED.username
+        ''', (key, int(user_id), int(chat_id), username, int(count), int(first_message), int(last_message)))
+        conn.commit()
+    except Exception as e:
+        logger.error(f"❌ Помилка збереження статистики: {e}")
+        conn.rollback()
+    finally:
+        cursor.close()
+        conn.close()
 
+def save_stats_batch(stats_data):
+    """Масове збереження статистики (для ініціалізації)"""
+    conn = get_connection()
+    if not conn:
+        return
     cursor = conn.cursor()
     try:
         for key, data in stats_data.items():
@@ -1148,9 +1265,31 @@ def save_stats_to_db(stats_data):
         cursor.close()
         conn.close()
 
-# Функції для попереджень
-def save_warns_to_db(warns_data):
-    """Зберігає попередження в БД"""
+# Функції для попереджень — індивідуальне збереження
+def save_warns_record(key, user_id, chat_id, username, warns_list, banned):
+    """Зберігає окремий запис попереджень в БД"""
+    conn = get_connection()
+    if not conn:
+        return
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            INSERT INTO warns (key, user_id, chat_id, username, warns_json, banned)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (key) DO UPDATE SET
+                warns_json = EXCLUDED.warns_json,
+                banned = EXCLUDED.banned
+        ''', (key, int(user_id), int(chat_id), username, json.dumps(warns_list), bool(banned)))
+        conn.commit()
+    except Exception as e:
+        logger.error(f"❌ Помилка збереження попереджень: {e}")
+        conn.rollback()
+    finally:
+        cursor.close()
+        conn.close()
+
+def save_warns_batch(warns_data):
+    """Масове збереження попереджень (для ініціалізації)"""
     conn = get_connection()
     if not conn:
         return
@@ -1174,9 +1313,32 @@ def save_warns_to_db(warns_data):
         cursor.close()
         conn.close()
 
-# Функції для спаму
-def save_spam_to_db(spam_data):
-    """Зберігає спам дані в БД"""
+# Функції для спаму — індивідуальне збереження
+def save_spam_record(key, messages_list, muted, mute_until):
+    """Зберігає окремий запис спаму в БД"""
+    conn = get_connection()
+    if not conn:
+        return
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            INSERT INTO spam (key, messages_json, muted, mute_until)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (key) DO UPDATE SET
+                messages_json = EXCLUDED.messages_json,
+                muted = EXCLUDED.muted,
+                mute_until = EXCLUDED.mute_until
+        ''', (key, json.dumps(messages_list), bool(muted), int(mute_until) if mute_until else None))
+        conn.commit()
+    except Exception as e:
+        logger.error(f"❌ Помилка збереження спаму: {e}")
+        conn.rollback()
+    finally:
+        cursor.close()
+        conn.close()
+
+def save_spam_batch(spam_data):
+    """Масове збереження спаму (для ініціалізації)"""
     conn = get_connection()
     if not conn:
         return
@@ -2339,12 +2501,6 @@ def add_trachen_record(user_id, chat_id, partner_user_id, partner_hryak_name, we
         cursor.execute('''
             INSERT INTO trachenzebiten (user_id, chat_id, partner_user_id, partner_hryak_name, weight_change, energy_used, created_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (user_id, chat_id) DO UPDATE SET
-                partner_user_id = EXCLUDED.partner_user_id,
-                partner_hryak_name = EXCLUDED.partner_hryak_name,
-                weight_change = EXCLUDED.weight_change,
-                energy_used = EXCLUDED.energy_used,
-                created_at = EXCLUDED.created_at
         ''', (user_id, chat_id, partner_user_id, partner_hryak_name, weight_change, energy_used, int(time.time())))
         conn.commit()
         return True

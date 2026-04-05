@@ -4,6 +4,9 @@ const tg = window.Telegram.WebApp;
 // API Base URL
 const API_BASE = '/api/webapp';
 
+// Store initData for authentication
+const initData = tg.initData || '';
+
 // Current user data
 let userData = {
     id: tg.initDataUnsafe?.user?.id || null,
@@ -11,6 +14,15 @@ let userData = {
     first_name: tg.initDataUnsafe?.user?.first_name || 'Гравець',
     chat_id: null
 };
+
+// Helper function for authenticated requests
+async function apiFetch(url, options = {}) {
+    const headers = options.headers || {};
+    if (initData) {
+        headers['X-Telegram-Init-Data'] = encodeURIComponent(initData);
+    }
+    return fetch(url, { ...options, headers });
+}
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', () => {
@@ -192,7 +204,7 @@ async function loadUserData() {
         const url = `${API_BASE}/user?user_id=${userData.id}&chat_id=${chatId}`;
 
         console.log('Loading user data from:', url);
-        const response = await fetch(url);
+        const response = await apiFetch(url);
         const data = await response.json();
         console.log('User data response:', data);
 
@@ -304,7 +316,7 @@ function loadTabData(tabId) {
 
 async function loadShop() {
     try {
-        const response = await fetch(`${API_BASE}/shop`);
+        const response = await apiFetch(`${API_BASE}/shop`);
         const data = await response.json();
         
         const container = document.getElementById('shopItems');
@@ -331,7 +343,7 @@ async function loadShop() {
 
 async function loadSkins() {
     try {
-        const response = await fetch(`${API_BASE}/skins`);
+        const response = await apiFetch(`${API_BASE}/skins`);
         const data = await response.json();
 
         const container = document.getElementById('shopSkins');
@@ -359,7 +371,7 @@ async function loadSkins() {
 async function loadInventory() {
     try {
         const chatId = userData.chat_id || -1;
-        const response = await fetch(`${API_BASE}/inventory?user_id=${userData.id}&chat_id=${chatId}`);
+        const response = await apiFetch(`${API_BASE}/inventory?user_id=${userData.id}&chat_id=${chatId}`);
         const data = await response.json();
 
         console.log('Inventory response:', data);
@@ -432,7 +444,7 @@ async function loadMySkins() {
         const chatId = userData.chat_id || -1;
         
         // Load only user's owned skins
-        const mySkinsResponse = await fetch(`${API_BASE}/my-skins?user_id=${userData.id}&chat_id=${chatId}`);
+        const mySkinsResponse = await apiFetch(`${API_BASE}/my-skins?user_id=${userData.id}&chat_id=${chatId}`);
         const mySkinsData = await mySkinsResponse.json();
 
         console.log('My skins:', mySkinsData);
@@ -495,7 +507,7 @@ async function loadLeaderboard() {
             return;
         }
         
-        const chatResponse = await fetch(`${API_BASE}/leaderboard/chat?chat_id=${chatId}`);
+        const chatResponse = await apiFetch(`${API_BASE}/leaderboard/chat?chat_id=${chatId}`);
         const chatData = await chatResponse.json();
         
         console.log('Chat leaderboard response:', chatData);
@@ -537,7 +549,7 @@ async function loadGlobalLeaderboard() {
         console.log('Loading global leaderboard...');
         
         // Load global top
-        const globalResponse = await fetch(`${API_BASE}/leaderboard/global`);
+        const globalResponse = await apiFetch(`${API_BASE}/leaderboard/global`);
         const globalData = await globalResponse.json();
         
         console.log('Global leaderboard response:', globalData);
@@ -582,7 +594,7 @@ async function feedHryak() {
             showLoading(true);
 
             try {
-                const response = await fetch(`${API_BASE}/feed`, {
+                const response = await apiFetch(`${API_BASE}/feed`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
@@ -623,7 +635,7 @@ async function buyItem(itemId, price) {
                 
                 console.log('Buying item:', requestBody);
 
-                const response = await fetch(`${API_BASE}/buy-item`, {
+                const response = await apiFetch(`${API_BASE}/buy-item`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(requestBody)
@@ -663,7 +675,7 @@ async function buySkin(skinName, price) {
                 
                 console.log('Buying skin:', requestBody);
 
-                const response = await fetch(`${API_BASE}/buy-skin`, {
+                const response = await apiFetch(`${API_BASE}/buy-skin`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(requestBody)
@@ -699,7 +711,7 @@ async function useItem(itemId) {
         
         console.log('Using item:', requestBody);
 
-        const response = await fetch(`${API_BASE}/use-item`, {
+        const response = await apiFetch(`${API_BASE}/use-item`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(requestBody)
@@ -731,7 +743,7 @@ async function equipSkin(skinName) {
         
         console.log('Equipping skin:', requestBody);
 
-        const response = await fetch(`${API_BASE}/equip-skin`, {
+        const response = await apiFetch(`${API_BASE}/equip-skin`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(requestBody)
@@ -762,7 +774,7 @@ async function openCommand(command) {
     try {
         const commandPath = command.startsWith('/') ? command.substring(1) : command;
         
-        const response = await fetch(`${API_BASE}/execute`, {
+        const response = await apiFetch(`${API_BASE}/execute`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -837,7 +849,7 @@ async function loadUserChats() {
     if (!userData.id) return;
 
     try {
-        const response = await fetch(`${API_BASE}/user-chats?user_id=${userData.id}`);
+        const response = await apiFetch(`${API_BASE}/user-chats?user_id=${userData.id}`);
         const data = await response.json();
 
         const chatSelect = document.getElementById('chatSelect');

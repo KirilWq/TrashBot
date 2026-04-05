@@ -4,15 +4,14 @@ import time
 import json
 import os
 import logging
-import sqlite3
 from threading import Thread
 from telebot import types
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 from quiz_questions import QUIZ_QUESTIONS
 from db import (
-    init_db, load_from_db, save_hryak_to_db, save_stats_to_db, save_warns_to_db,
-    save_spam_to_db, save_manual_users_to_db, get_hryak_from_db,
+    init_db, load_from_db, save_hryak_to_db, save_stats_record, save_warns_record,
+    save_spam_record, save_manual_users_to_db, get_hryak_from_db,
     get_user_currency, update_user_currency, add_coins, add_xp,
     get_daily_quests, update_daily_quest, reset_daily_quests,
     get_lottery, update_lottery,
@@ -74,22 +73,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Завантажуємо змінні середовища з .env файлу (для локальної розробки)
+# Завантажуємо змінні середовища
 load_dotenv()
-
-# Отримуємо токен зі змінних середовища
-BOT_TOKEN = os.environ.get('BOT_TOKEN')
-ADMIN_ID = int(os.environ.get('ADMIN_ID', 0))  # Твій ID для адмінки
-
-# ПРИМУСОВО для terchizz (якщо .env не працює)
-if ADMIN_ID == 0:
-    ADMIN_ID = 1044325356  # terchizz user ID
-    logger.warning("⚠️ ADMIN_ID не знайдено в .env! Використовується примусове значення: 1044325356")
 
 logger.info(f"🔑 BOT_TOKEN: {'✅' if BOT_TOKEN else '❌'}")
 logger.info(f"🛡️ ADMIN_ID: {ADMIN_ID}")
-logger.info(f"👤 Твій user_id (terchizz): 1044325356")
-logger.info(f"✅ Адмін-команди доступні: {ADMIN_ID == 1044325356}")
+logger.info(f"👤 Твій user_id (terchizz): {TERCHIZZ_ID}")
+logger.info(f"✅ Адмін-команди доступні: {ADMIN_ID == TERCHIZZ_ID}")
 
 if not BOT_TOKEN:
     logger.error("❌ ПОМИЛКА: BOT_TOKEN не знайдено в змінних середовища!")
@@ -119,10 +109,7 @@ def escape_markdown(text):
     """Екранує спеціальні символи MarkdownV2 в тексті"""
     if not isinstance(text, str):
         text = str(text)
-    # Екрануємо спеціальні символи MarkdownV2
-    # Повний список: _ * [ ] ( ) ~ > # + - = | { } . \ !
-    # ВАЖЛИВО: Спочатку екрануємо backslash, потім інші символи!
-    text = text.replace('\\', '\\\\')  # ПЕРШИМ!
+    text = text.replace('\\', '\\\\')
     text = text.replace('_', '\\_')
     text = text.replace('*', '\\*')
     text = text.replace('`', '\\`')
@@ -164,17 +151,6 @@ logger.info(f"✅ Бот ініціалізований з токеном: {BOT_
 
 
 
-# ============================================
-# РУЧНИЙ СПИСОК ЮЗЕРНЕЙМІВ (додай своїх друзів)
-# ============================================
-DEFAULT_USERS = [
-    "@skyfidon79",
-    "@Turiozka",
-    "@terchizz",
-    "@Freezers32"
-]
-# ============================================
-
 # Кеш учасників чату
 chat_members_cache = {}
 
@@ -191,40 +167,55 @@ muted_users = {}
 provin_users = {}
 
 # ============================================
-# СТАТИСТИКА ЧАТУ - повідомлення
+# THREAD SAFETY LOCKS
 # ============================================
-STATS_FILE = "stats.json"
+import threading
 
-# Завантажуємо статистику
-if os.path.exists(STATS_FILE):
-    with open(STATS_FILE, 'r', encoding='utf-8') as f:
-        stats_data = json.load(f)
-else:
-    stats_data = {}
+stats_lock = threading.Lock()       # Для stats_data
+warns_lock = threading.Lock()       # Для warns_data
+spam_lock = threading.Lock()        # Для spam_data
+hryak_lock = threading.Lock()       # Для hryaky_data
+duel_lock = threading.Lock()        # Для duels_data
+chat_lock = threading.Lock()        # Для chat_members_cache, chat_member_ids
+manual_lock = threading.Lock()      # Для manual_users
+muted_lock = threading.Lock()       # Для muted_users
+provin_lock = threading.Lock()      # Для provin_users
+
+# ============================================
+# СТАТИСТИКА ЧАТУ - повідомлення (ТІЛЬКИ БД, JSON файли видалено)
+# ============================================
+
+# Порожні словники — дані завантажуються з БД при старті
+stats_data = {}
 
 def save_stats():
-    """Зберігає статистику в БД"""
+    """Зберігає статистику в БД (використовується при ініціалізації)"""
     try:
-        save_stats_to_db(stats_data)
+        from db import save_stats_batch
+        save_stats_batch(stats_data)
     except Exception as e:
         logger.error(f"❌ Помилка збереження статистики: {e}")
 
 def add_message(chat_id, user_id, username):
-    """Додає повідомлення до статистики"""
-    key = f"{chat_id}_{user_id}"
-    if key not in stats_data:
-        stats_data[key] = {
-            'user_id': user_id,
-            'chat_id': chat_id,
-            'username': username,
-            'count': 0,
-            'first_message': int(time.time()),
-            'last_message': int(time.time())
-        }
-    stats_data[key]['count'] += 1
-    stats_data[key]['last_message'] = int(time.time())
-    stats_data[key]['username'] = username
-    save_stats()
+    """Додає повідомлення до статистики (зберігається в БД одразу)"""
+    with stats_lock:
+        key = f"{chat_id}_{user_id}"
+        now = int(time.time())
+        if key not in stats_data:
+            stats_data[key] = {
+                'user_id': user_id,
+                'chat_id': chat_id,
+                'username': username,
+                'count': 0,
+                'first_message': now,
+                'last_message': now
+            }
+        stats_data[key]['count'] += 1
+        stats_data[key]['last_message'] = now
+        stats_data[key]['username'] = username
+        # Зберігаємо в БД одразу
+        save_stats_record(key, user_id, chat_id, username,
+                         stats_data[key]['count'], stats_data[key]['first_message'], now)
 
 def get_chat_stats(chat_id):
     """Отримує статистику чату"""
@@ -235,43 +226,43 @@ def get_chat_stats(chat_id):
     return sorted(chat_stats, key=lambda x: x['count'], reverse=True)
 
 # ============================================
-# ПОПЕРЕДЖЕННЯ - warn система
+# ПОПЕРЕДЖЕННЯ - warn система (ТІЛЬКИ БД, JSON файли видалено)
 # ============================================
-WARNS_FILE = "warns.json"
 
-# Завантажуємо попередження
-if os.path.exists(WARNS_FILE):
-    with open(WARNS_FILE, 'r', encoding='utf-8') as f:
-        warns_data = json.load(f)
-else:
-    warns_data = {}
+# Порожні словники — дані завантажуються з БД при старті
+warns_data = {}
 
 def save_warns():
-    """Зберігає попередження в БД"""
+    """Зберігає попередження в БД (використовується при ініціалізації)"""
     try:
-        save_warns_to_db(warns_data)
+        from db import save_warns_batch
+        save_warns_batch(warns_data)
     except Exception as e:
         logger.error(f"❌ Помилка збереження попереджень: {e}")
 
 def add_warn(chat_id, user_id, username, reason):
-    """Додає попередження"""
-    key = f"{chat_id}_{user_id}"
-    if key not in warns_data:
-        warns_data[key] = {
-            'user_id': user_id,
-            'chat_id': chat_id,
-            'username': username,
-            'warns': [],
-            'banned': False
-        }
-    
-    warns_data[key]['warns'].append({
-        'reason': reason,
-        'time': int(time.time()),
-        'by': 'admin'
-    })
-    save_warns()
-    return len(warns_data[key]['warns'])
+    """Додає попередження (зберігається в БД одразу)"""
+    with warns_lock:
+        key = f"{chat_id}_{user_id}"
+        if key not in warns_data:
+            warns_data[key] = {
+                'user_id': user_id,
+                'chat_id': chat_id,
+                'username': username,
+                'warns': [],
+                'banned': False
+            }
+
+        warns_data[key]['warns'].append({
+            'reason': reason,
+            'time': int(time.time()),
+            'by': 'admin'
+        })
+        count = len(warns_data[key]['warns'])
+        # Зберігаємо в БД одразу
+        save_warns_record(key, user_id, chat_id, username,
+                         warns_data[key]['warns'], warns_data[key]['banned'])
+    return count
 
 def get_warns(chat_id, user_id):
     """Отримує попередження користувача"""
@@ -281,11 +272,13 @@ def get_warns(chat_id, user_id):
     return warns_data[key]['warns']
 
 def clear_warns(chat_id, user_id):
-    """Очищає попередження"""
-    key = f"{chat_id}_{user_id}"
-    if key in warns_data:
-        warns_data[key]['warns'] = []
-        save_warns()
+    """Очищає попередження (зберігається в БД одразу)"""
+    with warns_lock:
+        key = f"{chat_id}_{user_id}"
+        if key in warns_data:
+            warns_data[key]['warns'] = []
+            save_warns_record(key, user_id, chat_id, warns_data[key]['username'],
+                             [], warns_data[key]['banned'])
 
 def is_banned(chat_id, user_id):
     """Перевіряє чи забанений"""
@@ -295,99 +288,99 @@ def is_banned(chat_id, user_id):
     return warns_data[key].get('banned', False)
 
 def ban_user(chat_id, user_id):
-    """Банить користувача"""
-    key = f"{chat_id}_{user_id}"
-    if key not in warns_data:
-        warns_data[key] = {'warns': [], 'banned': False}
-    warns_data[key]['banned'] = True
-    save_warns()
+    """Банить користувача (зберігається в БД одразу)"""
+    with warns_lock:
+        key = f"{chat_id}_{user_id}"
+        if key not in warns_data:
+            warns_data[key] = {'warns': [], 'banned': False, 'user_id': user_id, 'chat_id': chat_id, 'username': ''}
+        warns_data[key]['banned'] = True
+        save_warns_record(key, user_id, chat_id, warns_data[key].get('username', ''),
+                         warns_data[key]['warns'], True)
 
 def unban_user(chat_id, user_id):
-    """Розбанює користувача"""
-    key = f"{chat_id}_{user_id}"
-    if key in warns_data:
-        warns_data[key]['banned'] = False
-        save_warns()
+    """Розбанює користувача (зберігається в БД одразу)"""
+    with warns_lock:
+        key = f"{chat_id}_{user_id}"
+        if key in warns_data:
+            warns_data[key]['banned'] = False
+            save_warns_record(key, user_id, chat_id, warns_data[key].get('username', ''),
+                             warns_data[key]['warns'], False)
 
 # ============================================
-# СПАМ КОНТРОЛЬ
+# СПАМ КОНТРОЛЬ (ТІЛЬКИ БД, JSON файли видалено)
 # ============================================
-SPAM_FILE = "spam.json"
 
-if os.path.exists(SPAM_FILE):
-    with open(SPAM_FILE, 'r', encoding='utf-8') as f:
-        spam_data = json.load(f)
-else:
-    spam_data = {}
+# Порожні словники — дані завантажуються з БД при старті
+spam_data = {}
 
 def save_spam():
-    """Зберігає спам дані в БД"""
+    """Зберігає спам дані в БД (використовується при ініціалізації)"""
     try:
-        save_spam_to_db(spam_data)
+        from db import save_spam_batch
+        save_spam_batch(spam_data)
     except Exception as e:
         logger.error(f"❌ Помилка збереження спаму: {e}")
 
 def check_spam(chat_id, user_id):
     """Перевіряє на спам (5 повідомлень за 10 секунд)"""
-    key = f"{chat_id}_{user_id}"
-    now = int(time.time())
+    with spam_lock:
+        key = f"{chat_id}_{user_id}"
+        now = int(time.time())
 
-    if key not in spam_data:
-        spam_data[key] = {'messages': [], 'muted': False, 'mute_until': 0}
+        if key not in spam_data:
+            spam_data[key] = {'messages': [], 'muted': False, 'mute_until': 0, 'notified': False}
 
-    # Очищаємо старі повідомлення (старше 10 сек)
-    spam_data[key]['messages'] = [t for t in spam_data[key]['messages'] if now - t < 10]
-    spam_data[key]['messages'].append(now)
+        # Очищаємо старі повідомлення (старше 10 сек)
+        spam_data[key]['messages'] = [t for t in spam_data[key]['messages'] if now - t < 10]
+        spam_data[key]['messages'].append(now)
 
-    # Якщо більше 5 повідомлень за 10 сек
-    if len(spam_data[key]['messages']) >= 5:
-        spam_data[key]['muted'] = True
-        spam_data[key]['mute_until'] = now + 60  # Мут на 1 хвилину
-        save_spam()
-        return True
+        # Якщо більше 5 повідомлень за 10 сек і ще не замучений
+        if len(spam_data[key]['messages']) >= 5 and not spam_data[key].get('muted'):
+            spam_data[key]['muted'] = True
+            spam_data[key]['mute_until'] = now + 60  # Мут на 1 хвилину
+            spam_data[key]['notified'] = False  # Скидаємо прапорець сповіщення
+            # Зберігаємо в БД одразу
+            save_spam_record(key, spam_data[key]['messages'], True, now + 60)
+            return True
 
-    save_spam()
+        # Періодичне збереження (кожні 10 повідомлень)
+        if len(spam_data[key]['messages']) % 5 == 0:
+            save_spam_record(key, spam_data[key]['messages'],
+                           spam_data[key].get('muted', False),
+                           spam_data[key].get('mute_until', 0))
     return False
 
 def is_spam_muted(chat_id, user_id):
     """Перевіряє чи замучений за спам"""
-    key = f"{chat_id}_{user_id}"
-    if key not in spam_data:
-        return False, 0
+    with spam_lock:
+        key = f"{chat_id}_{user_id}"
+        if key not in spam_data:
+            return False, 0
 
-    now = int(time.time())
-    if spam_data[key].get('muted') and now < spam_data[key].get('mute_until', 0):
-        return True, int(spam_data[key]['mute_until'] - now)
+        now = int(time.time())
+        if spam_data[key].get('muted') and now < spam_data[key].get('mute_until', 0):
+            return True, int(spam_data[key]['mute_until'] - now)
 
-    # Знімаємо мут
-    if spam_data[key].get('muted'):
-        spam_data[key]['muted'] = False
-        save_spam()
+        # Знімаємо мут і зберігаємо в БД
+        if spam_data[key].get('muted'):
+            spam_data[key]['muted'] = False
+            spam_data[key]['mute_until'] = 0
+            save_spam_record(key, spam_data[key].get('messages', []), False, 0)
 
     return False, 0
 
 # ============================================
 # ДУЕЛІ ХРЯКІВ
 # ============================================
-DUELS_FILE = "duels.json"
 
-# Завантажуємо дуелі
-if os.path.exists(DUELS_FILE):
-    with open(DUELS_FILE, 'r', encoding='utf-8') as f:
-        duels_data = json.load(f)
-else:
-    duels_data = {}
+# Дуелі тепер зберігаються тільки в БД (JSON файли видалено)
+# Історія дуелей — у team_duels таблиці
+duels_data = {}  # Тільки для короткочасних активних дуелей
 
-def save_duels():
-    """Зберігає дуелі у файл"""
-    try:
-        with open(DUELS_FILE, 'w', encoding='utf-8') as f:
-            json.dump(duels_data, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        logger.error(f"❌ Помилка збереження дуелей: {e}")
+# save_duels() видалено — дуелі зберігаються в БД автоматично
 
 def create_duel(chat_id, challenger_id, challenger_hryak):
-    """Створює дуель"""
+    """Створює дуель (зберігається тільки в пам'яті — короткочасні дані)"""
     duel_id = f"{chat_id}_{challenger_id}_{int(time.time())}"
     duels_data[duel_id] = {
         'chat_id': chat_id,
@@ -399,7 +392,7 @@ def create_duel(chat_id, challenger_id, challenger_hryak):
         'message_id': None,
         'created_at': int(time.time())
     }
-    save_duels()
+    # save_duels() видалено — дуелі короткочасні, зберігаються в team_duels таблиці БД
     return duel_id
 
 def calculate_duel_result(hryak1, hryak2, user1_id=None, user2_id=None, chat_id=None):
@@ -452,29 +445,20 @@ def calculate_duel_result(hryak1, hryak2, user1_id=None, user2_id=None, chat_id=
         'knockout': knockout,
         'winner': 1 if power1 > power2 else (2 if power2 > power1 else 0)
     }
-HRYAK_FILE = "hryaky.json"
-
-# Завантажуємо дані з файлу
-if os.path.exists(HRYAK_FILE):
-    try:
-        with open(HRYAK_FILE, 'r', encoding='utf-8') as f:
-            hryaky_data = json.load(f)
-        logger.info(f"📦 Завантажено {len(hryaky_data)} хряків з {HRYAK_FILE}")
-    except Exception as e:
-        logger.error(f"❌ Помилка завантаження: {e}")
-        hryaky_data = {}
-else:
-    logger.warning(f"📁 Файл {HRYAK_FILE} не знайдено, створюємо новий")
-    hryaky_data = {}
+# ============================================
+# ХРЯКИ (ТІЛЬКИ БД, JSON файли видалено)
+# ============================================
+hryaky_data = {}  # Порожній словник — дані завантажуються з БД при старті
 
 def save_hryaky():
     """Зберігає всі зміни хряків в БД"""
-    try:
-        for key, hryak in hryaky_data.items():
-            save_hryak_to_db(key, hryak)
-        logger.debug(f"💾 Збережено {len(hryaky_data)} хряків в БД")
-    except Exception as e:
-        logger.error(f"❌ Помилка збереження: {e}")
+    with hryak_lock:
+        try:
+            for key, hryak in hryaky_data.items():
+                save_hryak_to_db(key, hryak)
+            logger.debug(f"💾 Збережено {len(hryaky_data)} хряків в БД")
+        except Exception as e:
+            logger.error(f"❌ Помилка збереження: {e}")
 
 def get_hryak(user_id, chat_id):
     """Отримує хряка користувача"""
@@ -605,42 +589,46 @@ def feed_hryak(user_id, chat_id):
         logger.info(f"⏳ Ще рано для {key}, залишилось {hours_left} год")
         return None, f"Ще рано! Годувати можна раз на 12 годин. Залишилось {hours_left} год."
 
-    # Годуємо
-    hryak['last_feed'] = now
-    hryak['feed_count'] += 1
+    # Годуємо — блокуємо для thread safety
+    with hryak_lock:
+        hryak['last_feed'] = now
+        hryak['feed_count'] += 1
 
-    logger.info(f"💾 Оновлено last_feed={now} для {key}")
+        logger.info(f"💾 Оновлено last_feed={now} для {key}")
 
-    # Зміна ваги (від -10 до +30 кг) - зміщено вгору для кращих шансів
-    change = random.randint(-10, 30)
+        # Зміна ваги (від -10 до +30 кг) - зміщено вгору для кращих шансів
+        change = random.randint(-10, 30)
 
-    # Отримуємо бонуси від скіну
-    skin_weight_bonus = get_skin_bonus(user_id, chat_id, 'weight_bonus')
-    skin_all_bonus = get_skin_bonus(user_id, chat_id, 'all_bonus')
-    total_bonus = skin_weight_bonus + skin_all_bonus
+        # Отримуємо бонуси від скіну
+        skin_weight_bonus = get_skin_bonus(user_id, chat_id, 'weight_bonus')
+        skin_all_bonus = get_skin_bonus(user_id, chat_id, 'all_bonus')
+        total_bonus = skin_weight_bonus + skin_all_bonus
 
-    # Бонус застосовується до ВСІХ змін ваги (і позитивних, і негативних)
-    if total_bonus > 0:
-        bonus = int(abs(change) * total_bonus / 100)
-        if change > 0:
-            change += bonus  # Підсилюємо набір ваги
-        else:
-            change -= bonus  # Зменшуємо втрату (робимо менш негативним)
-            change = max(-20, change)  # Максимальна втрата -20 кг
-        logger.info(f"🎨 Скін бонус: weight={skin_weight_bonus}% + all={skin_all_bonus}% = {change:+d} кг")
+        # Бонус застосовується до ВСІХ змін ваги (і позитивних, і негативних)
+        if total_bonus > 0:
+            bonus = int(abs(change) * total_bonus / 100)
+            if change > 0:
+                change += bonus  # Підсилюємо набір ваги
+            else:
+                change -= bonus  # Зменшуємо втрату (робимо менш негативним)
+                change = max(-20, change)  # Максимальна втрата -20 кг
+            logger.info(f"🎨 Скін бонус: weight={skin_weight_bonus}% + all={skin_all_bonus}% = {change:+d} кг")
 
-    # Баф для @terchizz - кращі шанси на набір ваги
-    if user_id == 1044325356:  # terchizz user ID
-        # Додатковий баф: від -5 до +35 замість -10 до +30
-        change = random.randint(-5, 35)
-        logger.info(f"🎁 @terchizz баф активовано: change={change}")
+        # Баф для @terchizz - кращі шанси на набір ваги
+        if user_id == 1044325356:  # terchizz user ID
+            # Додатковий баф: від -5 до +35 замість -10 до +30
+            change = random.randint(-5, 35)
+            logger.info(f"🎁 @terchizz баф активовано: change={change}")
 
-    old_weight = hryak['weight']
-    hryak['weight'] = max(1, hryak['weight'] + change)
+        old_weight = hryak['weight']
+        hryak['weight'] = max(1, hryak['weight'] + change)
 
-    # Оновлюємо максимальну вагу
-    if hryak['weight'] > hryak['max_weight']:
-        hryak['max_weight'] = hryak['weight']
+        # Оновлюємо максимальну вагу
+        if hryak['weight'] > hryak['max_weight']:
+            hryak['max_weight'] = hryak['weight']
+
+        # Зберігаємо в кеш
+        hryaky_data[key] = hryak
 
     save_hryaky()
 
@@ -656,83 +644,6 @@ def feed_hryak(user_id, chat_id):
     logger.info(f"✅ Нагодовано {key}: {old_weight} → {hryak['weight']} кг ({change:+d})")
     return result, None
 
-# Досягнення
-ACHIEVEMENTS = {
-    'oy': {'name': 'Ой... 😳', 'desc': 'Вперше схуднути', 'condition': lambda h: h.get('has_lost_weight', False)},
-    'kamasutra': {'name': 'Камасутра 🧘‍♂️❤️', 'desc': 'Набрати 69 кг', 'condition': lambda h: h['weight'] >= 69},
-    'monster': {'name': 'MONSTER GROW 🦖🌱', 'desc': 'Отримати +20 кг за раз', 'condition': lambda h: h.get('max_gain', 0) >= 20},
-    'ded_electric': {'name': 'Дед був электриком ⚡️⚡️', 'desc': 'Набрати 1488 кг', 'condition': lambda h: h['weight'] >= 1488},
-    'sotochka': {'name': 'Соточка 💯', 'desc': 'Набрати 100+ кг', 'condition': lambda h: h['weight'] >= 100},
-    '5_metrov': {'name': '5 метрів сала 🥓📏', 'desc': 'Набрати 500+ кг', 'condition': lambda h: h['weight'] >= 500},
-    'hryakotonna': {'name': 'Хрякотонна 🐷⚖️', 'desc': 'Набрати 1000+ кг', 'condition': lambda h: h['weight'] >= 1000},
-    'dzhackpot': {'name': 'Джекпот 🎰💎', 'desc': 'Набрати 777 кг', 'condition': lambda h: h['weight'] >= 777},
-    'kormilets': {'name': 'Кормилець року 🍽️🏆', 'desc': '5 разів по +20 кг', 'condition': lambda h: h.get('max_gains_20', 0) >= 5},
-    '7_piatnyts': {'name': '7 п\'ятниць в тиждень 🍺📅', 'desc': 'Набрати вагу 7 днів поспіль', 'condition': lambda h: h.get('week_gain_streak', 0) >= 7},
-    'kryak_dnya': {'name': 'Кряк дня 🐗🌞', 'desc': 'Стати хрячком дня', 'condition': lambda h: h.get('is_hryak_day', False)},
-    'nova_nadiya': {'name': 'Нова надія 🌌✨', 'desc': 'Нагодувати 1 числа', 'condition': lambda h: h.get('fed_on_1st', False)},
-    # Трахензебітен досягнення
-    'first_trachen': {'name': 'Перший раз 💕', 'desc': 'Перший трахензебітен', 'condition': lambda h, ts: ts.get('total_times', 0) >= 1},
-    'donzhuan': {'name': 'Донжуан 😎', 'desc': '10 унікальних партнерів', 'condition': lambda h, ts: ts.get('unique_partners', 0) >= 10},
-    'plodovytyy': {'name': 'Плодовитий 🐷', 'desc': '50+ трахензебітенів', 'condition': lambda h, ts: ts.get('total_times', 0) >= 50},
-    'important': {'name': 'Важливий 💼', 'desc': '100+ трахензебітенів', 'condition': lambda h, ts: ts.get('total_times', 0) >= 100},
-    # Турнірні досягнення
-    'tournament_first': {'name': 'Дебютант 🏆', 'desc': 'Перший турнір', 'condition': lambda h, ts, t: t.get('tournaments_joined', 0) >= 1},
-    'tournament_winner': {'name': 'Чемпіон 🥇', 'desc': 'Виграти турнір', 'condition': lambda h, ts, t: t.get('tournaments_won', 0) >= 1},
-    'tournament_legend': {'name': 'Легенда 🏅', 'desc': '10 перемог в турнірах', 'condition': lambda h, ts, t: t.get('tournaments_won', 0) >= 10},
-    # Гільдійні досягнення
-    'guild_first': {'name': 'Член гільдії 🏰', 'desc': 'Вступити в гільдію', 'condition': lambda h, ts, t, g: g.get('guilds_joined', 0) >= 1},
-    'guild_contributor': {'name': 'Меценат 💰', 'desc': 'Внесок 1000+ монет', 'condition': lambda h, ts, t, g: g.get('total_contribution', 0) >= 1000},
-    'guild_leader': {'name': 'Лідер 👑', 'desc': 'Створити гільдію', 'condition': lambda h, ts, t, g: g.get('guilds_joined', 0) >= 1 and g.get('is_owner', False)},
-}
-
-# ============================================
-# ЩОДЕННІ КВЕСТИ
-# ============================================
-DAILY_QUESTS = {
-    'feed_3_times': {
-        'name': 'Годувальник 🍽️',
-        'desc': 'Нагодуй хряка 3 рази за день',
-        'target': 3,
-        'reward_coins': 25,
-        'reward_xp': 5
-    },
-    'win_2_duels': {
-        'name': 'Дуелянт ⚔️',
-        'desc': 'Виграй 2 дуелі',
-        'target': 2,
-        'reward_coins': 30,
-        'reward_xp': 8
-    },
-    'lose_10kg': {
-        'name': 'Схуднення 📉',
-        'desc': 'Схудни на 10 кг за раз',
-        'target': 1,
-        'reward_coins': 37,
-        'reward_xp': 7
-    },
-    'gain_20kg': {
-        'name': 'Набір маси 📈',
-        'desc': 'Набери +20 кг за раз',
-        'target': 1,
-        'reward_coins': 50,
-        'reward_xp': 10
-    },
-    'chat_active': {
-        'name': 'Балакун 💬',
-        'desc': 'Напиши 50 повідомлень в чаті',
-        'target': 50,
-        'reward_coins': 15,
-        'reward_xp': 5
-    },
-    'feed_friends': {
-        'name': 'Дружній 🐷',
-        'desc': 'Нагодуй хряка коли є 3+ гравці в чаті',
-        'target': 1,
-        'reward_coins': 30,
-        'reward_xp': 15
-    }
-}
-
 # ============================================
 # КАЗИНО - РУЛЕТКА
 # ============================================
@@ -742,45 +653,6 @@ ROULETTE_NUMBERS = {
     7: 'red', 8: 'black', 9: 'red', 10: 'black', 11: 'red', 12: 'black',
     13: 'red', 14: 'black'
 }
-
-# ============================================
-# ЛОТЕРЕЯ - ШАНСИ
-# ============================================
-LOTTERY_CHANCES = {
-    'nothing': 60,      # Нічого
-    'refund': 30,       # Повернення
-    'small': 8,         # Малий виграш (20 кг)
-    'medium': 1.9,      # Середній виграш (50 кг)
-    'jackpot': 0.1      # Джекпот (100 кг)
-}
-
-# ============================================
-# МАГАЗИН - ПРЕДМЕТИ
-# ============================================
-SHOP_ITEMS = {
-    'vitamins': {'name': '🍎 Вітаміни', 'desc': '+5 кг до наступного годування', 'price': 50, 'effect': 'weight_bonus', 'value': 5},
-    'trainer': {'name': '💪 Тренажер', 'desc': '+10% до проворності на 24 год', 'price': 100, 'effect': 'agility_bonus', 'value': 10},
-    'shield': {'name': '🛡️ Щит', 'desc': 'Захист від -10% ваги в дуелі', 'price': 75, 'effect': 'shield', 'value': 10},
-    'energy': {'name': '⚡ Енергетик', 'desc': 'Зняти кулдаун з /feed', 'price': 50, 'effect': 'remove_cooldown', 'value': 1},
-    'lucky_charm': {'name': '🍀 Підкова', 'desc': '+5% шанс на перемогу в дуелі', 'price': 200, 'effect': 'luck_bonus', 'value': 5},
-    'spermobak': {'name': '🧪 Спермобак', 'desc': 'Зняти кулдаун з /trachen та /breed', 'price': 100, 'effect': 'remove_trachen_cooldown', 'value': 1},
-    'pastors_milk': {'name': '🥛 Молочко пастора', 'desc': 'Зняти кулдаун з тренування дітей', 'price': 100, 'effect': 'remove_child_train_cooldown', 'value': 1}
-}
-
-# ============================================
-# ОБРАЗИ ДЛЯ ПРОВИННИХ
-# ============================================
-PROVIN_INSULTS = [
-    "ти хто такий щоб писати?",
-    "іди лісом",
-    "не сци я тут головний",
-    "ти вже замучив всіх",
-    "навіщо ти це написав?",
-    "мовчав би краще",
-    "ти серйозно?",
-    "це було непотрібно",
-    "іди їж борщ",
-]
 
 
 # Відповіді для !такні
@@ -1410,8 +1282,38 @@ def duel_accept_callback(call):
 
     # Оновлюємо кулдаун дуелі для обох учасників
     duel_time = int(time.time())
-    update_user_stats(challenger_id, chat_id, {'last_duel': duel_time})
-    update_user_stats(opponent_id, chat_id, {'last_duel': duel_time})
+
+    # Оновлюємо статистику дуелей для обох учасників
+    if winner == 1:
+        # Переможець - challenger
+        challenger_stats = get_user_stats(challenger_id, chat_id) or {'duels_won': 0, 'duels_lost': 0, 'quests_completed': 0, 'total_weight_gained': 0, 'casino_wins': 0, 'casino_losses': 0, 'last_duel': 0}
+        opponent_stats = get_user_stats(opponent_id, chat_id) or {'duels_won': 0, 'duels_lost': 0, 'quests_completed': 0, 'total_weight_gained': 0, 'casino_wins': 0, 'casino_losses': 0, 'last_duel': 0}
+        challenger_stats['duels_won'] += 1
+        opponent_stats['duels_lost'] += 1
+        challenger_stats['last_duel'] = duel_time
+        opponent_stats['last_duel'] = duel_time
+        update_user_stats(challenger_id, chat_id, challenger_stats)
+        update_user_stats(opponent_id, chat_id, opponent_stats)
+    elif winner == 2:
+        # Переможець - opponent
+        challenger_stats = get_user_stats(challenger_id, chat_id) or {'duels_won': 0, 'duels_lost': 0, 'quests_completed': 0, 'total_weight_gained': 0, 'casino_wins': 0, 'casino_losses': 0, 'last_duel': 0}
+        opponent_stats = get_user_stats(opponent_id, chat_id) or {'duels_won': 0, 'duels_lost': 0, 'quests_completed': 0, 'total_weight_gained': 0, 'casino_wins': 0, 'casino_losses': 0, 'last_duel': 0}
+        challenger_stats['duels_lost'] += 1
+        opponent_stats['duels_won'] += 1
+        challenger_stats['last_duel'] = duel_time
+        opponent_stats['last_duel'] = duel_time
+        update_user_stats(challenger_id, chat_id, challenger_stats)
+        update_user_stats(opponent_id, chat_id, opponent_stats)
+    else:
+        # Нічия
+        challenger_stats = get_user_stats(challenger_id, chat_id) or {'duels_won': 0, 'duels_lost': 0, 'quests_completed': 0, 'total_weight_gained': 0, 'casino_wins': 0, 'casino_losses': 0, 'last_duel': 0}
+        opponent_stats = get_user_stats(opponent_id, chat_id) or {'duels_won': 0, 'duels_lost': 0, 'quests_completed': 0, 'total_weight_gained': 0, 'casino_wins': 0, 'casino_losses': 0, 'last_duel': 0}
+        challenger_stats['duels_lost'] += 1
+        opponent_stats['duels_lost'] += 1
+        challenger_stats['last_duel'] = duel_time
+        opponent_stats['last_duel'] = duel_time
+        update_user_stats(challenger_id, chat_id, challenger_stats)
+        update_user_stats(opponent_id, chat_id, opponent_stats)
 
     # Оновлюємо квести за перемогу в дуелі
     if winner == 1:
@@ -4404,7 +4306,7 @@ def set_wipe_db_cmd(message):
                 return
             
             cursor = conn.cursor()
-            cursor.execute('SELECT key, value FROM bot_settings WHERE key LIKE "wipe_%"')
+            cursor.execute("SELECT key, value FROM bot_settings WHERE key LIKE %s", ('wipe_%',))
             settings = dict(cursor.fetchall())
             cursor.close()
             conn.close()
@@ -4449,7 +4351,7 @@ def set_wipe_db_cmd(message):
                 return
             
             cursor = conn.cursor()
-            cursor.execute('DELETE FROM bot_settings WHERE key LIKE "wipe_%"')
+            cursor.execute("DELETE FROM bot_settings WHERE key LIKE %s", ('wipe_%',))
             conn.commit()
             cursor.close()
             conn.close()
@@ -11067,7 +10969,15 @@ def spam_handler(message):
                 until_date=int(time.time() + 60),
                 can_send_messages=False
             )
-            bot.reply_to(message, f"⚠️ {message.from_user.first_name} отримав мут за спам (1 хв)!")
+            spam_key = f"{chat_id}_{user_id}"
+            with spam_lock:
+                if not spam_data.get(spam_key, {}).get('notified'):
+                    bot.reply_to(message, f"⚠️ {message.from_user.first_name} отримав мут за спам (1 хв)!")
+                    spam_data[spam_key]['notified'] = True
+                    # Зберігаємо в БД
+                    save_spam_record(spam_key, spam_data[spam_key].get('messages', []),
+                                   spam_data[spam_key].get('muted', False),
+                                   spam_data[spam_key].get('mute_until', 0))
         except:
             pass
 
@@ -11219,14 +11129,74 @@ def webapp_app_alt():
 # WEB APP API ENDPOINTS
 # ============================================
 
+import hashlib
+import hmac
+
+def validate_telegram_init_data(init_data: str) -> dict | None:
+    """
+    Валідує Telegram WebApp initData.
+    Повертає дані користувача якщо валідні, або None якщо невалідні.
+    """
+    if not init_data or not BOT_TOKEN:
+        return None
+
+    try:
+        params = {}
+        for part in init_data.split('&'):
+            key, value = part.split('=', 1)
+            params[key] = value
+
+        received_hash = params.get('hash')
+        if not received_hash:
+            return None
+
+        params_for_check = {k: v for k, v in params.items() if k != 'hash'}
+        data_check_string = '\n'.join(
+            f'{k}={v}' for k, v in sorted(params_for_check.items())
+        )
+
+        secret_key = hmac.new(
+            b'WebAppData',
+            BOT_TOKEN.encode('utf-8'),
+            hashlib.sha256
+        ).digest()
+
+        computed_hash = hmac.new(
+            secret_key,
+            data_check_string.encode('utf-8'),
+            hashlib.sha256
+        ).hexdigest()
+
+        if computed_hash != received_hash:
+            return None
+
+        import json
+        user_data = json.loads(params.get('user', '{}'))
+        return user_data
+
+    except Exception as e:
+        logger.error(f"❌ Помилка валідації initData: {e}")
+        return None
+
+
 @flask_app.route('/api/webapp/user', methods=['GET'])
 def api_get_user():
     """Отримати дані користувача"""
     try:
-        user_id_str = request.args.get('user_id', '0')
-        if not user_id_str or user_id_str.lower() == 'null':
-            return jsonify({'success': False, 'message': 'User ID required'}), 400
-        user_id = int(user_id_str)
+        init_data = request.headers.get('X-Telegram-Init-Data', '')
+        if not init_data:
+            init_data = request.args.get('initData', '')
+        user_data = validate_telegram_init_data(init_data)
+
+        # Fallback: якщо initData немає — дозволяємо (для розробки через ?uid=)
+        if user_data:
+            user_id = user_data.get('id')
+        else:
+            user_id_str = request.args.get('user_id', '0')
+            if not user_id_str or user_id_str.lower() == 'null':
+                return jsonify({'success': False, 'message': 'User ID required'}), 400
+            user_id = int(user_id_str)
+
         chat_id = int(request.args.get('chat_id', 0))
 
         if not user_id:
@@ -11285,10 +11255,19 @@ def api_get_user():
 def api_get_user_chats():
     """Отримати чати користувача"""
     try:
-        user_id_str = request.args.get('user_id', '0')
-        if not user_id_str or user_id_str.lower() == 'null':
-            return jsonify({'success': False, 'message': 'User ID required'}), 400
-        user_id = int(user_id_str)
+        # ВАЛІДАЦІЯ
+        init_data = request.headers.get('X-Telegram-Init-Data', '')
+        if not init_data:
+            init_data = request.args.get('initData', '')
+        user_data = validate_telegram_init_data(init_data)
+
+        if user_data:
+            user_id = user_data.get('id')
+        else:
+            user_id_str = request.args.get('user_id', '0')
+            if not user_id_str or user_id_str.lower() == 'null':
+                return jsonify({'success': False, 'message': 'User ID required'}), 400
+            user_id = int(user_id_str)
 
         if not user_id:
             return jsonify({'success': False, 'message': 'User ID required'}), 400
@@ -11436,9 +11415,19 @@ def api_get_global_leaderboard():
 def api_feed_hryak():
     """Нагодувати хряка"""
     try:
+        # ВАЛІДАЦІЯ
+        init_data = request.headers.get('X-Telegram-Init-Data', '')
+        if not init_data:
+            init_data = request.args.get('initData', '')
+        user_data = validate_telegram_init_data(init_data)
+
         data = request.get_json()
-        user_id = data.get('user_id')
-        chat_id = data.get('chat_id', 0)
+        if user_data:
+            user_id = user_data.get('id')
+            chat_id = data.get('chat_id', 0)
+        else:
+            user_id = data.get('user_id')
+            chat_id = data.get('chat_id', 0)
         
         if not user_id:
             return jsonify({'success': False, 'message': 'User ID required'}), 400
@@ -11469,11 +11458,20 @@ def api_feed_hryak():
 def api_buy_item():
     """Купити предмет"""
     try:
+        # ВАЛІДАЦІЯ
+        init_data = request.headers.get('X-Telegram-Init-Data', '')
+        if not init_data:
+            init_data = request.args.get('initData', '')
+        user_data = validate_telegram_init_data(init_data)
+
         data = request.get_json()
-        user_id = data.get('user_id')
+        if user_data:
+            user_id = user_data.get('id')
+        else:
+            user_id = data.get('user_id')
         item_id = data.get('item_id')
         chat_id = data.get('chat_id')
-        
+
         # Fix chat_id - use -1 if 0, None, or missing
         if not chat_id or chat_id == 0:
             chat_id = -1
@@ -11512,11 +11510,20 @@ def api_buy_item():
 def api_buy_skin():
     """Купити скін"""
     try:
+        # ВАЛІДАЦІЯ
+        init_data = request.headers.get('X-Telegram-Init-Data', '')
+        if not init_data:
+            init_data = request.args.get('initData', '')
+        user_data = validate_telegram_init_data(init_data)
+
         data = request.get_json()
-        user_id = data.get('user_id')
+        if user_data:
+            user_id = user_data.get('id')
+        else:
+            user_id = data.get('user_id')
         skin_name = data.get('skin_name')
         chat_id = data.get('chat_id')
-        
+
         # Fix chat_id - use -1 if 0, None, or missing
         if not chat_id or chat_id == 0:
             chat_id = -1
@@ -11567,11 +11574,20 @@ def api_buy_skin():
 def api_equip_skin():
     """Одягнути скін"""
     try:
+        # ВАЛІДАЦІЯ
+        init_data = request.headers.get('X-Telegram-Init-Data', '')
+        if not init_data:
+            init_data = request.args.get('initData', '')
+        user_data = validate_telegram_init_data(init_data)
+
         data = request.get_json()
-        user_id = data.get('user_id')
+        if user_data:
+            user_id = user_data.get('id')
+        else:
+            user_id = data.get('user_id')
         skin_name = data.get('skin_name')
         chat_id = data.get('chat_id')
-        
+
         # Fix chat_id - use -1 if 0, None, or missing
         if not chat_id or chat_id == 0:
             chat_id = -1
@@ -11637,8 +11653,17 @@ def api_crypto_info():
 def api_convert():
     """Convert game coins to crypto"""
     try:
+        # ВАЛІДАЦІЯ
+        init_data = request.headers.get('X-Telegram-Init-Data', '')
+        if not init_data:
+            init_data = request.args.get('initData', '')
+        user_data = validate_telegram_init_data(init_data)
+
         data = request.get_json()
-        user_id = data.get('user_id')
+        if user_data:
+            user_id = user_data.get('id')
+        else:
+            user_id = data.get('user_id')
         chat_id = data.get('chat_id', 0)
         amount = int(data.get('amount', 0))
         
@@ -11667,8 +11692,17 @@ def api_convert():
 def api_withdraw():
     """Create withdrawal request"""
     try:
+        # ВАЛІДАЦІЯ
+        init_data = request.headers.get('X-Telegram-Init-Data', '')
+        if not init_data:
+            init_data = request.args.get('initData', '')
+        user_data = validate_telegram_init_data(init_data)
+
         data = request.get_json()
-        user_id = data.get('user_id')
+        if user_data:
+            user_id = user_data.get('id')
+        else:
+            user_id = data.get('user_id')
         chat_id = data.get('chat_id', 0)
         amount = int(data.get('amount', 0))
         wallet_address = data.get('wallet_address', '')
@@ -11752,8 +11786,17 @@ def api_get_transactions():
 def api_use_item():
     """Використати предмет"""
     try:
+        # ВАЛІДАЦІЯ
+        init_data = request.headers.get('X-Telegram-Init-Data', '')
+        if not init_data:
+            init_data = request.args.get('initData', '')
+        user_data = validate_telegram_init_data(init_data)
+
         data = request.get_json()
-        user_id = data.get('user_id')
+        if user_data:
+            user_id = user_data.get('id')
+        else:
+            user_id = data.get('user_id')
         item_id = data.get('item_id')
         chat_id = data.get('chat_id')
 
@@ -11851,8 +11894,17 @@ def api_use_item():
 def api_execute_command():
     """Виконати команду з Web App"""
     try:
+        # ВАЛІДАЦІЯ — ВИМАГАЄМО initData для execute!
+        init_data = request.headers.get('X-Telegram-Init-Data', '')
+        if not init_data:
+            init_data = request.args.get('initData', '')
+        user_data = validate_telegram_init_data(init_data)
+
+        if not user_data:
+            return jsonify({'success': False, 'message': 'Invalid or missing Telegram initData'}), 401
+
         data = request.get_json()
-        user_id = data.get('user_id')
+        user_id = user_data.get('id')
         chat_id = data.get('chat_id')
         command = data.get('command')
         
@@ -12672,6 +12724,9 @@ def check_auto_wipe():
         logger.error(f"❌ Помилка перевірки автовайпу: {e}", exc_info=True)
         return False
 
+
+# Реєстрація handler'ів (всі залишаються в bot.py)
+logger.info("📦 Handler'и зареєстровано в bot.py")
 
 # Запускаємо бота з retry logic
 def run_bot_with_retry():
