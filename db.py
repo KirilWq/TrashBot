@@ -1,5 +1,4 @@
 import psycopg
-from psycopg_pool import ConnectionPool
 import os
 import json
 import time
@@ -11,102 +10,18 @@ logger = logging.getLogger(__name__)
 # Отримуємо connection string зі змінних середовища
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
-# Connection Pool — єдиний екземпляр на весь процес
-_connection_pool = None
-
-def get_pool():
-    """Отримує або створює ConnectionPool (singleton)"""
-    global _connection_pool
-    
-    if _connection_pool is not None:
-        return _connection_pool
-    
+def get_connection():
+    """Отримує з'єднання з базою (просте пряме підключення)"""
     if not DATABASE_URL:
         logger.error("❌ DATABASE_URL не знайдено!")
         return None
-    
+
     try:
-        _connection_pool = ConnectionPool(
-            conninfo=DATABASE_URL,
-            min_size=5,      # Мінімальна кількість з'єднань
-            max_size=20,     # Максимальна кількість з'єднань
-            timeout=30,      # Таймаут очікування з'єднання (сек)
-        )
-        logger.info(f"✅ ConnectionPool створено (min=5, max=20)")
-        return _connection_pool
+        conn = psycopg.connect(DATABASE_URL)
+        return conn
     except Exception as e:
-        logger.error(f"❌ Помилка створення ConnectionPool: {e}")
+        logger.error(f"❌ Помилка підключення до БД: {e}")
         return None
-
-class PooledConnection:
-    """Обгортка навколо з'єднання для автоматичного повернення в пул"""
-    def __init__(self, conn, pool):
-        self._conn = conn
-        self._pool = pool
-        self._closed = False
-    
-    def cursor(self, *args, **kwargs):
-        return self._conn.cursor(*args, **kwargs)
-    
-    def commit(self):
-        return self._conn.commit()
-    
-    def rollback(self):
-        return self._conn.rollback()
-    
-    def close(self):
-        """Повертає з'єднання в пул замість закриття"""
-        if not self._closed:
-            self._closed = True
-            if self._pool:
-                try:
-                    self._pool.putconn(self._conn)
-                except Exception:
-                    try:
-                        self._conn.close()
-                    except:
-                        pass
-            else:
-                try:
-                    self._conn.close()
-                except:
-                    pass
-    
-    def __enter__(self):
-        return self
-    
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
-    
-    # Делегуємо інші атрибути
-    def __getattr__(self, name):
-        return getattr(self._conn, name)
-
-def get_connection():
-    """Отримує з'єднання з пулу (автоматично повертається при close())"""
-    pool = get_pool()
-    if not pool:
-        # Fallback: пряме підключення якщо пул не створено
-        if not DATABASE_URL:
-            logger.error("❌ DATABASE_URL не знайдено!")
-            return None
-        try:
-            return psycopg.connect(DATABASE_URL)
-        except Exception as e:
-            logger.error(f"❌ Помилка підключення до БД: {e}")
-            return None
-    
-    try:
-        conn = pool.getconn()
-        return PooledConnection(conn, pool)
-    except Exception as e:
-        logger.error(f"❌ Помилка отримання з'єднання з пулу: {e}")
-        return None
-
-def release_connection(conn):
-    """Повертає з'єднання в пул (зручний аліас для conn.close())"""
-    if conn is not None:
-        conn.close()
 
 def init_db():
     """Ініціалізація таблиць"""
