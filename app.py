@@ -36,6 +36,11 @@ def handle_start(message):
 def index():
     return "OK", 200
 
+# health / ping endpoint for frontend to verify backend connectivity
+@app.route("/api/ping", methods=["GET"])
+def api_ping():
+    return {"ok": True, "message": "pong", "service": "tg-backend"}, 200
+
 @app.route(f"/webhook/{WEBHOOK_SECRET}", methods=["POST"])
 def telegram_webhook():
     if request.headers.get("content-type") != "application/json":
