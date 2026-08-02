@@ -1,6 +1,7 @@
 import os
 import logging
 from flask import Flask, request
+from flask_cors import CORS
 import telebot
 
 logging.basicConfig(level=logging.INFO)
@@ -14,8 +15,17 @@ if not BOT_TOKEN:
 # optional secret path to make webhook URL unguessable
 WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "changeme-secret")
 
+# Optional: FRONTEND_URL env var (set in Render) to restrict CORS to your frontend.
+FRONTEND_URL = os.environ.get("FRONTEND_URL")
+
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
+
+# Configure CORS: if FRONTEND_URL provided, restrict to it; otherwise allow all origins (useful for testing)
+if FRONTEND_URL:
+    CORS(app, origins=[FRONTEND_URL])
+else:
+    CORS(app)
 
 # Example handler using pyTelegramBotAPI decorators
 @bot.message_handler(commands=['start'])
