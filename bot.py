@@ -12784,7 +12784,8 @@ def run_bot_with_retry():
                 logger.error("❌ Максимальна кількість спроб вичерпана")
                 raise
 
-run_bot_with_retry()
+if __name__ == "__main__":
+    run_bot_with_retry()
 
 
 # ============================================
