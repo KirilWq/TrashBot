@@ -18,7 +18,10 @@ WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "changeme-secret")
 # Optional: FRONTEND_URL env var (set in Render) to restrict CORS to your frontend.
 FRONTEND_URL = os.environ.get("FRONTEND_URL")
 
-bot = telebot.TeleBot(BOT_TOKEN)
+# Import the main bot instance and handlers from bot.py so all handlers are registered
+# and the same bot instance processes webhook updates.
+from bot import bot as telegram_bot
+
 app = Flask(__name__)
 
 # Configure CORS: if FRONTEND_URL provided, restrict to it; otherwise allow all origins (useful for testing)
@@ -26,11 +29,6 @@ if FRONTEND_URL:
     CORS(app, origins=[FRONTEND_URL])
 else:
     CORS(app)
-
-# Example handler using pyTelegramBotAPI decorators
-@bot.message_handler(commands=['start'])
-def handle_start(message):
-    bot.send_message(message.chat.id, "Привіт! Бот успішно підключений до Cloud Run webhook.")
 
 @app.route("/", methods=["GET"])
 def index():
@@ -49,7 +47,7 @@ def telegram_webhook():
     json_str = request.get_data().decode("utf-8")
     try:
         update = telebot.types.Update.de_json(json_str)
-        bot.process_new_updates([update])
+        telegram_bot.process_new_updates([update])
     except Exception as e:
         logger.exception("Failed processing update: %s", e)
     return "", 200
